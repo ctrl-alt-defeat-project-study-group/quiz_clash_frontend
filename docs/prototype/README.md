@@ -39,9 +39,14 @@ Responsive boundaries are 1200, 960, 720, and 480 px. Verified dashboard, upload
 
 ## Implementation boundaries
 
-This is a client-side UI prototype. Uploaded content is not read or transmitted. Demo generation uses the curated biology set. Authentication, actual file parsing, LLM generation, secure server scoring, DOCX downloads, live connections, and reconnects remain planned features. The local opponent uses deterministic scoring and rounds are untimed. Demo results are not represented as live multiplayer data.
+This is a client-side UI prototype. Uploaded content is not read or transmitted. Demo generation uses the curated biology set. Full file parsing (CSV/TXT), deterministic rule-based generation, optional LLM generation, server-side scoring, ReportLab PDF downloads, and native WebSocket live rooms are implemented in the production backend as specified in [QuizClash Technical Plan](../../../QuizClash_Technical_Plan.md). The local opponent uses deterministic scoring and rounds are untimed. Demo results are not represented as live multiplayer data.
 
-The original four project documents in the parent directory still inform the workflow and scope. File size and question-count limits are prototype assumptions. Production should follow the system design's server-owned answer and score contracts.
+Production adheres to the technical plan:
+- **Backend:** Python + FastAPI with Pydantic validation.
+- **Database:** PostgreSQL with SQLAlchemy 2.x and Alembic migrations.
+- **PDF Generation:** Server-side ReportLab with Japanese/Unicode font embedding.
+- **Realtime:** Native FastAPI WebSockets for Challenge Mode.
+- **Security:** Answers and scores remain strictly server-owned and are never exposed in playable client payloads.
 
 ## Files and checks
 
