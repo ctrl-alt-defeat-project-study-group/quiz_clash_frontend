@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
 
@@ -20,12 +20,28 @@ export const AppLayout: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const mainRef = useRef<HTMLElement | null>(null);
+  const [openMenuPath, setOpenMenuPath] = useState<string | null>(null);
+
+  const path = location.pathname;
+  const mobileMenuOpen = openMenuPath === path;
+  const setMobileMenuOpen = (next: boolean | ((prev: boolean) => boolean)) => {
+    const resolved = typeof next === 'function' ? next(mobileMenuOpen) : next;
+    setOpenMenuPath(resolved ? path : null);
+  };
 
   useEffect(() => {
     window.scrollTo(0, 0);
-  }, [location.pathname]);
+  }, [path]);
 
-  const path = location.pathname;
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && mobileMenuOpen) {
+        setOpenMenuPath(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [mobileMenuOpen]);
 
   const isNavActive = (section: 's1' | 's2' | 's3' | 's5' | 's6' | 's8'): boolean => {
     if (section === 's1') return path === '/' || path === '/s1';
@@ -74,6 +90,20 @@ export const AppLayout: React.FC = () => {
         {/* Sticky Top Application Header */}
         <header className="app-header" data-name="Application header">
           <div className="header-left">
+            <button
+              type="button"
+              className="btn btn-sm mobile-menu-toggle"
+              onClick={() => setMobileMenuOpen((prev) => !prev)}
+              aria-expanded={mobileMenuOpen}
+              aria-controls="workspace-sidebar"
+              aria-label={mobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
+            >
+              <span className="menu-icon" aria-hidden="true">
+                {mobileMenuOpen ? '✕' : '☰'}
+              </span>
+              <span className="menu-label">Menu</span>
+            </button>
+
             <Link className="brand" to="/" data-name="AUTOQUIZ">
               <span className="brand-mark" aria-hidden="true"></span>
               <span>AUTOQUIZ</span>
@@ -90,10 +120,14 @@ export const AppLayout: React.FC = () => {
               onClick={toggleTheme}
               aria-label="Toggle color theme"
             >
-              <span>{theme === 'light' ? '🌙 Dark mode' : '☀️ Light mode'}</span>
+              <span aria-hidden="true">{theme === 'light' ? '🌙' : '☀️'}</span>
+              <span className="theme-toggle-text">
+                {theme === 'light' ? 'Dark mode' : 'Light mode'}
+              </span>
             </button>
-            <Link to="/lobby" className="btn btn-sm" data-name="Join game">
-              Join game
+            <Link to="/lobby" className="btn btn-sm header-join-btn" data-name="Join game">
+              <span className="join-full-text">Join game</span>
+              <span className="join-short-text">Join</span>
             </Link>
             <Link to="/settings" className="user-badge" data-name="Alex M.">
               {settings.displayName || 'Alex M.'}
@@ -101,10 +135,39 @@ export const AppLayout: React.FC = () => {
           </div>
         </header>
 
+        {/* Mobile Drawer Backdrop */}
+        {mobileMenuOpen && (
+          <div
+            className="sidebar-backdrop"
+            onClick={() => setMobileMenuOpen(false)}
+            aria-hidden="true"
+          />
+        )}
+
         {/* Workspace Container */}
         <div className="workspace" data-name="Workspace">
-          {/* Fixed Non-Scrolling Left Sidebar Navigation */}
-          <aside className="sidebar" data-name="Navigation" aria-label="Workspace navigation">
+          {/* Left Sidebar Navigation (Slide-out Drawer on Mobile) */}
+          <aside
+            id="workspace-sidebar"
+            className={`sidebar ${mobileMenuOpen ? 'is-open' : ''}`}
+            data-name="Navigation"
+            aria-label="Workspace navigation"
+          >
+            <div className="mobile-drawer-header">
+              <span className="brand" style={{ fontSize: 16 }}>
+                <span className="brand-mark" aria-hidden="true"></span>
+                <span>Navigation Menu</span>
+              </span>
+              <button
+                type="button"
+                className="btn btn-sm"
+                onClick={() => setMobileMenuOpen(false)}
+                aria-label="Close menu"
+              >
+                ✕
+              </button>
+            </div>
+
             <div className="nav-group">
               <div className="nav-heading" data-name="WORKSPACE">
                 WORKSPACE
@@ -114,6 +177,7 @@ export const AppLayout: React.FC = () => {
                   to="/"
                   className={`nav-link ${isNavActive('s1') ? 'active' : ''}`}
                   aria-current={isNavActive('s1') ? 'page' : undefined}
+                  onClick={() => setMobileMenuOpen(false)}
                 >
                   Dashboard
                 </Link>
@@ -121,6 +185,7 @@ export const AppLayout: React.FC = () => {
                   to="/generate"
                   className={`nav-link ${isNavActive('s2') ? 'active' : ''}`}
                   aria-current={isNavActive('s2') ? 'page' : undefined}
+                  onClick={() => setMobileMenuOpen(false)}
                 >
                   Generate quiz
                 </Link>
@@ -128,6 +193,7 @@ export const AppLayout: React.FC = () => {
                   to="/quizzes"
                   className={`nav-link ${isNavActive('s3') ? 'active' : ''}`}
                   aria-current={isNavActive('s3') ? 'page' : undefined}
+                  onClick={() => setMobileMenuOpen(false)}
                 >
                   My quizzes
                 </Link>
@@ -135,6 +201,7 @@ export const AppLayout: React.FC = () => {
                   to="/history"
                   className={`nav-link ${isNavActive('s5') ? 'active' : ''}`}
                   aria-current={isNavActive('s5') ? 'page' : undefined}
+                  onClick={() => setMobileMenuOpen(false)}
                 >
                   Attempt history
                 </Link>
@@ -142,6 +209,7 @@ export const AppLayout: React.FC = () => {
                   to="/lobby"
                   className={`nav-link ${isNavActive('s6') ? 'active' : ''}`}
                   aria-current={isNavActive('s6') ? 'page' : undefined}
+                  onClick={() => setMobileMenuOpen(false)}
                 >
                   Live games
                 </Link>
@@ -166,6 +234,7 @@ export const AppLayout: React.FC = () => {
                       className={`library-item ${isSelected ? 'active-quiz' : ''}`}
                       onClick={() => {
                         setActiveQuizId(q.id);
+                        setMobileMenuOpen(false);
                         navigate('/quizzes');
                       }}
                     >
@@ -181,6 +250,7 @@ export const AppLayout: React.FC = () => {
                 to="/settings"
                 className={`nav-link settings-link ${isNavActive('s8') ? 'active' : ''}`}
                 aria-current={isNavActive('s8') ? 'page' : undefined}
+                onClick={() => setMobileMenuOpen(false)}
               >
                 Help &amp; settings
               </Link>
@@ -193,6 +263,50 @@ export const AppLayout: React.FC = () => {
             <Outlet />
           </main>
         </div>
+
+        {/* Mobile Bottom Menu Bar */}
+        <nav className="mobile-menu-bar" aria-label="Mobile menu bar" data-name="Mobile menu bar">
+          <Link
+            to="/"
+            className={`mobile-menu-item ${isNavActive('s1') ? 'active' : ''}`}
+            aria-current={isNavActive('s1') ? 'page' : undefined}
+          >
+            <span className="mobile-menu-icon" aria-hidden="true">⌂</span>
+            <span>Home</span>
+          </Link>
+          <Link
+            to="/generate"
+            className={`mobile-menu-item ${isNavActive('s2') ? 'active' : ''}`}
+            aria-current={isNavActive('s2') ? 'page' : undefined}
+          >
+            <span className="mobile-menu-icon" aria-hidden="true">＋</span>
+            <span>Create</span>
+          </Link>
+          <Link
+            to="/quizzes"
+            className={`mobile-menu-item ${isNavActive('s3') ? 'active' : ''}`}
+            aria-current={isNavActive('s3') ? 'page' : undefined}
+          >
+            <span className="mobile-menu-icon" aria-hidden="true">▤</span>
+            <span>Quizzes</span>
+          </Link>
+          <Link
+            to="/history"
+            className={`mobile-menu-item ${isNavActive('s5') ? 'active' : ''}`}
+            aria-current={isNavActive('s5') ? 'page' : undefined}
+          >
+            <span className="mobile-menu-icon" aria-hidden="true">◷</span>
+            <span>History</span>
+          </Link>
+          <Link
+            to="/lobby"
+            className={`mobile-menu-item ${isNavActive('s6') ? 'active' : ''}`}
+            aria-current={isNavActive('s6') ? 'page' : undefined}
+          >
+            <span className="mobile-menu-icon" aria-hidden="true">⚡</span>
+            <span>Live</span>
+          </Link>
+        </nav>
       </div>
 
       {/* Printable Study Sheet (Visible only in @media print) */}

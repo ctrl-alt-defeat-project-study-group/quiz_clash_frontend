@@ -15,6 +15,19 @@
     <!-- Application Header -->
     <header class="app-header" data-name="Application header">
       <div class="header-left">
+        <button
+          type="button"
+          class="btn btn-sm mobile-menu-toggle"
+          id="mobile-menu-toggle"
+          data-action="toggle-mobile-menu"
+          aria-expanded="false"
+          aria-controls="workspace-sidebar"
+          aria-label="Open navigation menu"
+        >
+          <span class="menu-icon" id="mobile-menu-icon" aria-hidden="true">☰</span>
+          <span class="menu-label">Menu</span>
+        </button>
+
         <a class="brand" href="#s1" data-name="AUTOQUIZ">
           <span class="brand-mark" aria-hidden="true"></span>
           <span>AUTOQUIZ</span>
@@ -23,17 +36,32 @@
       </div>
       <div class="header-right">
         <button type="button" class="btn btn-sm theme-toggle" id="theme-toggle" data-action="toggle-theme" aria-label="Toggle color theme">
-          <span id="theme-toggle-label">🌙 Dark mode</span>
+          <span id="theme-toggle-icon" aria-hidden="true">🌙</span>
+          <span id="theme-toggle-label" class="theme-toggle-text">Dark mode</span>
         </button>
-        <a href="#s6" class="btn btn-sm" data-name="Join game">Join game</a>
+        <a href="#s6" class="btn btn-sm header-join-btn" data-name="Join game">
+          <span class="join-full-text">Join game</span>
+          <span class="join-short-text">Join</span>
+        </a>
         <a href="#s8" class="user-badge" id="header-user" data-name="Alex M.">Alex M.</a>
       </div>
     </header>
 
+    <!-- Mobile Drawer Backdrop -->
+    <div class="sidebar-backdrop" id="sidebar-backdrop" data-action="close-mobile-menu" hidden aria-hidden="true"></div>
+
     <!-- Workspace -->
     <div class="workspace" data-name="Workspace">
-      <!-- Left Sidebar Navigation -->
-      <aside class="sidebar" data-name="Navigation" aria-label="Workspace navigation">
+      <!-- Left Sidebar Navigation (Slide-out Drawer on Mobile) -->
+      <aside id="workspace-sidebar" class="sidebar" data-name="Navigation" aria-label="Workspace navigation">
+        <div class="mobile-drawer-header">
+          <span class="brand" style="font-size: 16px">
+            <span class="brand-mark" aria-hidden="true"></span>
+            <span>Navigation Menu</span>
+          </span>
+          <button type="button" class="btn btn-sm" data-action="close-mobile-menu" aria-label="Close menu">✕</button>
+        </div>
+
         <div class="nav-group">
           <div class="nav-heading" data-name="WORKSPACE">WORKSPACE</div>
           <nav class="nav-list" aria-label="Primary">
@@ -61,6 +89,30 @@
       <!-- Main Panel -->
       <main id="main" class="main-panel" data-name="Main panel" tabindex="-1"></main>
     </div>
+
+    <!-- Mobile Bottom Menu Bar -->
+    <nav class="mobile-menu-bar" aria-label="Mobile menu bar" data-name="Mobile menu bar">
+      <a href="#s1" class="mobile-menu-item" data-nav="s1">
+        <span class="mobile-menu-icon" aria-hidden="true">⌂</span>
+        <span>Home</span>
+      </a>
+      <a href="#s2" class="mobile-menu-item" data-nav="s2">
+        <span class="mobile-menu-icon" aria-hidden="true">＋</span>
+        <span>Create</span>
+      </a>
+      <a href="#s3" class="mobile-menu-item" data-nav="s3">
+        <span class="mobile-menu-icon" aria-hidden="true">▤</span>
+        <span>Quizzes</span>
+      </a>
+      <a href="#s5" class="mobile-menu-item" data-nav="s5">
+        <span class="mobile-menu-icon" aria-hidden="true">◷</span>
+        <span>History</span>
+      </a>
+      <a href="#s6" class="mobile-menu-item" data-nav="s6">
+        <span class="mobile-menu-icon" aria-hidden="true">⚡</span>
+        <span>Live</span>
+      </a>
+    </nav>
   </div>
 
   <!-- Dedicated Printable Study Sheet (visible when printing) -->

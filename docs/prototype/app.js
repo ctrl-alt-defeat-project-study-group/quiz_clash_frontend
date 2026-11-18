@@ -384,11 +384,30 @@ function getActiveQuiz() {
 function applyTheme(theme) {
   state.theme = theme === 'dark' ? 'dark' : 'light';
   document.documentElement.setAttribute('data-theme', state.theme);
+  const icon = $('#theme-toggle-icon');
   const label = $('#theme-toggle-label');
+  if (icon) {
+    icon.textContent = state.theme === 'light' ? '🌙' : '☀️';
+  }
   if (label) {
-    label.textContent = state.theme === 'light' ? '🌙 Dark mode' : '☀️ Light mode';
+    label.textContent = state.theme === 'light' ? 'Dark mode' : 'Light mode';
   }
   persist();
+}
+
+function setMobileMenuOpen(open) {
+  const sidebar = $('#workspace-sidebar');
+  const backdrop = $('#sidebar-backdrop');
+  const toggleBtn = $('#mobile-menu-toggle');
+  const icon = $('#mobile-menu-icon');
+  if (!sidebar) return;
+  sidebar.classList.toggle('is-open', Boolean(open));
+  if (backdrop) backdrop.hidden = !open;
+  if (toggleBtn) {
+    toggleBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    toggleBtn.setAttribute('aria-label', open ? 'Close navigation menu' : 'Open navigation menu');
+  }
+  if (icon) icon.textContent = open ? '✕' : '☰';
 }
 
 /* --------------------------------------------------------------------------
@@ -1720,6 +1739,16 @@ document.addEventListener('click', (e) => {
   const action = target.dataset.action;
 
   switch (action) {
+    case 'toggle-mobile-menu': {
+      const isOpen = $('#workspace-sidebar')?.classList.contains('is-open');
+      setMobileMenuOpen(!isOpen);
+      break;
+    }
+
+    case 'close-mobile-menu':
+      setMobileMenuOpen(false);
+      break;
+
     case 'toggle-theme':
       applyTheme(state.theme === 'light' ? 'dark' : 'light');
       toast(`Switched to ${state.theme === 'light' ? 'Light Mode (Platinum #E5E5E5)' : 'Dark Mode (Jet Black #1A1A1A)'}`);
@@ -1738,6 +1767,7 @@ document.addEventListener('click', (e) => {
 
     case 'sidebar-select-quiz':
     case 'open-quiz': {
+      setMobileMenuOpen(false);
       const qId = target.dataset.quizId;
       if (qId) {
         state.activeQuizId = qId;
@@ -2114,7 +2144,19 @@ document.querySelector('.skip')?.addEventListener('click', (e) => {
 
 window.addEventListener('hashchange', () => {
   closeModal();
+  setMobileMenuOpen(false);
   render(true);
+});
+
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    setMobileMenuOpen(false);
+  }
+});
+
+// Close mobile menu when clicking a sidebar navigation link
+$$('#workspace-sidebar [data-nav]').forEach((link) => {
+  link.addEventListener('click', () => setMobileMenuOpen(false));
 });
 
 // Initial render
