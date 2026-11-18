@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
+import { PageHeader, SectionCard, StatCard } from '../components/common';
 
 export const DashboardPage: React.FC = () => {
   const { quizzes, history, activeQuiz, practice, setActiveQuizId } = useApp();
@@ -15,35 +16,24 @@ export const DashboardPage: React.FC = () => {
 
   return (
     <>
-      <div className="page-heading" data-name="Page heading">
-        <div className="heading-copy" data-name="Welcome copy">
-          <div className="eyebrow">YOUR STUDY SPACE / 01</div>
-          <h1 className="page-title">Turn your notes into knowledge.</h1>
-          <p className="page-subtitle">
-            Generate a quiz, practice at your pace, or challenge your friends.
-          </p>
-        </div>
-        <Link to="/generate" className="btn btn-primary">
-          + Create a quiz
-        </Link>
-      </div>
+      <PageHeader
+        eyebrow="YOUR STUDY SPACE / 01"
+        title="Turn your notes into knowledge."
+        subtitle="Generate a quiz, practice at your pace, or challenge your friends."
+        actions={
+          <Link to="/generate" className="btn btn-primary">
+            + Create a quiz
+          </Link>
+        }
+      />
 
       <section className="stat-grid-3" data-name="Study overview" aria-label="Study overview">
-        <div className="stat-card" data-name="Saved quizzes">
-          <div className="stat-value">{savedCount}</div>
-          <div className="stat-label">Saved quizzes</div>
-        </div>
-        <div className="stat-card" data-name="Completed attempts">
-          <div className="stat-value">{completedCount}</div>
-          <div className="stat-label">Completed attempts</div>
-        </div>
-        <div className="stat-card" data-name="Average score">
-          <div className="stat-value">{avgScore}%</div>
-          <div className="stat-label">Average score</div>
-        </div>
+        <StatCard value={savedCount} label="Saved quizzes" />
+        <StatCard value={completedCount} label="Completed attempts" />
+        <StatCard value={`${avgScore}%`} label="Average score" />
       </section>
 
-      <section className="box-card banner-row" data-name="Start from a document">
+      <SectionCard className="banner-row" dataName="Start from a document">
         <div>
           <h2>Your next quiz starts with your notes.</h2>
           <p>
@@ -54,16 +44,17 @@ export const DashboardPage: React.FC = () => {
         <Link to="/generate" className="btn btn-primary">
           Upload study material
         </Link>
-      </section>
+      </SectionCard>
 
-      <section className="box-card" data-name="Recent quizzes">
-        <div className="section-header">
-          <h2 className="section-title">Recent quizzes</h2>
+      <SectionCard
+        title="Recent quizzes"
+        headerRight={
           <Link to="/quizzes" className="text-link">
             View all quizzes →
           </Link>
-        </div>
-
+        }
+        dataName="Recent quizzes"
+      >
         <div className="table-wrap">
           <table className="data-table">
             <thead>
@@ -103,7 +94,7 @@ export const DashboardPage: React.FC = () => {
             </tbody>
           </table>
         </div>
-      </section>
+      </SectionCard>
 
       <section className="grid-2-equal" data-name="Continue learning">
         <div className="box-card continue-card" data-name="Resume studying">

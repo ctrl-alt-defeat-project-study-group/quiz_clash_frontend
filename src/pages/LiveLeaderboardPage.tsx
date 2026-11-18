@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
+import { PageHeader, SectionCard } from '../components/common';
 
 export const LiveLeaderboardPage: React.FC = () => {
   const { quizzes, activeQuiz, live, advanceLiveRound } = useApp();
@@ -15,18 +16,16 @@ export const LiveLeaderboardPage: React.FC = () => {
 
   return (
     <>
-      <div className="page-heading" data-name="Page heading">
-        <div className="heading-copy">
-          <div className="eyebrow">LIVE GAMES / 07</div>
-          <h1 className="page-title">The leaderboard is in.</h1>
-          <p className="page-subtitle">
-            {liveQuiz.title} · Room {live.pin} · Host view
-          </p>
-        </div>
-        <Link to="/lobby" className="btn">
-          End game
-        </Link>
-      </div>
+      <PageHeader
+        eyebrow="LIVE GAMES / 07"
+        title="The leaderboard is in."
+        subtitle={`${liveQuiz.title} · Room ${live.pin} · Host view`}
+        actions={
+          <Link to="/lobby" className="btn">
+            End game
+          </Link>
+        }
+      />
 
       <div className="status-bar-banner" data-name="Live session state">
         <strong style={{ fontSize: 12, letterSpacing: 0.6 }}>
@@ -120,7 +119,7 @@ export const LiveLeaderboardPage: React.FC = () => {
         </aside>
       </div>
 
-      <section className="box-card banner-row" data-name="Next round controls">
+      <SectionCard className="banner-row" dataName="Next round controls">
         <div>
           <div className="eyebrow">
             UP NEXT / QUESTION {String((round % totalRounds) + 1).padStart(2, '0')}
@@ -135,7 +134,7 @@ export const LiveLeaderboardPage: React.FC = () => {
         <button type="button" className="btn btn-primary" onClick={advanceLiveRound}>
           {round < totalRounds ? 'Next question →' : 'Restart rounds ↻'}
         </button>
-      </section>
+      </SectionCard>
 
       <div className="box-card" style={{ padding: '14px 18px' }} data-name="Player view note">
         <span className="helper-text">

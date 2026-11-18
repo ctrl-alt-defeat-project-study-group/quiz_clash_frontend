@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import type { ExportFormat } from '../types/quiz';
+import { PageHeader, SectionCard } from '../components/common';
 
 export const ReviewExportPage: React.FC = () => {
   const { id } = useParams<{ id?: string }>();
@@ -54,40 +55,38 @@ export const ReviewExportPage: React.FC = () => {
 
   return (
     <>
-      <div className="page-heading" data-name="Page heading">
-        <div className="heading-copy">
-          <div className="eyebrow">MY QUIZZES / 03</div>
-          <h1 className="page-title">{activeQuiz.title}</h1>
-          <p className="page-subtitle">
-            {total} multiple-choice questions · Source:{' '}
-            {activeQuiz.source || 'Uploaded_Notes.txt'}
-          </p>
-        </div>
-
-        <div className="field-group" style={{ margin: 0, minWidth: 220 }}>
-          <label className="field-label-caps" htmlFor="switch-quiz-select">
-            Switch Quiz
-          </label>
-          <select
-            id="switch-quiz-select"
-            className="select"
-            value={activeQuiz.id}
-            onChange={(e) => {
-              const nextId = e.target.value;
-              setActiveQuizId(nextId);
-              setQuestionIndex(0);
-              setEditing(false);
-              navigate(`/quizzes/${encodeURIComponent(nextId)}`);
-            }}
-          >
-            {quizzes.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.title} ({item.questions.length} Qs)
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow="MY QUIZZES / 03"
+        title={activeQuiz.title}
+        subtitle={`${total} multiple-choice questions · Source: ${
+          activeQuiz.source || 'Uploaded_Notes.txt'
+        }`}
+        actions={
+          <div className="field-group" style={{ margin: 0, minWidth: 220 }}>
+            <label className="field-label-caps" htmlFor="switch-quiz-select">
+              Switch Quiz
+            </label>
+            <select
+              id="switch-quiz-select"
+              className="select"
+              value={activeQuiz.id}
+              onChange={(e) => {
+                const nextId = e.target.value;
+                setActiveQuizId(nextId);
+                setQuestionIndex(0);
+                setEditing(false);
+                navigate(`/quizzes/${encodeURIComponent(nextId)}`);
+              }}
+            >
+              {quizzes.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.title} ({item.questions.length} Qs)
+                </option>
+              ))}
+            </select>
+          </div>
+        }
+      />
 
       <div className="btn-row" data-name="Study actions">
         <Link to="/" className="btn">
@@ -146,23 +145,28 @@ export const ReviewExportPage: React.FC = () => {
             </div>
           </div>
 
-          <section className="box-card" data-name="Question one">
-            <div className="section-header" style={{ marginBottom: 8 }}>
+          <SectionCard
+            title={
               <span className="eyebrow" style={{ margin: 0 }}>
                 QUESTION {String(safeIdx + 1).padStart(2, '0')}
               </span>
+            }
+            headerRight={
               <button
                 type="button"
                 className="btn btn-sm"
                 onClick={() => {
                   const nextState = !editing;
                   setEditing(nextState);
-                  if (!nextState) showToast('Question updates saved.');
+                  if (!nextState) showToast('Question updates have been saved.');
                 }}
               >
                 {editing ? 'Done editing' : 'Edit question'}
               </button>
-            </div>
+            }
+            headerStyle={{ marginBottom: 8 }}
+            dataName="Question one"
+          >
 
             {editing ? (
               <>
@@ -247,18 +251,17 @@ export const ReviewExportPage: React.FC = () => {
             <div style={{ marginTop: 16, fontSize: 12, fontWeight: 700 }}>
               Correct answer: {letters[currentQ.answer]}
             </div>
-          </section>
+          </SectionCard>
 
-          <section
-            className="box-card"
+          <SectionCard
             style={{ marginTop: 16 }}
-            data-name="Next question preview"
+            dataName="Next question preview"
           >
             <div className="eyebrow">
               UP NEXT / QUESTION {String(((safeIdx + 1) % total) + 1).padStart(2, '0')}
             </div>
             <div style={{ fontSize: 15, fontWeight: 600 }}>{nextQ.prompt}</div>
-          </section>
+          </SectionCard>
 
           <div className="btn-row" style={{ marginTop: 16 }} data-name="Editor pagination">
             <button

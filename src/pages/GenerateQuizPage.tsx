@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { SAMPLE_CSV_CONTENT } from '../data/seedData';
+import { PageHeader, SectionCard } from '../components/common';
 
 export const GenerateQuizPage: React.FC = () => {
   const { generateQuiz, settings } = useApp();
@@ -109,15 +110,11 @@ export const GenerateQuizPage: React.FC = () => {
 
   return (
     <>
-      <div className="page-heading" data-name="Page heading">
-        <div className="heading-copy">
-          <div className="eyebrow">CREATE / 02</div>
-          <h1 className="page-title">From study notes to a ready-to-use quiz.</h1>
-          <p className="page-subtitle">
-            Upload your material and choose how you want to practice.
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow="CREATE / 02"
+        title="From study notes to a ready-to-use quiz."
+        subtitle="Upload your material and choose how you want to practice."
+      />
 
       <div className="steps-bar" data-name="Generation steps" role="list">
         <div className="step-item active" role="listitem">
@@ -133,7 +130,7 @@ export const GenerateQuizPage: React.FC = () => {
 
       <div className="generator-columns" data-name="Generator columns">
         {/* Left Column: 01 / Study material */}
-        <section className="box-card" data-name="Study material">
+        <SectionCard dataName="Study material">
           <h2 className="panel-heading">01 / Study material</h2>
 
           <label
@@ -206,10 +203,10 @@ export const GenerateQuizPage: React.FC = () => {
               Formatting and broken line breaks will be cleaned automatically.
             </p>
           </div>
-        </section>
+        </SectionCard>
 
         {/* Right Column: 02 / Quiz settings */}
-        <section className="box-card" data-name="Quiz configuration">
+        <SectionCard dataName="Quiz configuration">
           <h2 className="panel-heading">02 / Quiz settings</h2>
 
           <div className="field-group">
@@ -275,7 +272,7 @@ export const GenerateQuizPage: React.FC = () => {
               Review and edit every question before you save or share.
             </p>
           </div>
-        </section>
+        </SectionCard>
       </div>
 
       <div className="action-footer-bar" data-name="Generation actions">

@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
+import { PageHeader, SectionCard } from '../components/common';
 
 export const SoloQuizPage: React.FC = () => {
   const { id } = useParams<{ id?: string }>();
@@ -41,18 +42,16 @@ export const SoloQuizPage: React.FC = () => {
 
   return (
     <>
-      <div className="page-heading" data-name="Page heading">
-        <div className="heading-copy">
-          <div className="eyebrow">SOLO PRACTICE / 04</div>
-          <h1 className="page-title">{quiz.title}</h1>
-          <p className="page-subtitle">
-            Take your time. Your progress is saved as you go.
-          </p>
-        </div>
-        <Link to="/" className="btn" data-name="Save & exit">
-          Save &amp; exit
-        </Link>
-      </div>
+      <PageHeader
+        eyebrow="SOLO PRACTICE / 04"
+        title={quiz.title}
+        subtitle="Take your time. Your progress is saved as you go."
+        actions={
+          <Link to="/" className="btn" data-name="Save & exit">
+            Save &amp; exit
+          </Link>
+        }
+      />
 
       <section className="progress-card" data-name="Quiz progress" aria-label="Quiz progress">
         <div className="progress-labels">
@@ -167,14 +166,14 @@ export const SoloQuizPage: React.FC = () => {
         </button>
       </div>
 
-      <section className="box-card banner-row" data-name="Finish quiz panel">
+      <SectionCard className="banner-row" dataName="Finish quiz panel">
         <span className="helper-text" style={{ fontSize: 13 }}>
           Ready to submit? You can review any question before finishing.
         </span>
         <button type="button" className="btn btn-primary" onClick={handleFinish}>
           Finish quiz
         </button>
-      </section>
+      </SectionCard>
     </>
   );
 };

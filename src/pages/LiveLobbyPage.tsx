@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
+import { PageHeader, SectionCard } from '../components/common';
 
 export const LiveLobbyPage: React.FC = () => {
   const {
@@ -21,12 +22,12 @@ export const LiveLobbyPage: React.FC = () => {
 
   const handleCopyPin = () => {
     navigator.clipboard?.writeText(live.pin.replace(/\s+/g, '')).catch(() => {});
-    showToast(`Room PIN ${live.pin} copied to clipboard.`);
+    showToast(`Room PIN ${live.pin} has been copied to the clipboard.`);
   };
 
   const handleCopyInviteLink = () => {
     navigator.clipboard?.writeText(`${window.location.origin}/lobby`).catch(() => {});
-    showToast('Invite link copied to clipboard.');
+    showToast('Invitation link has been copied to the clipboard.');
   };
 
   const handleJoinSubmit = (e: React.FormEvent) => {
@@ -43,18 +44,16 @@ export const LiveLobbyPage: React.FC = () => {
 
   return (
     <>
-      <div className="page-heading" data-name="Page heading">
-        <div className="heading-copy">
-          <div className="eyebrow">LIVE GAMES / 06</div>
-          <h1 className="page-title">Better together. Ready to compete?</h1>
-          <p className="page-subtitle">
-            Host view · {liveQuiz.title} · {liveQuiz.questions.length} questions
-          </p>
-        </div>
-        <Link to="/" className="btn">
-          Close room
-        </Link>
-      </div>
+      <PageHeader
+        eyebrow="LIVE GAMES / 06"
+        title="Better together. Ready to compete?"
+        subtitle={`Host view · ${liveQuiz.title} · ${liveQuiz.questions.length} questions`}
+        actions={
+          <Link to="/" className="btn">
+            Close room
+          </Link>
+        }
+      />
 
       <div className="review-columns" data-name="Lobby columns">
         {/* Left Column: Host Lobby */}
@@ -78,12 +77,12 @@ export const LiveLobbyPage: React.FC = () => {
             </div>
           </section>
 
-          <section className="box-card" data-name="Connected players">
-            <div className="section-header" style={{ marginBottom: 8 }}>
-              <h2 className="section-title">{live.players.length} players joined</h2>
-              <span className="helper-text">Waiting for the host</span>
-            </div>
-
+          <SectionCard
+            title={`${live.players.length} players joined`}
+            headerRight={<span className="helper-text">Waiting for the host</span>}
+            headerStyle={{ marginBottom: 8 }}
+            dataName="Connected players"
+          >
             <div className="players-grid-2x2">
               {live.players.map((p, idx) => (
                 <div key={idx} className="player-tile">
@@ -94,7 +93,7 @@ export const LiveLobbyPage: React.FC = () => {
             </div>
 
             <p className="helper-text">Players appear here as soon as they join.</p>
-          </section>
+          </SectionCard>
 
           <div className="btn-row" data-name="Host controls">
             <Link to="/leaderboard" className="btn btn-primary">

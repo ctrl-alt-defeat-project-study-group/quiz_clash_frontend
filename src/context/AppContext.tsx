@@ -1,5 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
-import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import Swal, { type SweetAlertIcon } from 'sweetalert2';
 import type {
   AttemptRecord,
   ExportKind,
@@ -78,7 +79,7 @@ interface AppContextValue {
   resetAllData: () => void;
 
   toastMessage: string | null;
-  showToast: (msg: string) => void;
+  showToast: (msg: string, icon?: SweetAlertIcon) => void;
 
   modal: ModalState;
   openModal: (opts: Omit<ModalState, 'open'>) => void;
@@ -86,6 +87,28 @@ interface AppContextValue {
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
+
+const swalToast = Swal.mixin({
+  toast: true,
+  position: 'bottom-end',
+  showConfirmButton: false,
+  showCloseButton: true,
+  closeButtonHtml: '&times;',
+  closeButtonAriaLabel: 'Close notification',
+  timer: 3600,
+  timerProgressBar: true,
+  customClass: {
+    container: 'qc-swal-toast-container',
+    popup: 'qc-swal-toast',
+    title: 'qc-swal-toast-title',
+    closeButton: 'qc-swal-toast-close',
+    timerProgressBar: 'qc-swal-toast-progress'
+  },
+  didOpen: (toast) => {
+    toast.onmouseenter = Swal.stopTimer;
+    toast.onmouseleave = Swal.resumeTimer;
+  }
+});
 
 function loadStoredState() {
   try {
@@ -100,9 +123,18 @@ function loadStoredState() {
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const stored = loadStoredState();
 
-  const [theme, setThemeState] = useState<ThemeMode>(
-    stored?.theme === 'dark' ? 'dark' : 'light'
-  );
+  const [theme, setThemeState] = useState<ThemeMode>(() => {
+    if (stored?.theme === 'dark' || stored?.theme === 'light') {
+      return stored.theme;
+    }
+    if (
+      typeof window !== 'undefined' &&
+      window.matchMedia('(prefers-color-scheme: dark)').matches
+    ) {
+      return 'dark';
+    }
+    return 'light';
+  });
   const [quizzes, setQuizzes] = useState<QuizItem[]>(
     Array.isArray(stored?.quizzes) && stored.quizzes.length
       ? stored.quizzes
@@ -141,7 +173,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [printKind, setPrintKind] = useState<ExportKind>('questions');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const toastTimerRef = useRef<number | null>(null);
 
   const [modal, setModal] = useState<ModalState>({
     open: false,
@@ -150,7 +181,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const onChange = (e: MediaQueryListEvent) => {
+      setThemeState(e.matches ? 'dark' : 'light');
+    };
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    root.setAttribute('data-theme', theme);
+    root.classList.toggle('dark', theme === 'dark');
+    root.classList.toggle('light', theme === 'light');
+    root.style.colorScheme = theme;
+    document.body.setAttribute('data-theme', theme);
+    document.body.classList.toggle('dark', theme === 'dark');
+    document.body.classList.toggle('light', theme === 'light');
   }, [theme]);
 
   useEffect(() => {
@@ -170,21 +217,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [theme, quizzes, history, activeQuizId, settings]);
 
-  const showToast = (msg: string) => {
+  const showToast = (msg: string, icon?: SweetAlertIcon) => {
     setToastMessage(msg);
-    if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
-    toastTimerRef.current = window.setTimeout(() => {
-      setToastMessage(null);
-    }, 3600);
+    const resolvedIcon: SweetAlertIcon =
+      icon ??
+      (/^(appearance|preparing|proceeded|live session|switched|opening|advanced|restarted)/i.test(
+        msg
+      )
+        ? 'info'
+        : /^(error|failed)/i.test(msg)
+        ? 'error'
+        : 'success');
+
+    const isMobile =
+      typeof window !== 'undefined' && window.matchMedia('(max-width: 820px)').matches;
+
+    void swalToast.fire({
+      position: isMobile ? 'top' : 'bottom-end',
+      icon: resolvedIcon,
+      title: msg
+    });
   };
 
   const setTheme = (next: ThemeMode) => {
     setThemeState(next);
-    showToast(
-      `Switched to ${
-        next === 'light' ? 'Light Mode (Platinum #E5E5E5)' : 'Dark Mode (Jet Black #1A1A1A)'
-      }`
-    );
   };
 
   const toggleTheme = () => {
@@ -237,7 +293,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         /* Saved locally when backend is unavailable */
       }
     }
-    showToast('All quiz changes saved.');
+    showToast('All quiz changes have been saved.');
   };
 
   const generateQuiz = async (params: {
@@ -294,7 +350,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
           setQuizzes((prev) => [newQuiz, ...prev.filter((q) => q.id !== newQuiz.id)]);
           setActiveQuizIdState(newQuiz.id);
-          showToast(`Generated "${newQuiz.title}" with ${mappedQuestions.length} questions.`);
+          showToast(`Quiz "${newQuiz.title}" has been created with ${mappedQuestions.length} questions.`);
           return newQuiz;
         }
       } catch {
@@ -334,7 +390,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         : [createdQuiz, ...prev]
     );
     setActiveQuizIdState(createdQuiz.id);
-    showToast(`Generated "${cleanTitle}" with ${count} questions.`);
+    showToast(`Quiz "${cleanTitle}" has been created with ${count} questions.`);
     return createdQuiz;
   };
 
@@ -434,7 +490,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
     setHistory((prev) => [newRecord, ...prev]);
     setActiveAttemptId(newRecord.id);
-    showToast(`Quiz completed! Score: ${scorePct}% (${correct}/${total})`);
+    showToast(`Assessment completed. Final score: ${scorePct}% (${correct} of ${total} correct).`);
     return newRecord;
   };
 
@@ -446,8 +502,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         await api.downloadQuizPdf(activeQuiz.backendId, kind, activeQuiz.title);
         showToast(
           kind === 'answers'
-            ? 'Downloaded Answer Key PDF from server.'
-            : 'Downloaded Questions PDF from server.'
+            ? 'The Answer Key PDF has been downloaded.'
+            : 'The Questions Sheet PDF has been downloaded.'
         );
         return;
       } catch {
@@ -457,8 +513,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     showToast(
       kind === 'answers'
-        ? 'Opening print/PDF dialog for Answer Key…'
-        : 'Opening print/PDF dialog for Questions Sheet…'
+        ? 'Preparing the print preview for the Answer Key.'
+        : 'Preparing the print preview for the Questions Sheet.',
+      'info'
     );
     window.setTimeout(() => window.print(), 120);
   };
@@ -493,7 +550,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         ]
       };
     });
-    showToast(`Joined Room ${live.pin} as ${playerName}!`);
+    showToast(`You have joined Room ${live.pin} as ${playerName}.`);
     return { ok: true };
   };
 
@@ -514,7 +571,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               }
             : p;
         });
-        showToast(`Advanced to Round ${nextRound} of ${totalRounds}.`);
+        showToast(`Proceeded to Round ${nextRound} of ${totalRounds}.`, 'info');
         return { ...prev, round: nextRound, players: updatedPlayers };
       } else {
         const resetPlayers = prev.players.map((p, idx) => ({
@@ -522,7 +579,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           correct: 1,
           points: 850 - idx * 60
         }));
-        showToast('Restarted live game rounds.');
+        showToast('Live session rounds have been restarted.', 'info');
         return { ...prev, round: 1, players: resetPlayers };
       }
     });
@@ -538,15 +595,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setHistory(structuredClone(SEED_HISTORY));
     setActiveQuizIdState('biology');
     setSettings(DEFAULT_SETTINGS);
-    showToast('Workspace data reset to initial defaults.');
+    showToast('Workspace data has been restored to default settings.');
   };
 
   const openModal = (opts: Omit<ModalState, 'open'>) => {
-    setModal({ ...opts, open: true });
+    setModal({ ...opts, open: false });
+    void Swal.fire({
+      title: opts.title,
+      text: opts.message,
+      icon: opts.onConfirm ? 'warning' : 'info',
+      showCancelButton: Boolean(opts.onConfirm),
+      confirmButtonText: opts.confirmLabel || (opts.onConfirm ? 'Confirm' : 'Got it'),
+      cancelButtonText: 'Cancel',
+      reverseButtons: true,
+      buttonsStyling: false,
+      customClass: {
+        popup: 'qc-swal-modal',
+        title: 'qc-swal-modal-title',
+        htmlContainer: 'qc-swal-modal-text',
+        actions: 'qc-swal-modal-actions',
+        confirmButton: opts.onConfirm ? 'btn btn-danger' : 'btn btn-primary',
+        cancelButton: 'btn'
+      }
+    }).then((result) => {
+      if (result.isConfirmed && opts.onConfirm) {
+        opts.onConfirm();
+      }
+    });
   };
 
   const closeModal = () => {
     setModal((prev) => ({ ...prev, open: false }));
+    Swal.close();
   };
 
   return (

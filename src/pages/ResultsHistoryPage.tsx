@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { SEED_HISTORY } from '../data/seedData';
+import { PageHeader, SectionCard, StatCard } from '../components/common';
 
 export const ResultsHistoryPage: React.FC = () => {
   const { id } = useParams<{ id?: string }>();
@@ -32,51 +33,35 @@ export const ResultsHistoryPage: React.FC = () => {
 
   return (
     <>
-      <div className="page-heading" data-name="Page heading">
-        <div className="heading-copy">
-          <div className="eyebrow">RESULTS &amp; HISTORY / 05</div>
-          <h1 className="page-title">A little practice goes a long way.</h1>
-          <p className="page-subtitle">
-            {latest.quizTitle} · Attempt completed · Saved to your profile
-          </p>
-        </div>
-        <Link to="/" className="btn">
-          Back to dashboard
-        </Link>
-      </div>
+      <PageHeader
+        eyebrow="RESULTS & HISTORY / 05"
+        title="A little practice goes a long way."
+        subtitle={`${latest.quizTitle} · Attempt completed · Saved to your profile`}
+        actions={
+          <Link to="/" className="btn">
+            Back to dashboard
+          </Link>
+        }
+      />
 
       <section className="stat-grid-4" data-name="Attempt summary" aria-label="Attempt summary">
-        <div className="stat-card" data-name="Your score">
-          <div className="stat-value">{latest.scorePct}%</div>
-          <div className="stat-label">Your score</div>
-        </div>
-        <div className="stat-card" data-name="Correct answers">
-          <div className="stat-value">
-            {latest.correct} / {latest.total}
-          </div>
-          <div className="stat-label">Correct answers</div>
-        </div>
-        <div className="stat-card" data-name="Time taken">
-          <div className="stat-value">{latest.duration}</div>
-          <div className="stat-label">Time taken</div>
-        </div>
-        <div className="stat-card" data-name="From last attempt">
-          <div className="stat-value">{latest.deltaPts}</div>
-          <div className="stat-label">From last attempt</div>
-        </div>
+        <StatCard value={`${latest.scorePct}%`} label="Your score" />
+        <StatCard value={`${latest.correct} / ${latest.total}`} label="Correct answers" />
+        <StatCard value={latest.duration} label="Time taken" />
+        <StatCard value={latest.deltaPts} label="From last attempt" />
       </section>
 
-      <section className="box-card" data-name="Missed question review">
-        <div className="section-header">
-          <h2 className="section-title">
-            {showAllAnswers
-              ? `All ${quiz.questions.length} questions in ${quiz.title}`
-              : missedList.length
-              ? `Review the ${missedList.length} question${
-                  missedList.length === 1 ? '' : 's'
-                } you missed`
-              : 'Perfect score! Every question answered correctly'}
-          </h2>
+      <SectionCard
+        title={
+          showAllAnswers
+            ? `All ${quiz.questions.length} questions in ${quiz.title}`
+            : missedList.length
+            ? `Review the ${missedList.length} question${
+                missedList.length === 1 ? '' : 's'
+              } you missed`
+            : 'Perfect score! Every question answered correctly'
+        }
+        headerRight={
           <button
             type="button"
             className="text-link"
@@ -84,8 +69,9 @@ export const ResultsHistoryPage: React.FC = () => {
           >
             {showAllAnswers ? 'Show missed only →' : 'View all answers →'}
           </button>
-        </div>
-
+        }
+        dataName="Missed question review"
+      >
         <div className="missed-grid">
           {showAllAnswers
             ? quiz.questions.map((q, idx) => (
@@ -120,9 +106,9 @@ export const ResultsHistoryPage: React.FC = () => {
                 </article>
               ))}
         </div>
-      </section>
+      </SectionCard>
 
-      <section className="box-card" data-name="Attempt history">
+      <SectionCard dataName="Attempt history">
         <h2 className="section-title" style={{ marginBottom: 4 }}>
           Your attempt history
         </h2>
@@ -171,7 +157,7 @@ export const ResultsHistoryPage: React.FC = () => {
             </tbody>
           </table>
         </div>
-      </section>
+      </SectionCard>
 
       <div className="btn-row" data-name="Results actions">
         <button
