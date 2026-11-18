@@ -1,59 +1,54 @@
-# Quiz Clash interactive prototype
+# QuizClash / AutoQuiz Interactive Prototype
 
-Open `index.html` directly in a modern browser, or run `npm run dev` from the repository and visit `/docs/prototype/`. No build or backend service is needed.
+Open `index.html` directly in any modern browser, or run `npm run dev` from the repository root and visit `/docs/prototype/index.html`. No external build step or network connection is required.
 
-## Figma design reference
+## Design Reference & 8-Screen Architecture
 
-Reference: https://www.figma.com/design/7FNoWOT0KYh7K18ZiwosID/Untitled?node-id=0-1
+This prototype implements the 8-screen workspace layout from `QuizClash.html`:
 
-The redesign follows the detailed Figma context and screenshots retrieved for:
+1. **`01 Dashboard` (`#s1`):**
+   - Top application header (`AUTOQUIZ · Study notes → active recall`, Light/Dark theme switch, `Join game`, user profile badge).
+   - Left sidebar navigation (`WORKSPACE`: Dashboard, Generate quiz, My quizzes, Attempt history, Live games; `YOUR LIBRARY` saved quizzes; `Help & settings`).
+   - 3 Study overview stat cards (`Saved quizzes`, `Completed attempts`, `Average score`).
+   - `Start from a document` callout banner, `Recent quizzes` table, and 2-column `Continue learning` section (`Pick up where you left off` + `Study together`).
+2. **`02 Generate quiz` (`#s2`):**
+   - 3-step progress bar (`1 Upload material`, `2 Configure quiz`, `3 Review questions`).
+   - `01 / Study material`: Drag-and-drop file upload (`PDF, Word (.docx), CSV, or TXT`), uploaded source card with `Remove` action, and live `Extracted text preview`.
+   - `02 / Quiz settings`: Quiz title, question count (`5 / 10 / 15 / 20`), question format, and `READY TO GENERATE` summary box.
+3. **`03 Review and export` (`#s3`):**
+   - Study actions toolbar (`← My quizzes`, `Save changes`, `Start solo quiz →`, `Host live game`).
+   - Left `Question editor`: Question navigation pills (`[1] 2 3 ... 10`), inline question/choice editor, correct answer selector, `UP NEXT` preview, and pagination.
+   - Right `Quiz options`: `Print or study offline` panel with `(●) PDF` and `( ) Word` selector, miniature worksheet preview, `Download questions` & `Download answer key` print sheets, and `Before you study` reminder.
+4. **`04 Solo quiz` (`#s4`):**
+   - Progress bar (`Question X of N`, `X answered · Y remaining`).
+   - Left `Active question` with `( ) A / B / C / D` options and saved status.
+   - Right `Your progress` numbered grid (`01`–`10`) with Answered, Current, and Not answered states, plus `Finish quiz` submission panel.
+5. **`05 Results and history` (`#s5`):**
+   - 4 Attempt summary cards (`Your score`, `Correct answers`, `Time taken`, `From last attempt`).
+   - `Review the questions you missed` 2-column feedback cards (with `View all answers →` toggle).
+   - `Your attempt history` table and actions (`Retake quiz`, `Download answer key`, `Challenge friends`).
+6. **`06 Live game lobby` (`#s6`):**
+   - Host room invitation with PIN `482 619`, `Copy PIN` / `Copy invite link`, 2x2 connected players grid (`Maya`, `Leo`, `Nina`, `Sam`), `Game setup` controls, and participant PIN join form.
+7. **`07 Live leaderboard` (`#s7`):**
+   - Round completion banner (`ROUND 3 OF 10 COMPLETE`), ranked `Current standings` table, `Last round` accuracy & response time summary, and `UP NEXT` round advancement.
+8. **`08 Settings` (`#s8`):**
+   - Profile & Appearance (Light/Dark theme toggle, display name, email), `Quiz defaults` (question count, difficulty, language, shuffle & explanation switches), `Notifications`, and `Privacy & account`.
 
-- My quizzes (`2:26125`): horizontal navigation, purple continuation banner, compact subject cards, activity panel, PIN form, and study-tip sidebar.
-- Solo practice (`2:26546`): segmented progress, selectable answer rows, submit state, session map, and reassurance panel.
-- Host lobby (`2:26981`): dark PIN invitation, host controls, participant roster, and room guidance.
+## Dual Color Palette
 
-Figma's Starter-plan tool limit prevented retrieving detailed context for the remaining screens. Those retain their existing flows with the verified shared palette, typography scale, forms, and surfaces; they are not claimed as exact reproductions of the remaining frames. Authentication remains a demo-identity dialog.
+Built around **Jet Black (`#1A1A1A`)**, **Platinum (`#E5E5E5`)**, and **Cold Grey (`#B0B0B0`)**:
 
-Design tokens: purple `#6947ce`, plum `#302544`, lavender `#eee8fa`, warm background `#f6f4ef`, text `#292635`, muted text `#797580`, and borders `#e5e1e9`. Font stacks prefer Inter and Lora when available and fall back to local system sans-serif and Georgia. Original Figma SVG assets are saved in `assets/`, keep their intrinsic dimensions, and need no network requests at runtime.
-
-The sample quiz names follow the reference: Cell foundations, Bonding basics, and The Renaissance. Each contains five working questions rather than the larger illustrative counts in Figma. Counts and results reflect actual prototype data. Earlier quizzes/history remain in localStorage; no prior user data is cleared.
-
-## Responsive behavior
-
-- Wide desktop: three quiz cards with a 316 px study sidebar; practice uses a 258 px session sidebar.
-- Tablet: dashboard sidebar becomes two panels below the quiz area; cards remain compact.
-- Small tablet: navigation wraps to a second row, quiz cards use two columns, lobby and upload panels stack.
-- Phone: cards, study panels, and practice panels use one column. Navigation, actions, inputs, and answer choices remain accessible; long titles wrap.
-- Print: only the selected study sheet prints; navigation and controls are hidden.
-
-Responsive boundaries are 1200, 960, 720, and 480 px. Verified dashboard, upload, quiz detail, lobby, export, and result screens at 320, 390, 768, 1024, and 1440 px without page-level horizontal overflow.
-
-## Walkthrough
-
-1. **My quizzes:** open a sample quiz, use its options menu, or sort the cards.
-2. **Create a quiz:** choose or drop PDF, DOCX, CSV, or TXT; use the sample to explore without a file. Unsupported, empty, and over-10-MB files show validation. Enter a title and select three or five questions.
-3. **Solo practice:** select an answer, submit it, and advance. Review accuracy and all answers at the end. Completed results persist when browser storage is available.
-4. **Clash:** host from a quiz or join with demo PIN `482916`. Copy the PIN, view the local roster, and complete a simulated clash.
-5. **Offline study:** switch between a question sheet and separate answer key. Print or save as PDF through the browser. The Word button explains the planned export.
-6. **My results:** inspect saved results. Empty states are provided for new browsers.
-
-## Implementation boundaries
-
-This is a client-side UI prototype. Uploaded content is not read or transmitted. Demo generation uses the curated biology set. Full file parsing (CSV/TXT), deterministic rule-based generation, optional LLM generation, server-side scoring, ReportLab PDF downloads, and native WebSocket live rooms are implemented in the production backend as specified in [QuizClash Technical Plan](../../../QuizClash_Technical_Plan.md). The local opponent uses deterministic scoring and rounds are untimed. Demo results are not represented as live multiplayer data.
-
-Production adheres to the technical plan:
-- **Backend:** Python + FastAPI with Pydantic validation.
-- **Database:** PostgreSQL with SQLAlchemy 2.x and Alembic migrations.
-- **PDF Generation:** Server-side ReportLab with Japanese/Unicode font embedding.
-- **Realtime:** Native FastAPI WebSockets for Challenge Mode.
-- **Security:** Answers and scores remain strictly server-owned and are never exposed in playable client payloads.
-
-## Files and checks
-
-- `index.html`: semantic shell, navigation, dialog, and live notifications.
-- `styles.css`: shared tokens, responsive layouts, keyboard focus, reduced motion, and print styles.
-- `app.js`: routes, sample questions, validation, scoring, history, exports, and room simulation.
-- `assets/`: original reference SVGs.
-- `preview.jpg` and `preview-mobile.jpg`: current desktop and phone previews.
-
-Browser checks cover an incorrect answer followed by four correct answers (4/5), PIN validation, generated quizzes, persistence, and responsive image loading. JS syntax and whitespace checks also pass. Use the browser print dialog to choose page size and PDF output.
+- **☀️ Light Mode (Option A + Platinum):**
+  - Canvas background: `#E5E5E5` (Platinum)
+  - Card / Header surface: `#FFFFFF` (Pure White)
+  - Sidebar surface: `#DCDCDC`
+  - Structural borders: `#B0B0B0` (Cold Grey)
+  - Primary text: `#1A1A1A` (Jet Black) · Muted text: `#525252`
+  - Primary accent: `#4F46E5` (Electric Indigo) · Soft highlight: `#EEF2FF`
+- **🌙 Dark Mode (Option D + Jet Black):**
+  - Canvas background: `#1A1A1A` (Jet Black)
+  - Card / Header surface: `#242424`
+  - Sidebar surface: `#141414`
+  - Structural borders: `#4D4D4D`
+  - Primary text: `#E5E5E5` (Platinum) · Muted text: `#B0B0B0` (Cold Grey)
+  - Primary accent: `#6366F1` (Neon Indigo) · Secondary accent: `#22D3EE` (Electric Cyan)

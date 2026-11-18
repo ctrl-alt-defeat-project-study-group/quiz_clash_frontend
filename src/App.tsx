@@ -1,122 +1,68 @@
-import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import './App.css'
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { AppProvider } from './context/AppContext';
+import { AppLayout } from './components/layout/AppLayout';
+import { DashboardPage } from './pages/DashboardPage';
+import { GenerateQuizPage } from './pages/GenerateQuizPage';
+import { ReviewExportPage } from './pages/ReviewExportPage';
+import { SoloQuizPage } from './pages/SoloQuizPage';
+import { ResultsHistoryPage } from './pages/ResultsHistoryPage';
+import { LiveLobbyPage } from './pages/LiveLobbyPage';
+import { LiveLeaderboardPage } from './pages/LiveLeaderboardPage';
+import { SettingsPage } from './pages/SettingsPage';
 
-function App() {
-  const [count, setCount] = useState(0)
-
+export function App() {
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+    <AppProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route element={<AppLayout />}>
+            {/* Screen 01: Dashboard */}
+            <Route path="/" element={<DashboardPage />} />
+            <Route path="/s1" element={<DashboardPage />} />
 
-      <div className="ticks"></div>
+            {/* Screen 02: Generate Quiz */}
+            <Route path="/generate" element={<GenerateQuizPage />} />
+            <Route path="/upload" element={<GenerateQuizPage />} />
+            <Route path="/s2" element={<GenerateQuizPage />} />
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
+            {/* Screen 03: Review & Export / My Quizzes */}
+            <Route path="/quizzes" element={<ReviewExportPage />} />
+            <Route path="/quizzes/:id" element={<ReviewExportPage />} />
+            <Route path="/quizzes/:id/preview" element={<ReviewExportPage />} />
+            <Route path="/quizzes/:id/export" element={<ReviewExportPage />} />
+            <Route path="/s3" element={<ReviewExportPage />} />
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+            {/* Screen 04: Solo Quiz */}
+            <Route path="/play" element={<SoloQuizPage />} />
+            <Route path="/quizzes/:id/play" element={<SoloQuizPage />} />
+            <Route path="/s4" element={<SoloQuizPage />} />
+
+            {/* Screen 05: Results & History */}
+            <Route path="/history" element={<ResultsHistoryPage />} />
+            <Route path="/results" element={<ResultsHistoryPage />} />
+            <Route path="/attempts/:id" element={<ResultsHistoryPage />} />
+            <Route path="/s5" element={<ResultsHistoryPage />} />
+
+            {/* Screen 06: Live Game Lobby */}
+            <Route path="/lobby" element={<LiveLobbyPage />} />
+            <Route path="/rooms/:pin" element={<LiveLobbyPage />} />
+            <Route path="/s6" element={<LiveLobbyPage />} />
+
+            {/* Screen 07: Live Leaderboard */}
+            <Route path="/leaderboard" element={<LiveLeaderboardPage />} />
+            <Route path="/s7" element={<LiveLeaderboardPage />} />
+
+            {/* Screen 08: Settings */}
+            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/s8" element={<SettingsPage />} />
+
+            {/* Fallback */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Route>
+        </Routes>
+      </BrowserRouter>
+    </AppProvider>
+  );
 }
 
-export default App
+export default App;

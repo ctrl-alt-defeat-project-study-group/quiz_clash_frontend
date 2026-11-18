@@ -1,13 +1,75 @@
 <!doctype html>
-<html lang="en">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#6947ce"><title>Quiz Clash · Your workspace</title><link rel="stylesheet" href="styles.css"><script defer src="app.js"></script></head>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#4F46E5">
+  <title>AutoQuiz · QuizClash — Study notes → active recall</title>
+  <link rel="stylesheet" href="styles.css">
+  <script defer src="app.js"></script>
+</head>
 <body>
-<a class="skip" href="#main">Skip to content</a>
-<header class="app-navigation">
- <a class="brand" href="#dashboard"><span class="brand-icon"><img src="assets/4455d.svg" alt=""></span>quiz clash</a>
- <nav aria-label="Main navigation"><a href="#dashboard" data-nav="dashboard">My quizzes</a><a href="#history" data-nav="history">My results</a></nav>
- <div class="account-actions"><button class="header-join" data-action="join"><img class="icon" src="assets/5c780.svg" alt=""><span>Enter room PIN</span><b>Join</b></button><span id="header-status" class="header-status" hidden></span><span class="header-divider"></span><button class="profile" data-action="profile"><span class="avatar">AM</span><span>Alex Morgan</span><img class="icon" src="assets/b5830.svg" alt=""></button></div>
-</header>
-<div class="shell"><div class="workspace"><div id="breadcrumb">YOUR WORKSPACE</div><main id="main" tabindex="-1"></main></div><footer><span>A little focus. A little friendly competition.</span><div><span class="prototype-label">Interactive prototype</span><span>© 2026 Quiz Clash</span></div></footer></div>
-<dialog id="dialog"><div id="dialog-content"></div></dialog><div id="toast" role="status" aria-live="polite"></div>
-</body></html>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <div class="app-frame">
+    <!-- Application Header -->
+    <header class="app-header" data-name="Application header">
+      <div class="header-left">
+        <a class="brand" href="#s1" data-name="AUTOQUIZ">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <span>AUTOQUIZ</span>
+        </a>
+        <span class="brand-tagline" data-name="Study notes → active recall">Study notes → active recall</span>
+      </div>
+      <div class="header-right">
+        <button type="button" class="btn btn-sm theme-toggle" id="theme-toggle" data-action="toggle-theme" aria-label="Toggle color theme">
+          <span id="theme-toggle-label">🌙 Dark mode</span>
+        </button>
+        <a href="#s6" class="btn btn-sm" data-name="Join game">Join game</a>
+        <a href="#s8" class="user-badge" id="header-user" data-name="Alex M.">Alex M.</a>
+      </div>
+    </header>
+
+    <!-- Workspace -->
+    <div class="workspace" data-name="Workspace">
+      <!-- Left Sidebar Navigation -->
+      <aside class="sidebar" data-name="Navigation" aria-label="Workspace navigation">
+        <div class="nav-group">
+          <div class="nav-heading" data-name="WORKSPACE">WORKSPACE</div>
+          <nav class="nav-list" aria-label="Primary">
+            <a href="#s1" class="nav-link" data-nav="s1">Dashboard</a>
+            <a href="#s2" class="nav-link" data-nav="s2">Generate quiz</a>
+            <a href="#s3" class="nav-link" data-nav="s3">My quizzes</a>
+            <a href="#s5" class="nav-link" data-nav="s5">Attempt history</a>
+            <a href="#s6" class="nav-link" data-nav="s6">Live games</a>
+          </nav>
+        </div>
+
+        <div class="nav-divider" role="separator"></div>
+
+        <div class="nav-group">
+          <div class="nav-heading" data-name="YOUR LIBRARY">YOUR LIBRARY</div>
+          <div class="library-list" id="sidebar-library" aria-label="Saved quizzes"></div>
+        </div>
+
+        <div class="sidebar-footer">
+          <a href="#s8" class="nav-link settings-link" data-nav="s8">Help &amp; settings</a>
+          <div class="wireframe-caption">Interactive prototype</div>
+        </div>
+      </aside>
+
+      <!-- Main Panel -->
+      <main id="main" class="main-panel" data-name="Main panel" tabindex="-1"></main>
+    </div>
+  </div>
+
+  <!-- Dedicated Printable Study Sheet (visible when printing) -->
+  <section id="print-sheet" class="print-sheet" aria-hidden="true"></section>
+
+  <!-- Dialog & Toast Notification -->
+  <dialog id="dialog">
+    <div id="dialog-content"></div>
+  </dialog>
+  <div id="toast" role="status" aria-live="polite"></div>
+</body>
+</html>
