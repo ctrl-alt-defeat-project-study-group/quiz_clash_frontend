@@ -71,9 +71,9 @@ export const AppLayout: React.FC = () => {
         {/* Sticky Top Application Header */}
         <header className="app-header" data-name="Application header">
           <div className="header-left">
-            <Link className="brand" to="/" data-name="AUTOQUIZ">
+            <Link className="brand" to="/" data-name="QuizClash">
               <span className="brand-mark" aria-hidden="true"></span>
-              <span>AUTOQUIZ</span>
+              <span>QuizClash</span>
             </Link>
             <span className="brand-tagline" data-name="Study notes → active recall">
               Study notes → active recall
@@ -188,7 +188,7 @@ export const AppLayout: React.FC = () => {
               >
                 Help &amp; settings
               </Link>
-              <div className="wireframe-caption">AutoQuiz Workspace</div>
+              <div className="wireframe-caption">QuizClash Workspace</div>
             </div>
           </aside>
 
@@ -260,7 +260,7 @@ export const AppLayout: React.FC = () => {
               textTransform: 'uppercase'
             }}
           >
-            AUTOQUIZ ·{' '}
+            QuizClash ·{' '}
             {printKind === 'answers' ? 'SEPARATE ANSWER KEY' : 'OFFLINE STUDY SHEET'}
           </div>
           <h1>{activeQuiz.title}</h1>

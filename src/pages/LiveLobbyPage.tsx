@@ -65,7 +65,7 @@ export const LiveLobbyPage: React.FC = () => {
             <div className="eyebrow">INVITE FRIENDS WITH THIS ROOM PIN</div>
             <div className="pin-display">{live.pin}</div>
             <p className="helper-text" style={{ marginBottom: 16 }}>
-              Open AutoQuiz → Join game → Enter the PIN
+              Open QuizClash → Join game → Enter the PIN
             </p>
             <div className="btn-row">
               <button type="button" className="btn" onClick={handleCopyPin}>

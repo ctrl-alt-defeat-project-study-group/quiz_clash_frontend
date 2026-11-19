@@ -10,7 +10,7 @@
 - [x] **Task 2.1: Routing & Environment Configuration**
   - Install `react-router-dom` in `package.json`.
   - Create `.env.example` and `.env` with `VITE_API_BASE_URL=http://localhost:8000/api/v1`.
-  - Update `index.html` title and metadata (`AutoQuiz · QuizClash — Study notes → active recall`).
+  - Update `index.html` title and metadata (`QuizClash · QuizClash — Study notes → active recall`).
 - [x] **Task 2.2: Global Design System & Fixed Sidebar Styles (`src/index.css`)**
   - Port the approved CSS from `docs/prototype/styles.css` into `src/index.css` (Light Mode `#E5E5E5` Platinum / `#B0B0B0` Cold Grey / `#1A1A1A` Jet Black + Indigo `#4F46E5`; Dark Mode `#1A1A1A` Jet Black / `#E5E5E5` Platinum / `#B0B0B0` Cold Grey + Indigo `#6366F1` & Cyan `#22D3EE`).
   - Preserve the sticky `64px` top header and fixed `calc(100vh - 64px)` non-scrolling left sidebar (`overflow: hidden`) where all navigation buttons remain visible while only the right page scrolls.
@@ -31,7 +31,7 @@
   - Manage `theme` (`'light' | 'dark'`), `quizzes`, `activeQuizId`, `history`, `practice`, `live`, `settings`, `toast`, and modal dialog state.
   - Connect actions to `src/services/api.ts` with seamless local fallback when the backend is not running.
 - [x] **Task 2.6: Application Shell & Fixed Sidebar (`src/components/layout/AppLayout.tsx`)**
-  - Build the sticky Top Application Header (`AUTOQUIZ`, `Study notes → active recall`, Light/Dark theme switch, `Join game` button, user profile link).
+  - Build the sticky Top Application Header (`QuizClash`, `Study notes → active recall`, Light/Dark theme switch, `Join game` button, user profile link).
   - Build the fixed Left Sidebar Navigation (`WORKSPACE` 5 links, `YOUR LIBRARY` top 4 quizzes, `Help & settings` pinned at bottom).
   - Include `<PrintSheet />`, Toast notification banner, and Modal dialog.
 

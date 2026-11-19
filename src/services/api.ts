@@ -1,5 +1,5 @@
 /* ==========================================================================
-   QuizClash / AutoQuiz FastAPI Service Client
+   QuizClash / QuizClash FastAPI Service Client
    Base URL configured via VITE_API_BASE_URL (default: http://localhost:8000/api/v1)
    ========================================================================== */
 

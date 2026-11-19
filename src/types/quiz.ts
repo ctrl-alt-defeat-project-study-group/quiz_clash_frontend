@@ -1,5 +1,5 @@
 /* ==========================================================================
-   QuizClash / AutoQuiz TypeScript Domain & API Models
+   QuizClash / QuizClash TypeScript Domain & API Models
    ========================================================================== */
 
 export type ThemeMode = 'light' | 'dark';

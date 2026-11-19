@@ -1,4 +1,4 @@
-# QuizClash / AutoQuiz Interactive Prototype
+# QuizClash / QuizClash Interactive Prototype
 
 Open `index.html` directly in any modern browser, or run `npm run dev` from the repository root and visit `/docs/prototype/index.html`. No external build step or network connection is required.
 
@@ -7,7 +7,7 @@ Open `index.html` directly in any modern browser, or run `npm run dev` from the 
 This prototype implements the 8-screen workspace layout from `QuizClash.html`:
 
 1. **`01 Dashboard` (`#s1`):**
-   - Top application header (`AUTOQUIZ · Study notes → active recall`, Light/Dark theme switch, `Join game`, user profile badge).
+   - Top application header (`QuizClash · Study notes → active recall`, Light/Dark theme switch, `Join game`, user profile badge).
    - Left sidebar navigation (`WORKSPACE`: Dashboard, Generate quiz, My quizzes, Attempt history, Live games; `YOUR LIBRARY` saved quizzes; `Help & settings`).
    - 3 Study overview stat cards (`Saved quizzes`, `Completed attempts`, `Average score`).
    - `Start from a document` callout banner, `Recent quizzes` table, and 2-column `Continue learning` section (`Pick up where you left off` + `Study together`).

@@ -60,7 +60,7 @@ export const SettingsPage: React.FC = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'autoquiz-study-data.json';
+    a.download = 'QuizClash-study-data.json';
     a.click();
     URL.revokeObjectURL(url);
     showToast('Study data has been exported as a JSON file.');
@@ -85,7 +85,7 @@ export const SettingsPage: React.FC = () => {
         <PageHeader
           eyebrow="YOUR STUDY SPACE / 08"
           title="Settings"
-          subtitle="Make AutoQuiz work the way you learn."
+          subtitle="Make QuizClash work the way you learn."
           dataName="Settings heading"
         >
           <div className="settings-tabs" role="tablist" aria-label="Settings sections">
@@ -240,7 +240,7 @@ export const SettingsPage: React.FC = () => {
               Notifications
             </h2>
             <p className="helper-text" style={{ marginBottom: 16 }}>
-              Choose how and when AutoQuiz keeps you updated on your study progress.
+              Choose how and when QuizClash keeps you updated on your study progress.
             </p>
 
             <SettingToggleRow

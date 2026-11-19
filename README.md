@@ -1,6 +1,6 @@
-# QuizClash (AutoQuiz) — Frontend
+# QuizClash (QuizClash) — Frontend
 
-React 19 + TypeScript + Vite web application for **QuizClash (AutoQuiz)** — turning personal study notes into active-recall multiple-choice quizzes, printable worksheets, solo practice sessions, and live multiplayer games.
+React 19 + TypeScript + Vite web application for **QuizClash (QuizClash)** — turning personal study notes into active-recall multiple-choice quizzes, printable worksheets, solo practice sessions, and live multiplayer games.
 
 ---
 

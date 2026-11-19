@@ -1,5 +1,5 @@
 /* ==========================================================================
-   QuizClash / AutoQuiz Interactive Prototype (Screens 01–08)
+   QuizClash / QuizClash Interactive Prototype (Screens 01–08)
    Matches /home/user/Downloads/QuizClash.html with Light (Option A + Platinum)
    and Dark (Option D + Jet Black) themes.
    ========================================================================== */
@@ -1091,7 +1091,7 @@ function renderS6LiveLobby() {
         <section class="pin-invitation-card" data-name="Room invitation">
           <div class="eyebrow">INVITE FRIENDS WITH THIS ROOM PIN</div>
           <div class="pin-display">${escapeHTML(state.live.pin)}</div>
-          <p class="helper-text" style="margin-bottom:16px">Open AutoQuiz → Join game → Enter the PIN</p>
+          <p class="helper-text" style="margin-bottom:16px">Open QuizClash → Join game → Enter the PIN</p>
           <div class="btn-row">
             <button type="button" class="btn" data-action="copy-pin">Copy PIN</button>
             <button type="button" class="btn" data-action="copy-invite-link">Copy invite link</button>
@@ -1295,7 +1295,7 @@ function renderS8Settings() {
       <div class="heading-copy">
         <div class="eyebrow">YOUR STUDY SPACE / 08</div>
         <h1 class="page-title">Settings</h1>
-        <p class="page-subtitle">Make AutoQuiz work the way you learn.</p>
+        <p class="page-subtitle">Make QuizClash work the way you learn.</p>
 
         <div class="settings-tabs" role="tablist">
           ${tabs
@@ -1459,7 +1459,7 @@ function triggerPrintSheet(kind) {
   printEl.innerHTML = `
     <div style="border-bottom:2px solid #000;padding-bottom:12px;margin-bottom:20px">
       <div style="font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase">
-        AUTOQUIZ · ${kind === 'answers' ? 'SEPARATE ANSWER KEY' : 'OFFLINE STUDY SHEET'}
+        QuizClash · ${kind === 'answers' ? 'SEPARATE ANSWER KEY' : 'OFFLINE STUDY SHEET'}
       </div>
       <h1>${escapeHTML(quiz.title)}</h1>
       ${
@@ -2105,7 +2105,7 @@ document.addEventListener('click', (e) => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'autoquiz-study-data.json';
+      a.download = 'QuizClash-study-data.json';
       a.click();
       URL.revokeObjectURL(url);
       toast('Exported study data JSON.');
