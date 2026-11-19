@@ -38,7 +38,7 @@ export const ResultsHistoryPage: React.FC = () => {
         title="A little practice goes a long way."
         subtitle={`${latest.quizTitle} · Attempt completed · Saved to your profile`}
         actions={
-          <Link to="/" className="btn">
+          <Link to="/dashboard" className="btn">
             Back to dashboard
           </Link>
         }

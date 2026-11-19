@@ -49,7 +49,7 @@ export const LiveLobbyPage: React.FC = () => {
         title="Better together. Ready to compete?"
         subtitle={`Host view · ${liveQuiz.title} · ${liveQuiz.questions.length} questions`}
         actions={
-          <Link to="/" className="btn">
+          <Link to="/dashboard" className="btn">
             Close room
           </Link>
         }

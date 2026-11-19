@@ -17,7 +17,8 @@ export function App() {
         <Routes>
           <Route element={<AppLayout />}>
             {/* Screen 01: Dashboard */}
-            <Route path="/" element={<DashboardPage />} />
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/s1" element={<DashboardPage />} />
 
             {/* Screen 02: Generate Quiz */}
@@ -57,7 +58,7 @@ export function App() {
             <Route path="/s8" element={<SettingsPage />} />
 
             {/* Fallback */}
-            <Route path="*" element={<Navigate to="/" replace />} />
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Route>
         </Routes>
       </BrowserRouter>

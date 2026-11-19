@@ -2,7 +2,16 @@ import React, { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import type { ExportFormat } from '../types/quiz';
-import { PageHeader, SectionCard } from '../components/common';
+import { AppPagination, PageHeader, SectionCard } from '../components/common';
+import {
+  Questionnaire,
+  QuestionnaireChoice,
+  QuestionnaireChoiceDescription,
+  QuestionnaireChoices,
+  QuestionnaireDescription,
+  QuestionnaireItem,
+  QuestionnaireTitle,
+} from '@/components/ui/questionnaire';
 
 export const ReviewExportPage: React.FC = () => {
   const { id } = useParams<{ id?: string }>();
@@ -89,7 +98,7 @@ export const ReviewExportPage: React.FC = () => {
       />
 
       <div className="btn-row" data-name="Study actions">
-        <Link to="/" className="btn">
+        <Link to="/dashboard" className="btn">
           ← My quizzes
         </Link>
         <button
@@ -131,18 +140,13 @@ export const ReviewExportPage: React.FC = () => {
             <strong style={{ fontSize: 12 }}>
               QUESTION {safeIdx + 1} OF {total}
             </strong>
-            <div className="q-num-pills" role="navigation" aria-label="Question selector">
-              {activeQuiz.questions.map((_, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  className={`q-pill ${idx === safeIdx ? 'active' : ''}`}
-                  onClick={() => setQuestionIndex(idx)}
-                >
-                  {idx === safeIdx ? `[${idx + 1}]` : idx + 1}
-                </button>
-              ))}
-            </div>
+            <AppPagination
+              currentPage={safeIdx + 1}
+              totalPages={total}
+              onPageChange={(page) => setQuestionIndex(page - 1)}
+              className="mx-0 w-auto justify-end"
+              ariaLabel="Question selector"
+            />
           </div>
 
           <SectionCard
@@ -220,32 +224,45 @@ export const ReviewExportPage: React.FC = () => {
                 </div>
               </>
             ) : (
-              <>
-                <h2 className="question-prompt-lg">{currentQ.prompt}</h2>
-                <div className="answer-options-list">
-                  {currentQ.choices.map((choiceText, cIdx) => (
-                    <button
-                      key={cIdx}
-                      type="button"
-                      className={`answer-option-box ${
-                        currentQ.answer === cIdx ? 'correct-preview' : ''
-                      }`}
-                      onClick={() =>
-                        updateQuizQuestion(activeQuiz.id, safeIdx, { answer: cIdx })
-                      }
-                    >
-                      <span>
-                        <strong>{letters[cIdx]}</strong> &nbsp; {choiceText}
-                      </span>
-                      {currentQ.answer === cIdx ? (
-                        <span>✓ Correct</span>
-                      ) : (
-                        <span className="helper-text">Click to set correct</span>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </>
+              <Questionnaire
+                key={`${activeQuiz.id}-${safeIdx}`}
+                shortcuts="letters"
+                onSubmit={(e) => e.preventDefault()}
+              >
+                <QuestionnaireItem name={`review-q-${safeIdx}`}>
+                  <QuestionnaireTitle className="question-prompt-lg m-0">
+                    {currentQ.prompt}
+                  </QuestionnaireTitle>
+                  <QuestionnaireDescription>
+                    Click any option to set it as the correct answer.
+                  </QuestionnaireDescription>
+                  <QuestionnaireChoices>
+                    {currentQ.choices.map((choiceText, cIdx) => {
+                      const isCorrect = currentQ.answer === cIdx;
+                      return (
+                        <QuestionnaireChoice
+                          key={cIdx}
+                          value={String(cIdx)}
+                          checked={isCorrect}
+                          onChange={() =>
+                            updateQuizQuestion(activeQuiz.id, safeIdx, { answer: cIdx })
+                          }
+                          className={
+                            isCorrect
+                              ? 'border-[var(--success-border)] bg-[var(--success-bg)]/60 data-checked:border-[var(--success-border)] data-checked:bg-[var(--success-bg)]/60'
+                              : undefined
+                          }
+                        >
+                          <span className="font-medium text-foreground">{choiceText}</span>
+                          <QuestionnaireChoiceDescription className="text-xs">
+                            {isCorrect ? '✓ Correct' : 'Click to set correct'}
+                          </QuestionnaireChoiceDescription>
+                        </QuestionnaireChoice>
+                      );
+                    })}
+                  </QuestionnaireChoices>
+                </QuestionnaireItem>
+              </Questionnaire>
             )}
 
             <div style={{ marginTop: 16, fontSize: 12, fontWeight: 700 }}>
@@ -263,23 +280,13 @@ export const ReviewExportPage: React.FC = () => {
             <div style={{ fontSize: 15, fontWeight: 600 }}>{nextQ.prompt}</div>
           </SectionCard>
 
-          <div className="btn-row" style={{ marginTop: 16 }} data-name="Editor pagination">
-            <button
-              type="button"
-              className="btn"
-              disabled={safeIdx === 0}
-              onClick={() => setQuestionIndex((prev) => Math.max(0, prev - 1))}
-            >
-              ← Previous
-            </button>
-            <button
-              type="button"
-              className="btn"
-              disabled={safeIdx === total - 1}
-              onClick={() => setQuestionIndex((prev) => Math.min(total - 1, prev + 1))}
-            >
-              Next question →
-            </button>
+          <div style={{ marginTop: 16 }} data-name="Editor pagination">
+            <AppPagination
+              currentPage={safeIdx + 1}
+              totalPages={total}
+              onPageChange={(page) => setQuestionIndex(page - 1)}
+              ariaLabel="Editor pagination"
+            />
           </div>
         </div>
 

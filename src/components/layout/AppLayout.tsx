@@ -1,7 +1,16 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
 import { ThemeSwitch } from '../common';
+import {
+  Drawer,
+  DrawerClose,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger
+} from '../ui/drawer';
 
 export const AppLayout: React.FC = () => {
   const {
@@ -16,16 +25,18 @@ export const AppLayout: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const mainRef = useRef<HTMLElement | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   const path = location.pathname;
 
   useEffect(() => {
     window.scrollTo(0, 0);
     mainRef.current?.scrollTo(0, 0);
+    setDrawerOpen(false);
   }, [path]);
 
   const isNavActive = (section: 's1' | 's2' | 's3' | 's5' | 's6' | 's8'): boolean => {
-    if (section === 's1') return path === '/' || path === '/s1';
+    if (section === 's1') return path === '/dashboard' || path === '/' || path === '/s1';
     if (section === 's2') return path.startsWith('/generate') || path === '/s2';
     if (section === 's3')
       return (
@@ -71,7 +82,149 @@ export const AppLayout: React.FC = () => {
         {/* Sticky Top Application Header */}
         <header className="app-header" data-name="Application header">
           <div className="header-left">
-            <Link className="brand" to="/" data-name="QuizClash">
+            <Drawer direction="left" open={drawerOpen} onOpenChange={setDrawerOpen}>
+              <DrawerTrigger asChild>
+                <button
+                  type="button"
+                  className="btn btn-sm mobile-hamburger-btn"
+                  aria-label="Open navigation menu"
+                  title="Open menu"
+                >
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <line x1="3" y1="6" x2="21" y2="6" />
+                    <line x1="3" y1="12" x2="21" y2="12" />
+                    <line x1="3" y1="18" x2="21" y2="18" />
+                  </svg>
+                </button>
+              </DrawerTrigger>
+
+              <DrawerContent className="mobile-drawer-content">
+                <DrawerHeader className="mobile-drawer-header">
+                  <div className="mobile-drawer-brand-row">
+                    <Link
+                      className="brand"
+                      to="/dashboard"
+                      onClick={() => setDrawerOpen(false)}
+                    >
+                      <span className="brand-mark" aria-hidden="true"></span>
+                      <span>QuizClash</span>
+                    </Link>
+                    <DrawerClose asChild>
+                      <button
+                        type="button"
+                        className="btn btn-sm mobile-drawer-close-btn"
+                        aria-label="Close navigation menu"
+                      >
+                        ✕
+                      </button>
+                    </DrawerClose>
+                  </div>
+                  <DrawerTitle className="visually-hidden">Navigation Menu</DrawerTitle>
+                  <DrawerDescription className="mobile-drawer-tagline">
+                    Study notes → active recall
+                  </DrawerDescription>
+                </DrawerHeader>
+
+                <div className="mobile-drawer-body">
+                  <div className="nav-group">
+                    <div className="nav-heading">WORKSPACE</div>
+                    <nav className="nav-list" aria-label="Mobile Primary">
+                      <Link
+                        to="/dashboard"
+                        className={`nav-link ${isNavActive('s1') ? 'active' : ''}`}
+                        aria-current={isNavActive('s1') ? 'page' : undefined}
+                        onClick={() => setDrawerOpen(false)}
+                      >
+                        Dashboard
+                      </Link>
+                      <Link
+                        to="/generate"
+                        className={`nav-link ${isNavActive('s2') ? 'active' : ''}`}
+                        aria-current={isNavActive('s2') ? 'page' : undefined}
+                        onClick={() => setDrawerOpen(false)}
+                      >
+                        Generate quiz
+                      </Link>
+                      <Link
+                        to="/quizzes"
+                        className={`nav-link ${isNavActive('s3') ? 'active' : ''}`}
+                        aria-current={isNavActive('s3') ? 'page' : undefined}
+                        onClick={() => setDrawerOpen(false)}
+                      >
+                        My quizzes
+                      </Link>
+                      <Link
+                        to="/history"
+                        className={`nav-link ${isNavActive('s5') ? 'active' : ''}`}
+                        aria-current={isNavActive('s5') ? 'page' : undefined}
+                        onClick={() => setDrawerOpen(false)}
+                      >
+                        Attempt history
+                      </Link>
+                      <Link
+                        to="/lobby"
+                        className={`nav-link ${isNavActive('s6') ? 'active' : ''}`}
+                        aria-current={isNavActive('s6') ? 'page' : undefined}
+                        onClick={() => setDrawerOpen(false)}
+                      >
+                        Live games
+                      </Link>
+                    </nav>
+                  </div>
+
+                  <div className="nav-divider" role="separator"></div>
+
+                  <div className="nav-group">
+                    <div className="nav-heading">YOUR LIBRARY</div>
+                    <div className="library-list" aria-label="Saved quizzes">
+                      {quizzes.slice(0, 4).map((q) => {
+                        const isSelected =
+                          (path.startsWith('/quizzes') || path === '/s3') &&
+                          q.id === activeQuizId;
+                        return (
+                          <button
+                            key={q.id}
+                            type="button"
+                            className={`library-item ${isSelected ? 'active-quiz' : ''}`}
+                            onClick={() => {
+                              setActiveQuizId(q.id);
+                              navigate('/quizzes');
+                              setDrawerOpen(false);
+                            }}
+                          >
+                            {q.sidebarTitle || q.title}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="sidebar-footer">
+                    <Link
+                      to="/settings"
+                      className={`nav-link settings-link ${isNavActive('s8') ? 'active' : ''}`}
+                      aria-current={isNavActive('s8') ? 'page' : undefined}
+                      onClick={() => setDrawerOpen(false)}
+                    >
+                      Help &amp; settings
+                    </Link>
+                    <div className="wireframe-caption">QuizClash Workspace</div>
+                  </div>
+                </div>
+              </DrawerContent>
+            </Drawer>
+
+            <Link className="brand" to="/dashboard" data-name="QuizClash">
               <span className="brand-mark" aria-hidden="true"></span>
               <span>QuizClash</span>
             </Link>
@@ -85,14 +238,6 @@ export const AppLayout: React.FC = () => {
             <Link to="/lobby" className="btn btn-sm header-join-btn" data-name="Join game">
               <span className="join-full-text">Join game</span>
               <span className="join-short-text">Join</span>
-            </Link>
-            <Link
-              to="/settings"
-              className="btn btn-sm header-settings-btn"
-              aria-label="Settings"
-              title="Settings"
-            >
-              <span aria-hidden="true">⚙️</span>
             </Link>
             <Link to="/settings" className="user-badge" data-name="Alex M.">
               {settings.displayName || 'Alex M.'}
@@ -115,7 +260,7 @@ export const AppLayout: React.FC = () => {
               </div>
               <nav className="nav-list" aria-label="Primary">
                 <Link
-                  to="/"
+                  to="/dashboard"
                   className={`nav-link ${isNavActive('s1') ? 'active' : ''}`}
                   aria-current={isNavActive('s1') ? 'page' : undefined}
                 >
@@ -197,50 +342,6 @@ export const AppLayout: React.FC = () => {
             <Outlet />
           </main>
         </div>
-
-        {/* Mobile Bottom Menu Bar */}
-        <nav className="mobile-menu-bar" aria-label="Mobile menu bar" data-name="Mobile menu bar">
-          <Link
-            to="/"
-            className={`mobile-menu-item ${isNavActive('s1') ? 'active' : ''}`}
-            aria-current={isNavActive('s1') ? 'page' : undefined}
-          >
-            <span className="mobile-menu-icon" aria-hidden="true">⌂</span>
-            <span>Home</span>
-          </Link>
-          <Link
-            to="/generate"
-            className={`mobile-menu-item ${isNavActive('s2') ? 'active' : ''}`}
-            aria-current={isNavActive('s2') ? 'page' : undefined}
-          >
-            <span className="mobile-menu-icon" aria-hidden="true">＋</span>
-            <span>Create</span>
-          </Link>
-          <Link
-            to="/quizzes"
-            className={`mobile-menu-item ${isNavActive('s3') ? 'active' : ''}`}
-            aria-current={isNavActive('s3') ? 'page' : undefined}
-          >
-            <span className="mobile-menu-icon" aria-hidden="true">▤</span>
-            <span>Quizzes</span>
-          </Link>
-          <Link
-            to="/history"
-            className={`mobile-menu-item ${isNavActive('s5') ? 'active' : ''}`}
-            aria-current={isNavActive('s5') ? 'page' : undefined}
-          >
-            <span className="mobile-menu-icon" aria-hidden="true">◷</span>
-            <span>History</span>
-          </Link>
-          <Link
-            to="/lobby"
-            className={`mobile-menu-item ${isNavActive('s6') ? 'active' : ''}`}
-            aria-current={isNavActive('s6') ? 'page' : undefined}
-          >
-            <span className="mobile-menu-icon" aria-hidden="true">⚡</span>
-            <span>Live</span>
-          </Link>
-        </nav>
       </div>
 
       {/* Printable Study Sheet (Visible only in @media print) */}

@@ -1,7 +1,16 @@
 import React, { useEffect } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import { PageHeader, SectionCard } from '../components/common';
+import { AppPagination, PageHeader, SectionCard } from '../components/common';
+import {
+  Questionnaire,
+  QuestionnaireChoice,
+  QuestionnaireChoiceDescription,
+  QuestionnaireChoices,
+  QuestionnaireDescription,
+  QuestionnaireItem,
+  QuestionnaireTitle,
+} from '@/components/ui/questionnaire';
 
 export const SoloQuizPage: React.FC = () => {
   const { id } = useParams<{ id?: string }>();
@@ -33,7 +42,6 @@ export const SoloQuizPage: React.FC = () => {
   ).length;
   const remainingCount = Math.max(0, total - answeredCount);
   const pct = Math.round((answeredCount / total) * 100);
-  const letters = ['A', 'B', 'C', 'D'];
 
   const handleFinish = async () => {
     const attempt = await finishPractice();
@@ -47,7 +55,7 @@ export const SoloQuizPage: React.FC = () => {
         title={quiz.title}
         subtitle="Take your time. Your progress is saved as you go."
         actions={
-          <Link to="/" className="btn" data-name="Save & exit">
+          <Link to="/dashboard" className="btn" data-name="Save & exit">
             Save &amp; exit
           </Link>
         }
@@ -70,39 +78,44 @@ export const SoloQuizPage: React.FC = () => {
       <div className="practice-columns" data-name="Practice columns">
         {/* Left: Active Question */}
         <section className="box-card" data-name="Active question">
-          <div className="eyebrow">
+          <div className="eyebrow" style={{ marginBottom: 12 }}>
             QUESTION {String(idx + 1).padStart(2, '0')} / MULTIPLE CHOICE
           </div>
-          <h2 className="question-prompt-lg">{currentQ.prompt}</h2>
-          <p className="helper-text" style={{ marginBottom: 16 }}>
-            Select one answer.
-          </p>
 
-          <div
-            className="answer-options-list"
-            role="radiogroup"
-            aria-label="Answer choices"
+          <Questionnaire
+            key={`${quiz.id}-${idx}`}
+            shortcuts="letters"
+            onSubmit={(e) => e.preventDefault()}
           >
-            {currentQ.choices.map((choiceText, cIdx) => {
-              const isSelected = selectedChoice === cIdx;
-              return (
-                <button
-                  key={cIdx}
-                  type="button"
-                  className={`answer-option-box ${isSelected ? 'selected' : ''}`}
-                  onClick={() => selectPracticeAnswer(idx, cIdx)}
-                  role="radio"
-                  aria-checked={isSelected}
-                >
-                  <span>
-                    ({isSelected ? '●' : ' '}) &nbsp; <strong>{letters[cIdx]}.</strong>{' '}
-                    &nbsp; {choiceText}
-                  </span>
-                  {isSelected && <span style={{ fontSize: 12 }}>Selected</span>}
-                </button>
-              );
-            })}
-          </div>
+            <QuestionnaireItem name={`solo-q-${idx}`}>
+              <QuestionnaireTitle className="question-prompt-lg m-0">
+                {currentQ.prompt}
+              </QuestionnaireTitle>
+              <QuestionnaireDescription>
+                Select one answer.
+              </QuestionnaireDescription>
+              <QuestionnaireChoices>
+                {currentQ.choices.map((choiceText, cIdx) => {
+                  const isSelected = selectedChoice === cIdx;
+                  return (
+                    <QuestionnaireChoice
+                      key={cIdx}
+                      value={String(cIdx)}
+                      checked={isSelected}
+                      onChange={() => selectPracticeAnswer(idx, cIdx)}
+                    >
+                      <span className="font-medium text-foreground">{choiceText}</span>
+                      {isSelected && (
+                        <QuestionnaireChoiceDescription className="text-xs">
+                          Selected
+                        </QuestionnaireChoiceDescription>
+                      )}
+                    </QuestionnaireChoice>
+                  );
+                })}
+              </QuestionnaireChoices>
+            </QuestionnaireItem>
+          </Questionnaire>
 
           <div className="helper-text" style={{ marginTop: 16, fontWeight: 600 }}>
             {selectedChoice !== undefined
@@ -148,22 +161,12 @@ export const SoloQuizPage: React.FC = () => {
       </div>
 
       <div className="action-footer-bar" data-name="Practice navigation">
-        <button
-          type="button"
-          className="btn"
-          disabled={idx === 0}
-          onClick={() => setPracticeQuestionIndex(Math.max(0, idx - 1))}
-        >
-          ← Previous question
-        </button>
-        <button
-          type="button"
-          className="btn"
-          disabled={idx === total - 1}
-          onClick={() => setPracticeQuestionIndex(Math.min(total - 1, idx + 1))}
-        >
-          Next question →
-        </button>
+        <AppPagination
+          currentPage={idx + 1}
+          totalPages={total}
+          onPageChange={(page) => setPracticeQuestionIndex(page - 1)}
+          ariaLabel="Practice navigation"
+        />
       </div>
 
       <SectionCard className="banner-row" dataName="Finish quiz panel">

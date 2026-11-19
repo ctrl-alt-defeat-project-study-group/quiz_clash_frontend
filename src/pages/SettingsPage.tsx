@@ -74,7 +74,7 @@ export const SettingsPage: React.FC = () => {
       confirmLabel: 'Reset data',
       onConfirm: () => {
         resetAllData();
-        navigate('/');
+        navigate('/dashboard');
       }
     });
   };
@@ -303,7 +303,7 @@ export const SettingsPage: React.FC = () => {
           Changes apply to future quizzes, not existing ones.
         </span>
         <div className="btn-row">
-          <Link to="/" className="btn">
+          <Link to="/dashboard" className="btn">
             Cancel
           </Link>
           <button type="button" className="btn btn-primary" onClick={handleSave}>
