@@ -2,12 +2,14 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import Swal, { type SweetAlertIcon } from 'sweetalert2';
 import type {
+  AppLanguage,
   AttemptRecord,
   ExportKind,
   LiveGameState,
   MissedQuestionItem,
   QuestionItem,
   QuizItem,
+  ResolvedTheme,
   ThemeMode,
   UserSettings
 } from '../types/quiz';
@@ -18,6 +20,12 @@ import {
   SEED_QUIZZES
 } from '../data/seedData';
 import * as api from '../services/api';
+import {
+  getErrorByCode,
+  getLocalizedErrorMessage,
+  translate,
+  type TranslationKey
+} from '../i18n';
 
 const STORAGE_KEY = 'quiz-clash-react-v2-state';
 
@@ -38,8 +46,15 @@ interface ModalState {
 
 interface AppContextValue {
   theme: ThemeMode;
+  resolvedTheme: ResolvedTheme;
   setTheme: (theme: ThemeMode) => void;
   toggleTheme: () => void;
+
+  uiLanguage: AppLanguage;
+  setUiLanguage: (lang: AppLanguage) => void;
+  toggleUiLanguage: () => void;
+  t: (key: TranslationKey, params?: Record<string, string | number>) => string;
+  getErrorMessage: (error: unknown) => string;
 
   quizzes: QuizItem[];
   activeQuizId: string;
@@ -124,17 +139,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const stored = loadStoredState();
 
   const [theme, setThemeState] = useState<ThemeMode>(() => {
-    if (stored?.theme === 'dark' || stored?.theme === 'light') {
+    if (
+      stored?.theme === 'dark' ||
+      stored?.theme === 'light' ||
+      stored?.theme === 'system'
+    ) {
       return stored.theme;
     }
-    if (
-      typeof window !== 'undefined' &&
-      window.matchMedia('(prefers-color-scheme: dark)').matches
-    ) {
-      return 'dark';
-    }
-    return 'light';
+    return 'system';
   });
+
+  const [systemPrefersDark, setSystemPrefersDark] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+  });
+
+  const [uiLanguage, setUiLanguageState] = useState<AppLanguage>(() => {
+    if (stored?.uiLanguage === 'mm' || stored?.uiLanguage === 'en') {
+      return stored.uiLanguage;
+    }
+    return 'en';
+  });
+
+  const resolvedTheme: ResolvedTheme =
+    theme === 'system' ? (systemPrefersDark ? 'dark' : 'light') : theme;
   const [quizzes, setQuizzes] = useState<QuizItem[]>(
     Array.isArray(stored?.quizzes) && stored.quizzes.length
       ? stored.quizzes
@@ -183,7 +211,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
     const onChange = (e: MediaQueryListEvent) => {
-      setThemeState(e.matches ? 'dark' : 'light');
+      setSystemPrefersDark(e.matches);
     };
     mq.addEventListener('change', onChange);
     return () => mq.removeEventListener('change', onChange);
@@ -191,14 +219,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   useEffect(() => {
     const root = document.documentElement;
-    root.setAttribute('data-theme', theme);
-    root.classList.toggle('dark', theme === 'dark');
-    root.classList.toggle('light', theme === 'light');
-    root.style.colorScheme = theme;
-    document.body.setAttribute('data-theme', theme);
-    document.body.classList.toggle('dark', theme === 'dark');
-    document.body.classList.toggle('light', theme === 'light');
-  }, [theme]);
+    root.setAttribute('data-theme', resolvedTheme);
+    root.classList.toggle('dark', resolvedTheme === 'dark');
+    root.classList.toggle('light', resolvedTheme === 'light');
+    root.style.colorScheme = resolvedTheme;
+    document.body.setAttribute('data-theme', resolvedTheme);
+    document.body.classList.toggle('dark', resolvedTheme === 'dark');
+    document.body.classList.toggle('light', resolvedTheme === 'light');
+  }, [resolvedTheme]);
+
+  useEffect(() => {
+    document.documentElement.lang = uiLanguage === 'mm' ? 'my' : 'en';
+  }, [uiLanguage]);
 
   useEffect(() => {
     try {
@@ -206,6 +238,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         STORAGE_KEY,
         JSON.stringify({
           theme,
+          uiLanguage,
           quizzes,
           history,
           activeQuizId,
@@ -215,7 +248,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch {
       /* Ignore storage quota errors */
     }
-  }, [theme, quizzes, history, activeQuizId, settings]);
+  }, [theme, uiLanguage, quizzes, history, activeQuizId, settings]);
 
   const showToast = (msg: string, icon?: SweetAlertIcon) => {
     setToastMessage(msg);
@@ -235,7 +268,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     void swalToast.fire({
       position: isMobile ? 'top' : 'bottom-end',
       icon: resolvedIcon,
-      title: msg
+      title: msg,
+      closeButtonAriaLabel: translate(uiLanguage, 'toasts.closeNotificationAria')
     });
   };
 
@@ -244,7 +278,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const toggleTheme = () => {
-    setTheme(theme === 'light' ? 'dark' : 'light');
+    setTheme(resolvedTheme === 'light' ? 'dark' : 'light');
+  };
+
+  const setUiLanguage = (next: AppLanguage) => {
+    setUiLanguageState(next);
+  };
+
+  const toggleUiLanguage = () => {
+    setUiLanguageState((prev) => (prev === 'en' ? 'mm' : 'en'));
+  };
+
+  const t = (key: TranslationKey, params?: Record<string, string | number>): string => {
+    return translate(uiLanguage, key, params);
+  };
+
+  const getErrorMessage = (error: unknown): string => {
+    return getLocalizedErrorMessage(error, uiLanguage);
   };
 
   const activeQuiz =
@@ -276,24 +326,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     if (target.backendId) {
       try {
-        await api.updateQuiz(target.backendId, {
-          title: target.title,
-          source_type: target.source.endsWith('.csv') ? 'csv' : 'txt',
-          questions: target.questions.map((q, idx) => ({
-            prompt: q.prompt,
-            position: idx,
-            choices: q.choices.map((cText, cIdx) => ({
-              text: cText,
-              position: cIdx,
-              is_correct: q.answer === cIdx
+        await api.updateQuiz(
+          target.backendId,
+          {
+            title: target.title,
+            source_type: target.source.endsWith('.csv') ? 'csv' : 'txt',
+            questions: target.questions.map((q, idx) => ({
+              prompt: q.prompt,
+              position: idx,
+              choices: q.choices.map((cText, cIdx) => ({
+                text: cText,
+                position: cIdx,
+                is_correct: q.answer === cIdx
+              }))
             }))
-          }))
-        });
+          },
+          uiLanguage
+        );
       } catch {
         /* Saved locally when backend is unavailable */
       }
     }
-    showToast('All quiz changes have been saved.');
+    showToast(t('toasts.quizSaved'));
   };
 
   const generateQuiz = async (params: {
@@ -312,12 +366,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           file: params.file,
           title: cleanTitle,
           questionCount: count,
-          useLlm: false
+          useLlm: false,
+          language: uiLanguage
         });
 
         let previewQuestions = apiQuiz.questions;
         try {
-          const preview = await api.getQuizPreview(apiQuiz.id);
+          const preview = await api.getQuizPreview(apiQuiz.id, uiLanguage);
           previewQuestions = preview.questions;
         } catch {
           /* Use initial response if preview fails */
@@ -331,7 +386,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             prompt: aq.prompt,
             choices: sortedChoices.map((c) => c.text),
             answer: correctIdx >= 0 ? correctIdx : 0,
-            explanation: 'Generated from your uploaded study file.'
+            explanation: t('toasts.generatedExplanation')
           };
         });
 
@@ -343,14 +398,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             sidebarTitle: apiQuiz.title || cleanTitle,
             category: 'Uploaded',
             source: params.file.name,
-            updated: 'Just now',
+            updated: t('common.justNow'),
             lastScore: 100,
             questions: mappedQuestions
           };
 
           setQuizzes((prev) => [newQuiz, ...prev.filter((q) => q.id !== newQuiz.id)]);
           setActiveQuizIdState(newQuiz.id);
-          showToast(`Quiz "${newQuiz.title}" has been created with ${mappedQuestions.length} questions.`);
+          showToast(
+            t('toasts.quizCreated', {
+              title: newQuiz.title,
+              count: mappedQuestions.length
+            })
+          );
           return newQuiz;
         }
       } catch {
@@ -379,7 +439,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       sidebarTitle: cleanTitle,
       category: 'Custom',
       source: params.fileName || 'Cell_Biology_Notes.pdf',
-      updated: 'Just now',
+      updated: t('common.justNow'),
       lastScore: existing?.lastScore ?? 100,
       questions: generatedQuestions
     };
@@ -390,7 +450,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         : [createdQuiz, ...prev]
     );
     setActiveQuizIdState(createdQuiz.id);
-    showToast(`Quiz "${cleanTitle}" has been created with ${count} questions.`);
+    showToast(t('toasts.quizCreated', { title: cleanTitle, count }));
     return createdQuiz;
   };
 
@@ -435,7 +495,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             choice_id: letters[cIdx] || 'a'
           };
         });
-        await api.submitAttempt(quiz.backendId, payload);
+        await api.submitAttempt(quiz.backendId, payload, uiLanguage);
       } catch {
         /* Fallback to local grading calculation */
       }
@@ -452,9 +512,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         missed.push({
           number: idx + 1,
           prompt: q.prompt,
-          yourAnswer: chosen !== undefined ? q.choices[chosen] : 'Not answered',
+          yourAnswer: chosen !== undefined ? q.choices[chosen] : t('common.notAnswered'),
           correctAnswer: q.choices[q.answer],
-          explanation: q.explanation || 'Review this concept in your source notes.'
+          explanation: q.explanation || t('toasts.reviewConceptExplanation')
         });
       }
     });
@@ -474,7 +534,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       id: `att_${Date.now()}`,
       quizId: quiz.id,
       quizTitle: quiz.title,
-      dateLabel: 'Just now',
+      dateLabel: t('common.justNow'),
       scorePct,
       correct,
       total,
@@ -485,12 +545,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setQuizzes((prev) =>
       prev.map((q) =>
-        q.id === quiz.id ? { ...q, lastScore: scorePct, updated: 'Today' } : q
+        q.id === quiz.id ? { ...q, lastScore: scorePct, updated: t('common.today') } : q
       )
     );
     setHistory((prev) => [newRecord, ...prev]);
     setActiveAttemptId(newRecord.id);
-    showToast(`Assessment completed. Final score: ${scorePct}% (${correct} of ${total} correct).`);
+    showToast(
+      t('toasts.assessmentCompleted', {
+        score: scorePct,
+        correct,
+        total
+      })
+    );
     return newRecord;
   };
 
@@ -499,11 +565,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     if (activeQuiz.backendId) {
       try {
-        await api.downloadQuizPdf(activeQuiz.backendId, kind, activeQuiz.title);
+        await api.downloadQuizPdf(activeQuiz.backendId, kind, activeQuiz.title, uiLanguage);
         showToast(
           kind === 'answers'
-            ? 'The Answer Key PDF has been downloaded.'
-            : 'The Questions Sheet PDF has been downloaded.'
+            ? t('toasts.answerKeyDownloaded')
+            : t('toasts.questionsSheetDownloaded')
         );
         return;
       } catch {
@@ -513,8 +579,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     showToast(
       kind === 'answers'
-        ? 'Preparing the print preview for the Answer Key.'
-        : 'Preparing the print preview for the Questions Sheet.',
+        ? t('toasts.preparingAnswerKey')
+        : t('toasts.preparingQuestionsSheet'),
       'info'
     );
     window.setTimeout(() => window.print(), 120);
@@ -533,7 +599,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!cleanPin || cleanPin.length < 4) {
       return {
         ok: false,
-        error: 'Please enter a valid 6-digit Room PIN (e.g. 482 619).'
+        error: getErrorByCode('INVALID_ROOM_PIN', uiLanguage)
       };
     }
     const playerName = name.trim() || settings.displayName || 'Alex M.';
@@ -550,7 +616,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         ]
       };
     });
-    showToast(`You have joined Room ${live.pin} as ${playerName}.`);
+    showToast(t('toasts.joinedRoom', { pin: live.pin, name: playerName }));
     return { ok: true };
   };
 
@@ -571,7 +637,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               }
             : p;
         });
-        showToast(`Proceeded to Round ${nextRound} of ${totalRounds}.`, 'info');
+        showToast(
+          t('toasts.proceededRound', { round: nextRound, total: totalRounds }),
+          'info'
+        );
         return { ...prev, round: nextRound, players: updatedPlayers };
       } else {
         const resetPlayers = prev.players.map((p, idx) => ({
@@ -579,7 +648,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           correct: 1,
           points: 850 - idx * 60
         }));
-        showToast('Live session rounds have been restarted.', 'info');
+        showToast(t('toasts.restartedRounds'), 'info');
         return { ...prev, round: 1, players: resetPlayers };
       }
     });
@@ -595,7 +664,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setHistory(structuredClone(SEED_HISTORY));
     setActiveQuizIdState('biology');
     setSettings(DEFAULT_SETTINGS);
-    showToast('Workspace data has been restored to default settings.');
+    showToast(t('toasts.workspaceRestored'));
   };
 
   const openModal = (opts: Omit<ModalState, 'open'>) => {
@@ -605,8 +674,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       text: opts.message,
       icon: opts.onConfirm ? 'warning' : 'info',
       showCancelButton: Boolean(opts.onConfirm),
-      confirmButtonText: opts.confirmLabel || (opts.onConfirm ? 'Confirm' : 'Got it'),
-      cancelButtonText: 'Cancel',
+      confirmButtonText:
+        opts.confirmLabel || (opts.onConfirm ? t('common.confirm') : t('common.gotIt')),
+      cancelButtonText: t('common.cancel'),
       reverseButtons: true,
       buttonsStyling: false,
       customClass: {
@@ -633,8 +703,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     <AppContext.Provider
       value={{
         theme,
+        resolvedTheme,
         setTheme,
         toggleTheme,
+        uiLanguage,
+        setUiLanguage,
+        toggleUiLanguage,
+        t,
+        getErrorMessage,
         quizzes,
         activeQuizId,
         activeQuiz,

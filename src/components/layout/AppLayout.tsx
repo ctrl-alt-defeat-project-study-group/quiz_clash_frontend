@@ -1,7 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { ChevronDown, Settings } from 'lucide-react';
+import defaultAvatar from '../../assets/avatar.svg';
 import { useApp } from '../../context/AppContext';
-import { ThemeSwitch } from '../common';
+import { LanguageSwitch } from '../common';
+import { Progress } from '@/components/ui/progress';
 import {
   Drawer,
   DrawerClose,
@@ -19,20 +22,61 @@ export const AppLayout: React.FC = () => {
     activeQuiz,
     setActiveQuizId,
     settings,
-    printKind
+    updateSettings,
+    printKind,
+    t
   } = useApp();
 
   const location = useLocation();
   const navigate = useNavigate();
   const mainRef = useRef<HTMLElement | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [scrollProgress, setScrollProgress] = useState(0);
 
   const path = location.pathname;
+  const [libraryOpen, setLibraryOpen] = useState(true);
+  const [prevPath, setPrevPath] = useState(path);
+
+  if (prevPath !== path) {
+    setPrevPath(path);
+    if (drawerOpen) setDrawerOpen(false);
+  }
 
   useEffect(() => {
     window.scrollTo(0, 0);
     mainRef.current?.scrollTo(0, 0);
-    setDrawerOpen(false);
+  }, [path]);
+
+  useEffect(() => {
+    const mainEl = mainRef.current;
+
+    const updateProgress = () => {
+      const isMainScrolling =
+        mainEl &&
+        mainEl.scrollHeight > mainEl.clientHeight + 2 &&
+        window.getComputedStyle(mainEl).overflowY !== 'visible';
+
+      const scrollTop = isMainScrolling ? mainEl.scrollTop : window.scrollY;
+      const maxScroll = isMainScrolling
+        ? mainEl.scrollHeight - mainEl.clientHeight
+        : document.documentElement.scrollHeight - window.innerHeight;
+
+      const pct =
+        maxScroll > 0 ? Math.min(100, Math.max(0, (scrollTop / maxScroll) * 100)) : 0;
+      setScrollProgress(pct);
+    };
+
+    const rafId = window.requestAnimationFrame(updateProgress);
+    window.addEventListener('scroll', updateProgress, { passive: true });
+    window.addEventListener('resize', updateProgress, { passive: true });
+    mainEl?.addEventListener('scroll', updateProgress, { passive: true });
+
+    return () => {
+      window.cancelAnimationFrame(rafId);
+      window.removeEventListener('scroll', updateProgress);
+      window.removeEventListener('resize', updateProgress);
+      mainEl?.removeEventListener('scroll', updateProgress);
+    };
   }, [path]);
 
   const isNavActive = (section: 's1' | 's2' | 's3' | 's5' | 's6' | 's8'): boolean => {
@@ -65,6 +109,134 @@ export const AppLayout: React.FC = () => {
 
   const letters = ['A', 'B', 'C', 'D'];
 
+  const renderNavigationSections = (isMobile: boolean) => {
+    const idPrefix = isMobile ? 'mobile' : 'desktop';
+    const libraryListId = `${idPrefix}-library-list`;
+
+    return (
+      <>
+        <div className="nav-group">
+          <div className="nav-heading" data-name={isMobile ? undefined : 'WORKSPACE'}>
+            {t('nav.workspace')}
+          </div>
+          <nav className="nav-list" aria-label={isMobile ? 'Mobile Primary' : 'Primary'}>
+            <Link
+              to="/dashboard"
+              className={`nav-link ${isNavActive('s1') ? 'active' : ''}`}
+              aria-current={isNavActive('s1') ? 'page' : undefined}
+              onClick={isMobile ? () => setDrawerOpen(false) : undefined}
+            >
+              {t('nav.dashboard')}
+            </Link>
+            <Link
+              to="/generate"
+              className={`nav-link ${isNavActive('s2') ? 'active' : ''}`}
+              aria-current={isNavActive('s2') ? 'page' : undefined}
+              onClick={isMobile ? () => setDrawerOpen(false) : undefined}
+            >
+              {t('nav.generateQuiz')}
+            </Link>
+            <Link
+              to="/history"
+              className={`nav-link ${isNavActive('s5') ? 'active' : ''}`}
+              aria-current={isNavActive('s5') ? 'page' : undefined}
+              onClick={isMobile ? () => setDrawerOpen(false) : undefined}
+            >
+              {t('nav.attemptHistory')}
+            </Link>
+            <Link
+              to="/lobby"
+              className={`nav-link ${isNavActive('s6') ? 'active' : ''}`}
+              aria-current={isNavActive('s6') ? 'page' : undefined}
+              onClick={isMobile ? () => setDrawerOpen(false) : undefined}
+            >
+              {t('nav.liveGames')}
+            </Link>
+          </nav>
+        </div>
+
+        <div className="nav-divider" role="separator"></div>
+
+        <div className="nav-group">
+          <button
+            type="button"
+            className={`nav-dropdown-trigger ${libraryOpen ? 'is-open' : ''}`}
+            data-name={isMobile ? undefined : 'YOUR LIBRARY'}
+            aria-expanded={libraryOpen}
+            aria-controls={libraryListId}
+            onClick={() => setLibraryOpen((prev) => !prev)}
+          >
+            <span>{t('nav.yourLibrary')}</span>
+            <ChevronDown size={14} className="nav-dropdown-chevron" aria-hidden="true" />
+          </button>
+          <div id={libraryListId} className={`nav-collapse ${libraryOpen ? 'is-open' : ''}`}>
+            <div className="nav-collapse-inner">
+              <div className="library-list" aria-label={t('nav.savedQuizzesAria')}>
+                {quizzes.slice(0, 4).map((q) => {
+                  const isSelected =
+                    (path.startsWith('/quizzes') || path === '/s3') && q.id === activeQuizId;
+                  return (
+                    <button
+                      key={q.id}
+                      type="button"
+                      className={`library-item ${isSelected ? 'active-quiz' : ''}`}
+                      onClick={() => {
+                        setActiveQuizId(q.id);
+                        navigate('/quizzes');
+                        if (isMobile) setDrawerOpen(false);
+                      }}
+                    >
+                      {q.sidebarTitle || q.title}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="sidebar-footer">
+          <div className="sidebar-footer-row">
+            <button
+              type="button"
+              className="sidebar-profile-card"
+              onClick={() => {
+                updateSettings({ tab: 'Profile' });
+                if (!isNavActive('s8')) {
+                  navigate('/settings');
+                }
+                if (isMobile) setDrawerOpen(false);
+              }}
+            >
+              <img
+                src={defaultAvatar}
+                alt={settings.displayName || 'Alex M.'}
+                className="sidebar-avatar"
+              />
+              <span className="sidebar-profile-meta">
+                <span className="sidebar-profile-name">
+                  {settings.displayName || 'Alex M.'}
+                </span>
+                <span className="sidebar-profile-sub">{t('nav.workspaceCaption')}</span>
+              </span>
+            </button>
+
+            <Link
+              to="/settings"
+              className={`sidebar-settings-icon-btn ${isNavActive('s8') ? 'active' : ''}`}
+              aria-label={t('nav.helpSettings')}
+              aria-current={isNavActive('s8') ? 'page' : undefined}
+              title={t('nav.helpSettings')}
+              onClick={isMobile ? () => setDrawerOpen(false) : undefined}
+            >
+              <Settings size={17} aria-hidden="true" />
+            </Link>
+          </div>
+        </div>
+      </>
+    );
+  };
+
   return (
     <>
       <a
@@ -75,20 +247,49 @@ export const AppLayout: React.FC = () => {
           mainRef.current?.focus();
         }}
       >
-        Skip to content
+        {t('nav.skipToContent')}
       </a>
 
       <div className="app-frame">
         {/* Sticky Top Application Header */}
         <header className="app-header" data-name="Application header">
           <div className="header-left">
-            <Drawer direction="left" open={drawerOpen} onOpenChange={setDrawerOpen}>
+            <Link className="brand" to="/" data-name="QuizClash">
+              <span className="brand-mark" aria-hidden="true"></span>
+              <span>QuizClash</span>
+            </Link>
+            <span className="brand-tagline" data-name="Study notes → active recall">
+              {t('nav.tagline')}
+            </span>
+          </div>
+
+          <div className="header-right">
+            <LanguageSwitch />
+            <Link to="/lobby" className="btn btn-sm header-join-btn" data-name="Join game">
+              <span className="join-full-text">{t('nav.joinGame')}</span>
+              <span className="join-short-text">{t('nav.joinShort')}</span>
+            </Link>
+            <Link
+              to="/settings"
+              className="user-badge"
+              data-name="User profile"
+              title={settings.displayName || 'Alex M.'}
+              aria-label={settings.displayName || 'Alex M.'}
+            >
+              <img
+                src={defaultAvatar}
+                alt={settings.displayName || 'Alex M.'}
+                className="header-avatar"
+              />
+            </Link>
+
+            <Drawer direction="right" open={drawerOpen} onOpenChange={setDrawerOpen}>
               <DrawerTrigger asChild>
                 <button
                   type="button"
                   className="btn btn-sm mobile-hamburger-btn"
-                  aria-label="Open navigation menu"
-                  title="Open menu"
+                  aria-label={t('nav.openMenuAria')}
+                  title={t('nav.openMenuTitle')}
                 >
                   <svg
                     width="18"
@@ -123,126 +324,32 @@ export const AppLayout: React.FC = () => {
                       <button
                         type="button"
                         className="btn btn-sm mobile-drawer-close-btn"
-                        aria-label="Close navigation menu"
+                        aria-label={t('nav.closeMenuAria')}
                       >
                         ✕
                       </button>
                     </DrawerClose>
                   </div>
-                  <DrawerTitle className="visually-hidden">Navigation Menu</DrawerTitle>
+                  <DrawerTitle className="visually-hidden">
+                    {t('nav.navigationMenu')}
+                  </DrawerTitle>
                   <DrawerDescription className="mobile-drawer-tagline">
-                    Study notes → active recall
+                    {t('nav.tagline')}
                   </DrawerDescription>
                 </DrawerHeader>
 
                 <div className="mobile-drawer-body">
-                  <div className="nav-group">
-                    <div className="nav-heading">WORKSPACE</div>
-                    <nav className="nav-list" aria-label="Mobile Primary">
-                      <Link
-                        to="/dashboard"
-                        className={`nav-link ${isNavActive('s1') ? 'active' : ''}`}
-                        aria-current={isNavActive('s1') ? 'page' : undefined}
-                        onClick={() => setDrawerOpen(false)}
-                      >
-                        Dashboard
-                      </Link>
-                      <Link
-                        to="/generate"
-                        className={`nav-link ${isNavActive('s2') ? 'active' : ''}`}
-                        aria-current={isNavActive('s2') ? 'page' : undefined}
-                        onClick={() => setDrawerOpen(false)}
-                      >
-                        Generate quiz
-                      </Link>
-                      <Link
-                        to="/quizzes"
-                        className={`nav-link ${isNavActive('s3') ? 'active' : ''}`}
-                        aria-current={isNavActive('s3') ? 'page' : undefined}
-                        onClick={() => setDrawerOpen(false)}
-                      >
-                        My quizzes
-                      </Link>
-                      <Link
-                        to="/history"
-                        className={`nav-link ${isNavActive('s5') ? 'active' : ''}`}
-                        aria-current={isNavActive('s5') ? 'page' : undefined}
-                        onClick={() => setDrawerOpen(false)}
-                      >
-                        Attempt history
-                      </Link>
-                      <Link
-                        to="/lobby"
-                        className={`nav-link ${isNavActive('s6') ? 'active' : ''}`}
-                        aria-current={isNavActive('s6') ? 'page' : undefined}
-                        onClick={() => setDrawerOpen(false)}
-                      >
-                        Live games
-                      </Link>
-                    </nav>
-                  </div>
-
-                  <div className="nav-divider" role="separator"></div>
-
-                  <div className="nav-group">
-                    <div className="nav-heading">YOUR LIBRARY</div>
-                    <div className="library-list" aria-label="Saved quizzes">
-                      {quizzes.slice(0, 4).map((q) => {
-                        const isSelected =
-                          (path.startsWith('/quizzes') || path === '/s3') &&
-                          q.id === activeQuizId;
-                        return (
-                          <button
-                            key={q.id}
-                            type="button"
-                            className={`library-item ${isSelected ? 'active-quiz' : ''}`}
-                            onClick={() => {
-                              setActiveQuizId(q.id);
-                              navigate('/quizzes');
-                              setDrawerOpen(false);
-                            }}
-                          >
-                            {q.sidebarTitle || q.title}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  <div className="sidebar-footer">
-                    <Link
-                      to="/settings"
-                      className={`nav-link settings-link ${isNavActive('s8') ? 'active' : ''}`}
-                      aria-current={isNavActive('s8') ? 'page' : undefined}
-                      onClick={() => setDrawerOpen(false)}
-                    >
-                      Help &amp; settings
-                    </Link>
-                    <div className="wireframe-caption">QuizClash Workspace</div>
-                  </div>
+                  {renderNavigationSections(true)}
                 </div>
               </DrawerContent>
             </Drawer>
-
-            <Link className="brand" to="/dashboard" data-name="QuizClash">
-              <span className="brand-mark" aria-hidden="true"></span>
-              <span>QuizClash</span>
-            </Link>
-            <span className="brand-tagline" data-name="Study notes → active recall">
-              Study notes → active recall
-            </span>
           </div>
 
-          <div className="header-right">
-            <ThemeSwitch variant="header" />
-            <Link to="/lobby" className="btn btn-sm header-join-btn" data-name="Join game">
-              <span className="join-full-text">Join game</span>
-              <span className="join-short-text">Join</span>
-            </Link>
-            <Link to="/settings" className="user-badge" data-name="Alex M.">
-              {settings.displayName || 'Alex M.'}
-            </Link>
-          </div>
+          <Progress
+            value={scrollProgress}
+            className="app-scroll-progress !h-[3px] !rounded-none bg-transparent"
+            aria-label="Page scroll progress"
+          />
         </header>
 
         {/* Workspace Container */}
@@ -252,89 +359,9 @@ export const AppLayout: React.FC = () => {
             id="workspace-sidebar"
             className="sidebar"
             data-name="Navigation"
-            aria-label="Workspace navigation"
+            aria-label={t('nav.workspaceNavAria')}
           >
-            <div className="nav-group">
-              <div className="nav-heading" data-name="WORKSPACE">
-                WORKSPACE
-              </div>
-              <nav className="nav-list" aria-label="Primary">
-                <Link
-                  to="/dashboard"
-                  className={`nav-link ${isNavActive('s1') ? 'active' : ''}`}
-                  aria-current={isNavActive('s1') ? 'page' : undefined}
-                >
-                  Dashboard
-                </Link>
-                <Link
-                  to="/generate"
-                  className={`nav-link ${isNavActive('s2') ? 'active' : ''}`}
-                  aria-current={isNavActive('s2') ? 'page' : undefined}
-                >
-                  Generate quiz
-                </Link>
-                <Link
-                  to="/quizzes"
-                  className={`nav-link ${isNavActive('s3') ? 'active' : ''}`}
-                  aria-current={isNavActive('s3') ? 'page' : undefined}
-                >
-                  My quizzes
-                </Link>
-                <Link
-                  to="/history"
-                  className={`nav-link ${isNavActive('s5') ? 'active' : ''}`}
-                  aria-current={isNavActive('s5') ? 'page' : undefined}
-                >
-                  Attempt history
-                </Link>
-                <Link
-                  to="/lobby"
-                  className={`nav-link ${isNavActive('s6') ? 'active' : ''}`}
-                  aria-current={isNavActive('s6') ? 'page' : undefined}
-                >
-                  Live games
-                </Link>
-              </nav>
-            </div>
-
-            <div className="nav-divider" role="separator"></div>
-
-            <div className="nav-group">
-              <div className="nav-heading" data-name="YOUR LIBRARY">
-                YOUR LIBRARY
-              </div>
-              <div className="library-list" aria-label="Saved quizzes">
-                {quizzes.slice(0, 4).map((q) => {
-                  const isSelected =
-                    (path.startsWith('/quizzes') || path === '/s3') &&
-                    q.id === activeQuizId;
-                  return (
-                    <button
-                      key={q.id}
-                      type="button"
-                      className={`library-item ${isSelected ? 'active-quiz' : ''}`}
-                      onClick={() => {
-                        setActiveQuizId(q.id);
-                        navigate('/quizzes');
-                      }}
-                    >
-                      {q.sidebarTitle || q.title}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="sidebar-footer">
-              <Link
-                to="/settings"
-                className={`nav-link settings-link ${isNavActive('s8') ? 'active' : ''}`}
-                aria-current={isNavActive('s8') ? 'page' : undefined}
-              >
-                Help &amp; settings
-              </Link>
-              <div className="wireframe-caption">QuizClash Workspace</div>
-            </div>
+            {renderNavigationSections(false)}
           </aside>
 
           {/* Right Scrollable Main Panel */}
@@ -362,15 +389,19 @@ export const AppLayout: React.FC = () => {
             }}
           >
             QuizClash ·{' '}
-            {printKind === 'answers' ? 'SEPARATE ANSWER KEY' : 'OFFLINE STUDY SHEET'}
+            {printKind === 'answers'
+              ? t('print.answerKeyHeader')
+              : t('print.studySheetHeader')}
           </div>
           <h1>{activeQuiz.title}</h1>
           {printKind === 'questions' ? (
-            <p>Name: ____________________________ &nbsp;&nbsp;&nbsp; Date: ________________</p>
+            <p>{t('print.nameDateLine')}</p>
           ) : (
             <p>
-              {activeQuiz.questions.length} multiple-choice questions · Source:{' '}
-              {activeQuiz.source}
+              {t('print.metaSummary', {
+                count: activeQuiz.questions.length,
+                source: activeQuiz.source
+              })}
             </p>
           )}
         </div>
@@ -381,7 +412,7 @@ export const AppLayout: React.FC = () => {
               <br />
               {printKind === 'answers' ? (
                 <span>
-                  Correct Answer:{' '}
+                  {t('print.correctAnswerLabel')}{' '}
                   <strong>
                     {letters[q.answer]}. {q.choices[q.answer]}
                   </strong>

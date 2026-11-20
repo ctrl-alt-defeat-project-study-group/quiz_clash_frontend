@@ -10,8 +10,8 @@ export const ThemeSwitch: React.FC<ThemeSwitchProps> = ({
   variant = 'card',
   className = '',
 }) => {
-  const { theme, toggleTheme } = useApp();
-  const dark = theme === 'dark';
+  const { resolvedTheme, toggleTheme } = useApp();
+  const dark = resolvedTheme === 'dark';
 
   const isHeader = variant === 'header';
 

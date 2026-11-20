@@ -21,7 +21,8 @@ export const SoloQuizPage: React.FC = () => {
     startPractice,
     selectPracticeAnswer,
     setPracticeQuestionIndex,
-    finishPractice
+    finishPractice,
+    t
   } = useApp();
 
   const navigate = useNavigate();
@@ -51,23 +52,42 @@ export const SoloQuizPage: React.FC = () => {
   return (
     <>
       <PageHeader
-        eyebrow="SOLO PRACTICE / 04"
+        breadcrumbs={[
+          { label: 'QuizClash', to: '/' },
+          { label: t('nav.yourLibrary'), to: '/quizzes' },
+          {
+            label: quiz.sidebarTitle || quiz.title,
+            siblingRoutes: quizzes.map((q) => ({
+              label: q.sidebarTitle || q.title,
+              active: q.id === quiz.id,
+              onClick: () => {
+                startPractice(q.id);
+                navigate(`/quizzes/${encodeURIComponent(q.id)}/play`);
+              }
+            }))
+          }
+        ]}
         title={quiz.title}
-        subtitle="Take your time. Your progress is saved as you go."
+        subtitle={t('solo.subtitle')}
         actions={
           <Link to="/dashboard" className="btn" data-name="Save & exit">
-            Save &amp; exit
+            {t('solo.saveAndExit')}
           </Link>
         }
       />
 
-      <section className="progress-card" data-name="Quiz progress" aria-label="Quiz progress">
+      <section
+        className="progress-card"
+        data-name="Quiz progress"
+        aria-label={t('solo.progressAria')}
+      >
         <div className="progress-labels">
-          <strong>
-            Question {idx + 1} of {total}
-          </strong>
+          <strong>{t('solo.questionOf', { current: idx + 1, total })}</strong>
           <span className="helper-text">
-            {answeredCount} answered · {remainingCount} remaining
+            {t('solo.answeredRemaining', {
+              answered: answeredCount,
+              remaining: remainingCount
+            })}
           </span>
         </div>
         <div className="progress-track">
@@ -79,7 +99,7 @@ export const SoloQuizPage: React.FC = () => {
         {/* Left: Active Question */}
         <section className="box-card" data-name="Active question">
           <div className="eyebrow" style={{ marginBottom: 12 }}>
-            QUESTION {String(idx + 1).padStart(2, '0')} / MULTIPLE CHOICE
+            {t('solo.questionEyebrow', { num: String(idx + 1).padStart(2, '0') })}
           </div>
 
           <Questionnaire
@@ -92,7 +112,7 @@ export const SoloQuizPage: React.FC = () => {
                 {currentQ.prompt}
               </QuestionnaireTitle>
               <QuestionnaireDescription>
-                Select one answer.
+                {t('solo.selectOneAnswer')}
               </QuestionnaireDescription>
               <QuestionnaireChoices>
                 {currentQ.choices.map((choiceText, cIdx) => {
@@ -107,7 +127,7 @@ export const SoloQuizPage: React.FC = () => {
                       <span className="font-medium text-foreground">{choiceText}</span>
                       {isSelected && (
                         <QuestionnaireChoiceDescription className="text-xs">
-                          Selected
+                          {t('solo.selected')}
                         </QuestionnaireChoiceDescription>
                       )}
                     </QuestionnaireChoice>
@@ -119,14 +139,14 @@ export const SoloQuizPage: React.FC = () => {
 
           <div className="helper-text" style={{ marginTop: 16, fontWeight: 600 }}>
             {selectedChoice !== undefined
-              ? 'Answer selected · Saved'
-              : 'No answer selected yet for this question'}
+              ? t('solo.answerSaved')
+              : t('solo.noAnswerYet')}
           </div>
         </section>
 
         {/* Right: Question Navigator */}
         <aside className="box-card" data-name="Question navigator">
-          <h2 className="section-title">Your progress</h2>
+          <h2 className="section-title">{t('solo.yourProgress')}</h2>
           <div className="q-index-grid">
             {quiz.questions.map((_, i) => {
               const isCurrent = i === idx;
@@ -147,16 +167,17 @@ export const SoloQuizPage: React.FC = () => {
 
           <div className="helper-text" style={{ lineHeight: 1.7, marginBottom: 14 }}>
             <div>
-              <strong>●</strong> Answered ({answeredCount})
+              <strong>●</strong> {t('solo.legendAnswered', { count: answeredCount })}
             </div>
             <div>
-              <strong>■</strong> Current question ({String(idx + 1).padStart(2, '0')})
+              <strong>■</strong>{' '}
+              {t('solo.legendCurrent', { num: String(idx + 1).padStart(2, '0') })}
             </div>
             <div>
-              <strong>○</strong> Not answered ({remainingCount})
+              <strong>○</strong> {t('solo.legendNotAnswered', { count: remainingCount })}
             </div>
           </div>
-          <p className="helper-text">Answers are graded when you finish the quiz.</p>
+          <p className="helper-text">{t('solo.gradedOnFinish')}</p>
         </aside>
       </div>
 
@@ -165,16 +186,16 @@ export const SoloQuizPage: React.FC = () => {
           currentPage={idx + 1}
           totalPages={total}
           onPageChange={(page) => setPracticeQuestionIndex(page - 1)}
-          ariaLabel="Practice navigation"
+          ariaLabel={t('solo.practiceNavAria')}
         />
       </div>
 
       <SectionCard className="banner-row" dataName="Finish quiz panel">
         <span className="helper-text" style={{ fontSize: 13 }}>
-          Ready to submit? You can review any question before finishing.
+          {t('solo.finishPrompt')}
         </span>
         <button type="button" className="btn btn-primary" onClick={handleFinish}>
-          Finish quiz
+          {t('solo.finishQuizBtn')}
         </button>
       </SectionCard>
     </>

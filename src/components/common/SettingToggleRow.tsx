@@ -1,7 +1,6 @@
 import React, { useId } from 'react';
 import {
   Field,
-  FieldContent,
   FieldDescription,
   FieldLabel,
   FieldTitle,
@@ -31,16 +30,16 @@ export const SettingToggleRow: React.FC<SettingToggleRowProps> = ({
         htmlFor={switchId}
         className="w-full cursor-pointer select-none bg-card transition-colors hover:border-primary"
       >
-        <Field orientation="horizontal" className="!py-2.5 !px-3.5">
-          <FieldContent>
+        <Field orientation="vertical" className="!gap-1.5 !py-3 !px-3.5">
+          <div className="flex items-center gap-3">
+            <Switch
+              id={switchId}
+              checked={checked}
+              onCheckedChange={() => onToggle()}
+            />
             <FieldTitle>{label}</FieldTitle>
-            <FieldDescription>{description}</FieldDescription>
-          </FieldContent>
-          <Switch
-            id={switchId}
-            checked={checked}
-            onCheckedChange={() => onToggle()}
-          />
+          </div>
+          <FieldDescription>{description}</FieldDescription>
         </Field>
       </FieldLabel>
     </div>

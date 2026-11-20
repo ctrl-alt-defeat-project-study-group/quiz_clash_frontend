@@ -2,7 +2,9 @@
    QuizClash / QuizClash TypeScript Domain & API Models
    ========================================================================== */
 
-export type ThemeMode = 'light' | 'dark';
+export type ThemeMode = 'light' | 'dark' | 'system';
+export type ResolvedTheme = 'light' | 'dark';
+export type AppLanguage = 'en' | 'mm';
 export type ExportFormat = 'pdf' | 'word';
 export type ExportKind = 'questions' | 'answers';
 

@@ -1,130 +1,153 @@
-import React, { useEffect, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import React, { useMemo } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts';
 import { useApp } from '../context/AppContext';
 import { SEED_HISTORY } from '../data/seedData';
 import { PageHeader, SectionCard, StatCard } from '../components/common';
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig
+} from '@/components/ui/chart';
 
 export const ResultsHistoryPage: React.FC = () => {
-  const { id } = useParams<{ id?: string }>();
   const {
-    quizzes,
     history,
     activeAttemptId,
     setActiveAttemptId,
-    activeQuiz,
     startPractice,
-    exportStudySheet
+    exportStudySheet,
+    t
   } = useApp();
 
   const navigate = useNavigate();
-  const [showAllAnswers, setShowAllAnswers] = useState<boolean>(false);
-
-  useEffect(() => {
-    if (id && history.some((h) => h.id === id)) {
-      setActiveAttemptId(id);
-    }
-  }, [id, history, setActiveAttemptId]);
 
   const latest =
     history.find((h) => h.id === activeAttemptId) || history[0] || SEED_HISTORY[0];
-  const quiz = quizzes.find((q) => q.id === latest.quizId) || activeQuiz;
-  const missedList =
-    latest.missed && latest.missed.length ? latest.missed : SEED_HISTORY[0].missed;
+
+  const chartData = useMemo(
+    () =>
+      [...history].reverse().map((h, idx) => ({
+        attempt: h.dateLabel,
+        label: `#${idx + 1} · ${h.quizTitle}`,
+        scorePct: h.scorePct,
+        correct: h.correct,
+        total: h.total
+      })),
+    [history]
+  );
+
+  const chartConfig = useMemo<ChartConfig>(
+    () => ({
+      scorePct: {
+        label: t('results.scoreSeriesLabel'),
+        color: 'var(--primary)'
+      }
+    }),
+    [t]
+  );
 
   return (
     <>
       <PageHeader
-        eyebrow="RESULTS & HISTORY / 05"
-        title="A little practice goes a long way."
-        subtitle={`${latest.quizTitle} · Attempt completed · Saved to your profile`}
-        actions={
-          <Link to="/dashboard" className="btn">
-            Back to dashboard
-          </Link>
-        }
+        breadcrumbs={[
+          { label: 'QuizClash', to: '/' },
+          { label: t('nav.attemptHistory') }
+        ]}
+        title={t('results.title')}
+        subtitle={t('results.subtitle', { quizTitle: latest.quizTitle })}
       />
 
-      <section className="stat-grid-4" data-name="Attempt summary" aria-label="Attempt summary">
-        <StatCard value={`${latest.scorePct}%`} label="Your score" />
-        <StatCard value={`${latest.correct} / ${latest.total}`} label="Correct answers" />
-        <StatCard value={latest.duration} label="Time taken" />
-        <StatCard value={latest.deltaPts} label="From last attempt" />
+      <section
+        className="stat-grid-4"
+        data-name="Attempt summary"
+        aria-label={t('results.attemptSummaryAria')}
+      >
+        <StatCard value={`${latest.scorePct}%`} label={t('results.yourScore')} />
+        <StatCard
+          value={`${latest.correct} / ${latest.total}`}
+          label={t('results.correctAnswers')}
+        />
+        <StatCard value={latest.duration} label={t('results.timeTaken')} />
+        <StatCard value={latest.deltaPts} label={t('results.fromLastAttempt')} />
       </section>
 
-      <SectionCard
-        title={
-          showAllAnswers
-            ? `All ${quiz.questions.length} questions in ${quiz.title}`
-            : missedList.length
-            ? `Review the ${missedList.length} question${
-                missedList.length === 1 ? '' : 's'
-              } you missed`
-            : 'Perfect score! Every question answered correctly'
-        }
-        headerRight={
-          <button
-            type="button"
-            className="text-link"
-            onClick={() => setShowAllAnswers((prev) => !prev)}
+      <SectionCard dataName="Score progress chart">
+        <h2 className="section-title" style={{ marginBottom: 4 }}>
+          {t('results.scoreTrendTitle')}
+        </h2>
+        <p className="helper-text" style={{ marginBottom: 16 }}>
+          {t('results.scoreTrendSubtitle')}
+        </p>
+
+        <ChartContainer config={chartConfig} className="attempt-chart-container">
+          <AreaChart
+            accessibilityLayer
+            data={chartData}
+            margin={{ top: 10, right: 16, left: -12, bottom: 4 }}
           >
-            {showAllAnswers ? 'Show missed only →' : 'View all answers →'}
-          </button>
-        }
-        dataName="Missed question review"
-      >
-        <div className="missed-grid">
-          {showAllAnswers
-            ? quiz.questions.map((q, idx) => (
-                <article key={idx} className="feedback-card is-right">
-                  <div className="eyebrow">
-                    QUESTION {String(idx + 1).padStart(2, '0')}
-                  </div>
-                  <h3 style={{ fontSize: 16, fontWeight: 600 }}>{q.prompt}</h3>
-                  <p style={{ fontSize: 13 }}>
-                    <strong>Correct answer:</strong> {q.choices[q.answer]}
-                  </p>
-                  <p className="helper-text">
-                    {q.explanation || 'Verified against your study notes.'}
-                  </p>
-                </article>
-              ))
-            : missedList.map((m, idx) => (
-                <article key={idx} className="feedback-card is-wrong">
-                  <div className="eyebrow">
-                    QUESTION {String(m.number).padStart(2, '0')}
-                  </div>
-                  <h3 style={{ fontSize: 16, fontWeight: 600 }}>{m.prompt}</h3>
-                  <div style={{ fontSize: 13, lineHeight: 1.5 }}>
-                    <div>
-                      Your answer: <strong>{m.yourAnswer}</strong>
-                    </div>
-                    <div>
-                      Correct answer: <strong>{m.correctAnswer}</strong>
-                    </div>
-                  </div>
-                  <p className="helper-text">{m.explanation}</p>
-                </article>
-              ))}
-        </div>
+            <defs>
+              <linearGradient id="attemptScoreFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="var(--color-scorePct)" stopOpacity={0.32} />
+                <stop offset="95%" stopColor="var(--color-scorePct)" stopOpacity={0.02} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid vertical={false} strokeDasharray="3 3" />
+            <XAxis
+              dataKey="attempt"
+              tickLine={false}
+              axisLine={false}
+              tickMargin={10}
+            />
+            <YAxis
+              domain={[0, 100]}
+              ticks={[0, 25, 50, 75, 100]}
+              tickLine={false}
+              axisLine={false}
+              tickFormatter={(value) => `${value}%`}
+            />
+            <ChartTooltip
+              cursor={{ stroke: 'var(--border)', strokeDasharray: '4 4' }}
+              content={
+                <ChartTooltipContent
+                  indicator="dot"
+                  formatter={(value) => `${value}%`}
+                />
+              }
+            />
+            <Area
+              dataKey="scorePct"
+              type="monotone"
+              fill="url(#attemptScoreFill)"
+              stroke="var(--color-scorePct)"
+              strokeWidth={2.5}
+              activeDot={{ r: 5 }}
+            />
+          </AreaChart>
+        </ChartContainer>
       </SectionCard>
 
       <SectionCard dataName="Attempt history">
         <h2 className="section-title" style={{ marginBottom: 4 }}>
-          Your attempt history
+          {t('results.attemptHistoryTitle')}
         </h2>
         <p className="helper-text" style={{ marginBottom: 16 }}>
-          {latest.quizTitle} · {history.length} completed attempts
+          {t('results.attemptHistorySubtitle', {
+            quizTitle: latest.quizTitle,
+            count: history.length
+          })}
         </p>
 
         <div className="table-wrap">
           <table className="data-table">
             <thead>
               <tr>
-                <th>DATE</th>
-                <th>SCORE</th>
-                <th>CORRECT</th>
-                <th>DURATION</th>
-                <th>REVIEW</th>
+                <th>{t('results.colDate')}</th>
+                <th>{t('results.colScore')}</th>
+                <th>{t('results.colCorrect')}</th>
+                <th>{t('results.colDuration')}</th>
+                <th>{t('results.colReview')}</th>
               </tr>
             </thead>
             <tbody>
@@ -144,12 +167,10 @@ export const ResultsHistoryPage: React.FC = () => {
                       className="text-link"
                       onClick={() => {
                         setActiveAttemptId(h.id);
-                        setShowAllAnswers(false);
                         navigate(`/attempts/${encodeURIComponent(h.id)}`);
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
                       }}
                     >
-                      View attempt →
+                      {t('results.viewAttempt')}
                     </button>
                   </td>
                 </tr>
@@ -168,17 +189,17 @@ export const ResultsHistoryPage: React.FC = () => {
             navigate(`/quizzes/${encodeURIComponent(latest.quizId)}/play`);
           }}
         >
-          Retake quiz
+          {t('results.retakeQuiz')}
         </button>
         <button
           type="button"
           className="btn"
           onClick={() => void exportStudySheet('answers')}
         >
-          Download answer key
+          {t('results.downloadAnswerKey')}
         </button>
         <Link to="/lobby" className="btn">
-          Challenge friends
+          {t('results.challengeFriends')}
         </Link>
       </div>
     </>

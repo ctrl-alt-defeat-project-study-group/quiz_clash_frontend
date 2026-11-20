@@ -2,6 +2,13 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { PageHeader, SectionCard } from '../components/common';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select';
 
 export const LiveLobbyPage: React.FC = () => {
   const {
@@ -11,7 +18,8 @@ export const LiveLobbyPage: React.FC = () => {
     setLiveQuizId,
     setLiveTimer,
     joinLiveRoom,
-    showToast
+    showToast,
+    t
   } = useApp();
 
   const [joinPin, setJoinPin] = useState<string>('');
@@ -22,19 +30,19 @@ export const LiveLobbyPage: React.FC = () => {
 
   const handleCopyPin = () => {
     navigator.clipboard?.writeText(live.pin.replace(/\s+/g, '')).catch(() => {});
-    showToast(`Room PIN ${live.pin} has been copied to the clipboard.`);
+    showToast(t('toasts.pinCopied', { pin: live.pin }));
   };
 
   const handleCopyInviteLink = () => {
     navigator.clipboard?.writeText(`${window.location.origin}/lobby`).catch(() => {});
-    showToast('Invitation link has been copied to the clipboard.');
+    showToast(t('toasts.inviteLinkCopied'));
   };
 
   const handleJoinSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const res = joinLiveRoom(joinPin, joinName);
     if (!res.ok) {
-      setJoinError(res.error || 'Invalid PIN');
+      setJoinError(res.error || t('lobby.invalidPinFallback'));
       return;
     }
     setJoinError('');
@@ -45,12 +53,18 @@ export const LiveLobbyPage: React.FC = () => {
   return (
     <>
       <PageHeader
-        eyebrow="LIVE GAMES / 06"
-        title="Better together. Ready to compete?"
-        subtitle={`Host view · ${liveQuiz.title} · ${liveQuiz.questions.length} questions`}
+        breadcrumbs={[
+          { label: 'QuizClash', to: '/' },
+          { label: t('nav.liveGames') }
+        ]}
+        title={t('lobby.title')}
+        subtitle={t('lobby.subtitle', {
+          quizTitle: liveQuiz.title,
+          count: liveQuiz.questions.length
+        })}
         actions={
           <Link to="/dashboard" className="btn">
-            Close room
+            {t('lobby.closeRoom')}
           </Link>
         }
       />
@@ -62,24 +76,24 @@ export const LiveLobbyPage: React.FC = () => {
           data-name="Host lobby"
         >
           <section className="pin-invitation-card" data-name="Room invitation">
-            <div className="eyebrow">INVITE FRIENDS WITH THIS ROOM PIN</div>
+            <div className="eyebrow">{t('lobby.inviteEyebrow')}</div>
             <div className="pin-display">{live.pin}</div>
             <p className="helper-text" style={{ marginBottom: 16 }}>
-              Open QuizClash → Join game → Enter the PIN
+              {t('lobby.inviteSteps')}
             </p>
             <div className="btn-row">
               <button type="button" className="btn" onClick={handleCopyPin}>
-                Copy PIN
+                {t('lobby.copyPin')}
               </button>
               <button type="button" className="btn" onClick={handleCopyInviteLink}>
-                Copy invite link
+                {t('lobby.copyInviteLink')}
               </button>
             </div>
           </section>
 
           <SectionCard
-            title={`${live.players.length} players joined`}
-            headerRight={<span className="helper-text">Waiting for the host</span>}
+            title={t('lobby.playersJoined', { count: live.players.length })}
+            headerRight={<span className="helper-text">{t('lobby.waitingForHost')}</span>}
             headerStyle={{ marginBottom: 8 }}
             dataName="Connected players"
           >
@@ -87,20 +101,22 @@ export const LiveLobbyPage: React.FC = () => {
               {live.players.map((p, idx) => (
                 <div key={idx} className="player-tile">
                   <strong>{p.name}</strong>
-                  <span className="score-badge">{p.status}</span>
+                  <span className="score-badge">
+                    {p.status === 'Ready' ? t('lobby.playerStatusReady') : p.status}
+                  </span>
                 </div>
               ))}
             </div>
 
-            <p className="helper-text">Players appear here as soon as they join.</p>
+            <p className="helper-text">{t('lobby.playersAppearHelper')}</p>
           </SectionCard>
 
           <div className="btn-row" data-name="Host controls">
             <Link to="/leaderboard" className="btn btn-primary">
-              Start game →
+              {t('lobby.startGame')}
             </Link>
             <span className="helper-text">
-              All {live.players.length} players are connected.
+              {t('lobby.allPlayersConnected', { count: live.players.length })}
             </span>
           </div>
         </div>
@@ -112,52 +128,55 @@ export const LiveLobbyPage: React.FC = () => {
         >
           <section className="box-card" data-name="Session settings">
             <h2 className="panel-heading" style={{ marginBottom: 14 }}>
-              Game setup
+              {t('lobby.gameSetupTitle')}
             </h2>
 
             <div className="field-group">
               <label className="field-label-caps" htmlFor="lobby-quiz-select">
-                QUIZ
+                {t('lobby.quizLabel')}
               </label>
-              <select
-                id="lobby-quiz-select"
-                className="select"
-                value={live.quizId}
-                onChange={(e) => setLiveQuizId(e.target.value)}
-              >
-                {quizzes.map((q) => (
-                  <option key={q.id} value={q.id}>
-                    {q.title}
-                  </option>
-                ))}
-              </select>
+              <Select value={live.quizId} onValueChange={setLiveQuizId}>
+                <SelectTrigger id="lobby-quiz-select" className="w-full">
+                  <SelectValue placeholder={t('lobby.selectQuizPlaceholder')} />
+                </SelectTrigger>
+                <SelectContent position="popper">
+                  {quizzes.map((q) => (
+                    <SelectItem key={q.id} value={q.id}>
+                      {q.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <span className="helper-text">
-                {liveQuiz.questions.length} questions · Multiple choice
+                {t('lobby.quizMeta', { count: liveQuiz.questions.length })}
               </span>
             </div>
 
             <div className="field-group">
               <label className="field-label-caps" htmlFor="lobby-timer-select">
-                TIME PER QUESTION
+                {t('lobby.timerLabel')}
               </label>
-              <select
-                id="lobby-timer-select"
-                className="select"
-                value={live.timerSeconds}
-                onChange={(e) => setLiveTimer(Number(e.target.value))}
+              <Select
+                value={String(live.timerSeconds)}
+                onValueChange={(val) => setLiveTimer(Number(val))}
               >
-                {[15, 20, 30, 45].map((sec) => (
-                  <option key={sec} value={sec}>
-                    {sec} seconds
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger id="lobby-timer-select" className="w-full">
+                  <SelectValue placeholder={t('lobby.selectTimerPlaceholder')} />
+                </SelectTrigger>
+                <SelectContent position="popper">
+                  {[15, 20, 30, 45].map((sec) => (
+                    <SelectItem key={sec} value={String(sec)}>
+                      {t('common.seconds', { count: sec })}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <p className="helper-text" style={{ lineHeight: 1.6 }}>
-              Scoring: Accuracy + answer speed
+              {t('lobby.scoringNote')}
               <br />
-              Leaderboard: After every round
+              {t('lobby.leaderboardNote')}
             </p>
           </section>
 
@@ -167,22 +186,22 @@ export const LiveLobbyPage: React.FC = () => {
             data-name="Participant join panel"
           >
             <h2 className="section-title" style={{ marginBottom: 6 }}>
-              Joining someone else?
+              {t('lobby.joiningTitle')}
             </h2>
             <p className="helper-text" style={{ marginBottom: 14 }}>
-              Enter a room PIN and your display name.
+              {t('lobby.joiningSubtitle')}
             </p>
 
             <div className="field-group">
               <label className="field-label-caps" htmlFor="join-pin-input">
-                ROOM PIN
+                {t('lobby.roomPinLabel')}
               </label>
               <input
                 id="join-pin-input"
                 className="input"
                 type="text"
                 maxLength={10}
-                placeholder="Enter 6-digit PIN (e.g. 482 619)"
+                placeholder={t('lobby.roomPinPlaceholder')}
                 value={joinPin}
                 onChange={(e) => setJoinPin(e.target.value)}
               />
@@ -190,14 +209,14 @@ export const LiveLobbyPage: React.FC = () => {
 
             <div className="field-group">
               <label className="field-label-caps" htmlFor="join-name-input">
-                DISPLAY NAME
+                {t('lobby.displayNameLabel')}
               </label>
               <input
                 id="join-name-input"
                 className="input"
                 type="text"
                 maxLength={40}
-                placeholder="Your name"
+                placeholder={t('lobby.displayNamePlaceholder')}
                 value={joinName}
                 onChange={(e) => setJoinName(e.target.value)}
               />
@@ -210,7 +229,7 @@ export const LiveLobbyPage: React.FC = () => {
             )}
 
             <button type="submit" className="btn btn-primary">
-              Join game →
+              {t('lobby.joinGameBtn')}
             </button>
           </form>
         </aside>

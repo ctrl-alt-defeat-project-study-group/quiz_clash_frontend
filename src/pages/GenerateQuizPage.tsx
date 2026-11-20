@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { cn } from 'cn';
 import { IconCloud } from '@tabler/icons-react';
@@ -8,6 +8,13 @@ import type { QuizItem } from '../types/quiz';
 import { SAMPLE_CSV_CONTENT } from '../data/seedData';
 import { PageHeader, SectionCard } from '../components/common';
 import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select';
 import {
   Empty,
   EmptyContent,
@@ -29,11 +36,21 @@ import {
 } from '../components/reui/timeline';
 
 export const GenerateQuizPage: React.FC = () => {
-  const { generateQuiz, startPractice, settings } = useApp();
+  const { generateQuiz, startPractice, settings, t } = useApp();
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
+  const [isCompactTimeline, setIsCompactTimeline] = useState<boolean>(() =>
+    typeof window !== 'undefined' ? window.innerWidth <= 640 : false
+  );
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 640px)');
+    const onChange = (e: MediaQueryListEvent) => setIsCompactTimeline(e.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [fileName, setFileName] = useState<string>('');
   const [fileMeta, setFileMeta] = useState<string>('');
@@ -47,18 +64,23 @@ export const GenerateQuizPage: React.FC = () => {
   const [generating, setGenerating] = useState<boolean>(false);
   const [createdQuiz, setCreatedQuiz] = useState<QuizItem | null>(null);
 
+  const formatLabel =
+    questionFormat === 'Term & definition'
+      ? t('generate.formatTermDefinition')
+      : t('generate.formatMultipleChoice');
+
   const handleFileSelection = (file: File | undefined) => {
     if (!file) return;
     if (!/\.(pdf|docx|csv|txt)$/i.test(file.name)) {
-      setError('Unsupported file format. Please choose a PDF, DOCX, CSV, or TXT file.');
+      setError(t('generate.errUnsupportedFormat'));
       return;
     }
     if (file.size === 0) {
-      setError('This file is empty. Please choose a file with study material.');
+      setError(t('generate.errEmptyFile'));
       return;
     }
     if (file.size > 10 * 1024 * 1024) {
-      setError('File exceeds the 10 MB limit. Please choose a smaller study file.');
+      setError(t('generate.errFileTooLarge'));
       return;
     }
 
@@ -66,10 +88,10 @@ export const GenerateQuizPage: React.FC = () => {
     setSelectedFile(file);
     setFileName(file.name);
     const kb = Math.max(1, Math.round(file.size / 1024));
-    setFileMeta(`${kb} KB · Ready to process`);
+    setFileMeta(t('generate.fileMetaKb', { kb }));
     const cleanTitle = file.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ');
     setQuizTitle(cleanTitle);
-    setPreviewTitle(`${cleanTitle} — Extracted notes`);
+    setPreviewTitle(t('generate.extractedNotesTitle', { title: cleanTitle }));
 
     if (/\.(csv|txt)$/i.test(file.name)) {
       const reader = new FileReader();
@@ -78,14 +100,12 @@ export const GenerateQuizPage: React.FC = () => {
         setPreviewText(
           text
             ? text.slice(0, 320) + (text.length > 320 ? '…' : '')
-            : 'Structured vocabulary and study terms ready for multiple-choice generation.'
+            : t('generate.csvEmptyPreview')
         );
       };
       reader.readAsText(file);
     } else {
-      setPreviewText(
-        'Key concepts and definitions extracted from your document. Ready to generate multiple-choice questions.'
-      );
+      setPreviewText(t('generate.docPreviewFallback'));
     }
   };
 
@@ -95,7 +115,7 @@ export const GenerateQuizPage: React.FC = () => {
     });
     setSelectedFile(sampleFile);
     setFileName('Cell_Biology_Notes.pdf');
-    setFileMeta('12 pages · Ready to process');
+    setFileMeta(t('generate.sampleFileMeta'));
     setPreviewTitle('Cell structure and function');
     setPreviewText(
       'Cells are the basic unit of life. The cell membrane regulates movement into and out of the cell. Mitochondria produce energy, while ribosomes synthesize proteins…'
@@ -116,7 +136,7 @@ export const GenerateQuizPage: React.FC = () => {
 
   const handleNextToConfigure = () => {
     if (!fileName) {
-      setError('Please upload a study file or click "Load sample document" first.');
+      setError(t('generate.errNoFileSelected'));
       return;
     }
     setError('');
@@ -125,7 +145,7 @@ export const GenerateQuizPage: React.FC = () => {
 
   const handleGenerate = async () => {
     if (!fileName) {
-      setError('Please upload a study file or click "Load sample document" first.');
+      setError(t('generate.errNoFileSelected'));
       setCurrentStep(1);
       return;
     }
@@ -160,25 +180,28 @@ export const GenerateQuizPage: React.FC = () => {
   const generationSteps = [
     {
       id: 1 as const,
-      stepLabel: 'Step 01',
-      title: 'Upload material',
-      description: fileName || 'PDF, DOCX, CSV, or TXT',
+      stepLabel: t('generate.step01Label'),
+      title: t('generate.step01Title'),
+      description: fileName || t('generate.step01FallbackDesc'),
       status: getStepStatus(1),
     },
     {
       id: 2 as const,
-      stepLabel: 'Step 02',
-      title: 'Configure quiz',
-      description: `${questionCount} questions · ${questionFormat}`,
+      stepLabel: t('generate.step02Label'),
+      title: t('generate.step02Title'),
+      description: t('generate.step02Desc', {
+        count: questionCount,
+        format: formatLabel,
+      }),
       status: getStepStatus(2),
     },
     {
       id: 3 as const,
-      stepLabel: 'Step 03',
-      title: 'Review questions',
+      stepLabel: t('generate.step03Label'),
+      title: t('generate.step03Title'),
       description: createdQuiz
-        ? `${createdQuiz.questions.length} questions ready`
-        : 'Edit, practice or export',
+        ? t('generate.step03ReadyDesc', { count: createdQuiz.questions.length })
+        : t('generate.step03FallbackDesc'),
       status: getStepStatus(3),
     },
   ];
@@ -186,20 +209,23 @@ export const GenerateQuizPage: React.FC = () => {
   return (
     <>
       <PageHeader
-        eyebrow="CREATE / 02"
-        title="From study notes to a ready-to-use quiz."
-        subtitle="Upload your material and choose how you want to practice."
+        breadcrumbs={[
+          { label: 'QuizClash', to: '/' },
+          { label: t('nav.generateQuiz') }
+        ]}
+        title={t('generate.title')}
+        subtitle={t('generate.subtitle')}
       />
 
       <div
-        className="box-card overflow-x-auto"
+        className="box-card"
         data-name="Generation steps"
-        style={{ padding: '18px 22px' }}
+        style={{ padding: isCompactTimeline ? '16px 18px' : '18px 22px' }}
       >
         <Timeline
           value={currentStep}
-          orientation="horizontal"
-          className="w-full min-w-[520px]"
+          orientation={isCompactTimeline ? 'vertical' : 'horizontal'}
+          className="w-full"
         >
           {generationSteps.map((step) => {
             const canClick =
@@ -222,13 +248,13 @@ export const GenerateQuizPage: React.FC = () => {
                 }}
               >
                 <TimelineHeader>
-                  <TimelineSeparator className="bg-input! group-data-[orientation=horizontal]/timeline:-top-6 group-data-[orientation=horizontal]/timeline:left-2.5 group-data-[orientation=horizontal]/timeline:w-[calc(100%-2.25rem)]" />
+                  <TimelineSeparator className="bg-input! group-data-[orientation=horizontal]/timeline:-top-6 group-data-[orientation=horizontal]/timeline:left-2.5 group-data-[orientation=horizontal]/timeline:w-[calc(100%-2.25rem)] group-data-[orientation=vertical]/timeline:top-2 group-data-[orientation=vertical]/timeline:h-[calc(100%-0.5rem)]" />
                   <TimelineDate>{step.stepLabel}</TimelineDate>
-                  <TimelineTitle className="flex items-center gap-2">
+                  <TimelineTitle className="flex flex-wrap items-center gap-2">
                     {step.title}
                     {step.status === 'current' && (
                       <Badge variant="primary-light" size="sm">
-                        Current
+                        {t('generate.currentBadge')}
                       </Badge>
                     )}
                   </TimelineTitle>
@@ -251,7 +277,7 @@ export const GenerateQuizPage: React.FC = () => {
                     )}
                   </TimelineIndicator>
                 </TimelineHeader>
-                <TimelineContent className="text-xs truncate">
+                <TimelineContent className="text-xs break-words">
                   {step.description}
                 </TimelineContent>
               </TimelineItem>
@@ -263,7 +289,7 @@ export const GenerateQuizPage: React.FC = () => {
       {/* Step 01: Upload material */}
       {currentStep === 1 && (
         <SectionCard dataName="Study material">
-          <h2 className="panel-heading">01 / Study material</h2>
+          <h2 className="panel-heading">{t('generate.panel01Heading')}</h2>
 
           <Empty
             role="button"
@@ -295,10 +321,8 @@ export const GenerateQuizPage: React.FC = () => {
               <EmptyMedia variant="icon">
                 <IconCloud />
               </EmptyMedia>
-              <EmptyTitle>Drag and drop your study file here</EmptyTitle>
-              <EmptyDescription>
-                Upload a PDF, Word (.docx), CSV, or TXT file (max 10 MB) to generate your quiz.
-              </EmptyDescription>
+              <EmptyTitle>{t('generate.dropzoneTitle')}</EmptyTitle>
+              <EmptyDescription>{t('generate.dropzoneDesc')}</EmptyDescription>
             </EmptyHeader>
             <EmptyContent>
               <Button
@@ -310,7 +334,7 @@ export const GenerateQuizPage: React.FC = () => {
                   fileInputRef.current?.click();
                 }}
               >
-                Upload Files
+                {t('generate.uploadFilesBtn')}
               </Button>
             </EmptyContent>
           </Empty>
@@ -336,32 +360,27 @@ export const GenerateQuizPage: React.FC = () => {
                 <div className="source-meta">{fileMeta}</div>
               </div>
               <button type="button" className="btn btn-sm" onClick={handleRemoveFile}>
-                Remove
+                {t('common.remove')}
               </button>
             </div>
           ) : (
             <div className="uploaded-source-bar">
-              <span className="helper-text">
-                No file selected yet. Upload a file or load sample notes.
-              </span>
+              <span className="helper-text">{t('generate.noFileYet')}</span>
               <button type="button" className="btn btn-sm" onClick={handleLoadSample}>
-                Load sample document
+                {t('generate.loadSampleBtn')}
               </button>
             </div>
           )}
 
           {fileName && (
             <div style={{ marginTop: 18 }}>
-              <div className="field-label">Extracted text preview</div>
+              <div className="field-label">{t('generate.extractedPreviewLabel')}</div>
               <div className="text-preview-box" data-name="Text preview">
-                <h4>{previewTitle || 'Document loaded'}</h4>
-                <p>
-                  {previewText ||
-                    'Select a study file above to preview the extracted concepts and definitions.'}
-                </p>
+                <h4>{previewTitle || t('generate.documentLoaded')}</h4>
+                <p>{previewText || t('generate.previewPlaceholder')}</p>
               </div>
               <p className="helper-text" style={{ marginTop: 10 }}>
-                Formatting and broken line breaks will be cleaned automatically.
+                {t('generate.cleaningNote')}
               </p>
             </div>
           )}
@@ -371,7 +390,7 @@ export const GenerateQuizPage: React.FC = () => {
       {/* Step 02: Configure quiz */}
       {currentStep === 2 && (
         <SectionCard dataName="Quiz configuration">
-          <h2 className="panel-heading">02 / Quiz settings</h2>
+          <h2 className="panel-heading">{t('generate.panel02Heading')}</h2>
 
           <div className="uploaded-source-bar" style={{ marginTop: 0, marginBottom: 18 }}>
             <div>
@@ -383,13 +402,13 @@ export const GenerateQuizPage: React.FC = () => {
               className="btn btn-sm"
               onClick={() => setCurrentStep(1)}
             >
-              Change file
+              {t('generate.changeFileBtn')}
             </button>
           </div>
 
           <div className="field-group">
             <label className="field-label" htmlFor="gen-quiz-title">
-              Quiz title
+              {t('generate.quizTitleLabel')}
             </label>
             <input
               id="gen-quiz-title"
@@ -398,57 +417,58 @@ export const GenerateQuizPage: React.FC = () => {
               maxLength={100}
               value={quizTitle}
               onChange={(e) => setQuizTitle(e.target.value)}
-              placeholder="e.g. Cell structure"
+              placeholder={t('generate.quizTitlePlaceholder')}
             />
           </div>
 
           <div className="field-group">
             <label className="field-label" htmlFor="gen-question-count">
-              Number of questions
+              {t('generate.questionCountLabel')}
             </label>
-            <select
-              id="gen-question-count"
-              className="select"
-              value={questionCount}
-              onChange={(e) => setQuestionCount(Number(e.target.value))}
+            <Select
+              value={String(questionCount)}
+              onValueChange={(val) => setQuestionCount(Number(val))}
             >
-              {[5, 10, 15, 20].map((n) => (
-                <option key={n} value={n}>
-                  {n} questions
-                </option>
-              ))}
-            </select>
+              <SelectTrigger id="gen-question-count" className="w-full">
+                <SelectValue placeholder={t('generate.selectQuestionCount')} />
+              </SelectTrigger>
+              <SelectContent position="popper">
+                {[5, 10, 15, 20].map((n) => (
+                  <SelectItem key={n} value={String(n)}>
+                    {t('common.questionsCount', { count: n })}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="field-group">
             <label className="field-label" htmlFor="gen-question-format">
-              Question format
+              {t('generate.questionFormatLabel')}
             </label>
-            <select
-              id="gen-question-format"
-              className="select"
-              value={questionFormat}
-              onChange={(e) => setQuestionFormat(e.target.value)}
-            >
-              <option value="Multiple choice">Multiple choice</option>
-              <option value="Term & definition">Term &amp; definition (4 choices)</option>
-            </select>
+            <Select value={questionFormat} onValueChange={setQuestionFormat}>
+              <SelectTrigger id="gen-question-format" className="w-full">
+                <SelectValue placeholder={t('generate.selectFormat')} />
+              </SelectTrigger>
+              <SelectContent position="popper">
+                <SelectItem value="Multiple choice">
+                  {t('generate.formatMultipleChoice')}
+                </SelectItem>
+                <SelectItem value="Term & definition">
+                  {t('generate.formatTermDefinition')}
+                </SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
-          <p className="helper-text">
-            Each question includes one correct answer and three plausible distractors.
-          </p>
+          <p className="helper-text">{t('generate.distractorHelper')}</p>
 
           <div className="summary-callout" data-name="Generation summary">
             <div className="eyebrow" style={{ marginBottom: 2 }}>
-              READY TO GENERATE
+              {t('generate.readyEyebrow')}
             </div>
-            <h4>
-              1 document → {questionCount} questions
-            </h4>
-            <p className="helper-text">
-              Review and edit every question before you save or share.
-            </p>
+            <h4>{t('generate.readySummary', { count: questionCount })}</h4>
+            <p className="helper-text">{t('generate.readyHelper')}</p>
           </div>
         </SectionCard>
       )}
@@ -456,27 +476,35 @@ export const GenerateQuizPage: React.FC = () => {
       {/* Step 03: Review questions */}
       {currentStep === 3 && createdQuiz && (
         <SectionCard dataName="Generated quiz review">
-          <h2 className="panel-heading">03 / Review questions</h2>
+          <h2 className="panel-heading">{t('generate.panel03Heading')}</h2>
           <p className="helper-text" style={{ marginBottom: 16 }}>
-            <strong>{createdQuiz.title}</strong> is ready with {createdQuiz.questions.length}{' '}
-            questions from {fileName}.
+            {t('generate.step03Summary', {
+              title: createdQuiz.title,
+              count: createdQuiz.questions.length,
+              fileName,
+            })}
           </p>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {createdQuiz.questions.slice(0, 3).map((q, idx) => (
               <div key={idx} className="text-preview-box">
                 <div className="eyebrow" style={{ marginBottom: 4 }}>
-                  QUESTION {String(idx + 1).padStart(2, '0')}
+                  {t('generate.questionNumberEyebrow', {
+                    num: String(idx + 1).padStart(2, '0'),
+                  })}
                 </div>
                 <h4 style={{ marginBottom: 6 }}>{q.prompt}</h4>
                 <p className="helper-text">
-                  Correct answer: <strong>{q.choices[q.answer]}</strong>
+                  {t('generate.correctAnswerLabel')}{' '}
+                  <strong>{q.choices[q.answer]}</strong>
                 </p>
               </div>
             ))}
             {createdQuiz.questions.length > 3 && (
               <p className="helper-text">
-                + {createdQuiz.questions.length - 3} more questions ready in the quiz editor.
+                {t('generate.moreQuestionsReady', {
+                  count: createdQuiz.questions.length - 3,
+                })}
               </p>
             )}
           </div>
@@ -486,24 +514,24 @@ export const GenerateQuizPage: React.FC = () => {
       <div className="action-footer-bar" data-name="Generation actions">
         <span className="helper-text">
           {currentStep === 1
-            ? 'Step 1 of 3 · Your original document stays unchanged.'
+            ? t('generate.footerStep1')
             : currentStep === 2
-              ? 'Step 2 of 3 · Customize your quiz settings before generating.'
-              : 'Step 3 of 3 · Your quiz has been saved to My Quizzes.'}
+              ? t('generate.footerStep2')
+              : t('generate.footerStep3')}
         </span>
 
         <div className="btn-row">
           {currentStep === 1 && (
             <>
               <Link to="/dashboard" className="btn">
-                Cancel
+                {t('common.cancel')}
               </Link>
               <button
                 type="button"
                 className="btn btn-primary"
                 onClick={handleNextToConfigure}
               >
-                Continue to settings →
+                {t('generate.continueToSettings')}
               </button>
             </>
           )}
@@ -516,7 +544,7 @@ export const GenerateQuizPage: React.FC = () => {
                 onClick={() => setCurrentStep(1)}
                 disabled={generating}
               >
-                ← Back
+                {t('common.back')}
               </button>
               <button
                 type="button"
@@ -524,7 +552,7 @@ export const GenerateQuizPage: React.FC = () => {
                 onClick={handleGenerate}
                 disabled={generating}
               >
-                {generating ? 'Generating quiz…' : 'Generate quiz →'}
+                {generating ? t('generate.generatingBtn') : t('generate.generateBtn')}
               </button>
             </>
           )}
@@ -532,7 +560,7 @@ export const GenerateQuizPage: React.FC = () => {
           {currentStep === 3 && createdQuiz && (
             <>
               <button type="button" className="btn" onClick={handleResetWizard}>
-                Create another quiz
+                {t('generate.createAnotherBtn')}
               </button>
               <button
                 type="button"
@@ -542,14 +570,14 @@ export const GenerateQuizPage: React.FC = () => {
                   navigate(`/quizzes/${encodeURIComponent(createdQuiz.id)}/play`);
                 }}
               >
-                Start solo quiz
+                {t('generate.startSoloBtn')}
               </button>
               <button
                 type="button"
                 className="btn btn-primary"
                 onClick={() => navigate(`/quizzes/${encodeURIComponent(createdQuiz.id)}`)}
               >
-                Review &amp; edit quiz →
+                {t('generate.reviewEditBtn')}
               </button>
             </>
           )}

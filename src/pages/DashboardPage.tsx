@@ -4,7 +4,7 @@ import { useApp } from '../context/AppContext';
 import { PageHeader, SectionCard, StatCard } from '../components/common';
 
 export const DashboardPage: React.FC = () => {
-  const { quizzes, history, activeQuiz, practice, setActiveQuizId } = useApp();
+  const { quizzes, history, activeQuiz, practice, setActiveQuizId, t } = useApp();
   const navigate = useNavigate();
 
   const avgScore = history.length
@@ -17,40 +17,39 @@ export const DashboardPage: React.FC = () => {
   return (
     <>
       <PageHeader
-        eyebrow="YOUR STUDY SPACE / 01"
-        title="Turn your notes into knowledge."
-        subtitle="Generate a quiz, practice at your pace, or challenge your friends."
-        actions={
-          <Link to="/generate" className="btn btn-primary">
-            + Create a quiz
-          </Link>
-        }
+        breadcrumbs={[
+          { label: 'QuizClash', to: '/' },
+          { label: t('nav.dashboard') }
+        ]}
+        title={t('dashboard.title')}
+        subtitle={t('dashboard.subtitle')}
       />
 
-      <section className="stat-grid-3" data-name="Study overview" aria-label="Study overview">
-        <StatCard value={savedCount} label="Saved quizzes" />
-        <StatCard value={completedCount} label="Completed attempts" />
-        <StatCard value={`${avgScore}%`} label="Average score" />
+      <section
+        className="stat-grid-3"
+        data-name="Study overview"
+        aria-label={t('dashboard.studyOverviewAria')}
+      >
+        <StatCard value={savedCount} label={t('dashboard.savedQuizzes')} />
+        <StatCard value={completedCount} label={t('dashboard.completedAttempts')} />
+        <StatCard value={`${avgScore}%`} label={t('dashboard.averageScore')} />
       </section>
 
       <SectionCard className="banner-row" dataName="Start from a document">
         <div>
-          <h2>Your next quiz starts with your notes.</h2>
-          <p>
-            Upload a PDF, Word, CSV, or text file. Get multiple-choice questions ready to study
-            or print.
-          </p>
+          <h2>{t('dashboard.bannerTitle')}</h2>
+          <p>{t('dashboard.bannerBody')}</p>
         </div>
         <Link to="/generate" className="btn btn-primary">
-          Upload study material
+          {t('dashboard.createQuizBtn')}
         </Link>
       </SectionCard>
 
       <SectionCard
-        title="Recent quizzes"
+        title={t('dashboard.recentQuizzes')}
         headerRight={
           <Link to="/quizzes" className="text-link">
-            View all quizzes →
+            {t('dashboard.viewAllQuizzes')}
           </Link>
         }
         dataName="Recent quizzes"
@@ -59,11 +58,11 @@ export const DashboardPage: React.FC = () => {
           <table className="data-table">
             <thead>
               <tr>
-                <th>QUIZ NAME</th>
-                <th>QUESTIONS</th>
-                <th>LAST SCORE</th>
-                <th>UPDATED</th>
-                <th>ACTION</th>
+                <th>{t('dashboard.colQuizName')}</th>
+                <th>{t('dashboard.colQuestions')}</th>
+                <th>{t('dashboard.colLastScore')}</th>
+                <th>{t('dashboard.colUpdated')}</th>
+                <th>{t('dashboard.colAction')}</th>
               </tr>
             </thead>
             <tbody>
@@ -72,11 +71,11 @@ export const DashboardPage: React.FC = () => {
                   <td>
                     <strong>{q.title}</strong>
                   </td>
-                  <td>{q.questions.length} questions</td>
+                  <td>{t('common.questionsCount', { count: q.questions.length })}</td>
                   <td>
                     <span className="score-badge">{q.lastScore ?? 80}%</span>
                   </td>
-                  <td>{q.updated || 'Today'}</td>
+                  <td>{q.updated || t('common.today')}</td>
                   <td>
                     <button
                       type="button"
@@ -86,7 +85,7 @@ export const DashboardPage: React.FC = () => {
                         navigate(`/quizzes/${encodeURIComponent(q.id)}`);
                       }}
                     >
-                      Open quiz →
+                      {t('dashboard.openQuiz')}
                     </button>
                   </td>
                 </tr>
@@ -99,35 +98,37 @@ export const DashboardPage: React.FC = () => {
       <section className="grid-2-equal" data-name="Continue learning">
         <div className="box-card continue-card" data-name="Resume studying">
           <div>
-            <div className="eyebrow">PICK UP WHERE YOU LEFT OFF</div>
+            <div className="eyebrow">{t('dashboard.resumeEyebrow')}</div>
             <h3>{activeQuiz.title}</h3>
             <p className="page-subtitle">
-              Question {Math.min(practice.questionIndex + 1, activeQuiz.questions.length)} of{' '}
-              {activeQuiz.questions.length} ·{' '}
-              {answeredCount ? 'Practice in progress' : 'Ready to start'}
+              {t('dashboard.resumeProgress', {
+                current: Math.min(practice.questionIndex + 1, activeQuiz.questions.length),
+                total: activeQuiz.questions.length,
+                status: answeredCount
+                  ? t('dashboard.statusInProgress')
+                  : t('dashboard.statusReady')
+              })}
             </p>
           </div>
           <div className="btn-row">
             <Link to="/play" className="btn btn-primary">
-              Continue quiz →
+              {t('dashboard.continueQuiz')}
             </Link>
           </div>
         </div>
 
         <div className="box-card continue-card" data-name="Multiplayer shortcut">
           <div>
-            <div className="eyebrow">STUDY TOGETHER</div>
-            <h3>Make revision a friendly competition.</h3>
-            <p className="page-subtitle">
-              Host a room or enter a PIN to join your friends.
-            </p>
+            <div className="eyebrow">{t('dashboard.multiplayerEyebrow')}</div>
+            <h3>{t('dashboard.multiplayerTitle')}</h3>
+            <p className="page-subtitle">{t('dashboard.multiplayerSubtitle')}</p>
           </div>
           <div className="btn-row">
             <Link to="/lobby" className="btn btn-primary">
-              Host a game
+              {t('dashboard.hostGame')}
             </Link>
             <Link to="/lobby" className="btn">
-              Join with PIN
+              {t('dashboard.joinWithPin')}
             </Link>
           </div>
         </div>

@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none">
+  <defs>
+    <linearGradient id="avatar-bg" x1="0" y1="0" x2="128" y2="128" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#4F46E5" />
+      <stop offset="100%" stop-color="#0EA5E9" />
+    </linearGradient>
+    <linearGradient id="shirt-grad" x1="24" y1="88" x2="104" y2="128" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#312E81" />
+      <stop offset="100%" stop-color="#1E1B4B" />
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="64" fill="url(#avatar-bg)" />
+  <circle cx="96" cy="28" r="18" fill="#FFFFFF" fill-opacity="0.14" />
+  <circle cx="24" cy="96" r="14" fill="#FFFFFF" fill-opacity="0.1" />
+  <!-- Shoulders -->
+  <path d="M22 128C22 103.699 40.804 88 64 88C87.196 88 106 103.699 106 128H22Z" fill="url(#shirt-grad)" />
+  <!-- Collar highlight -->
+  <path d="M51 89.5L64 102L77 89.5" stroke="#A5B4FC" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+  <!-- Neck -->
+  <rect x="55" y="72" width="18" height="20" rx="9" fill="#F2C9A0" />
+  <!-- Head -->
+  <circle cx="64" cy="54" r="24" fill="#FAD7B5" />
+  <!-- Hair -->
+  <path d="M39 52C39 36.5 49.5 26 64 26C78.5 26 89 36.5 89 52C89 47 84.5 42 79 40C72 37.5 64 41 56 41C47.5 41 42 45.5 39 52Z" fill="#1F2937" />
+  <!-- Eyes -->
+  <circle cx="55.5" cy="55" r="2.6" fill="#1F2937" />
+  <circle cx="72.5" cy="55" r="2.6" fill="#1F2937" />
+  <!-- Smile -->
+  <path d="M56.5 64.5C58.8 67.2 61.3 68.5 64 68.5C66.7 68.5 69.2 67.2 71.5 64.5" stroke="#9A5B37" stroke-width="2.6" stroke-linecap="round" />
+</svg>

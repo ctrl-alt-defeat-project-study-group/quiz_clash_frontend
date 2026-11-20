@@ -9,6 +9,7 @@ import {
   PaginationPrevious,
 } from '@/components/ui/pagination';
 import { cn } from '@/lib/utils';
+import { useApp } from '@/context/AppContext';
 
 export interface AppPaginationProps {
   currentPage: number;
@@ -49,8 +50,9 @@ export const AppPagination: React.FC<AppPaginationProps> = ({
   totalPages,
   onPageChange,
   className,
-  ariaLabel = 'Pagination',
+  ariaLabel,
 }) => {
+  const { t } = useApp();
   if (totalPages <= 0) return null;
 
   const isFirst = currentPage <= 1;
@@ -58,11 +60,13 @@ export const AppPagination: React.FC<AppPaginationProps> = ({
   const items = getPageItems(currentPage, totalPages);
 
   return (
-    <Pagination aria-label={ariaLabel} className={className}>
+    <Pagination aria-label={ariaLabel || t('common.pagination')} className={className}>
       <PaginationContent className="flex-wrap justify-center">
         <PaginationItem>
           <PaginationPrevious
             href="#"
+            label={t('common.previous')}
+            aria-label={t('common.goToPreviousPage')}
             aria-disabled={isFirst || undefined}
             tabIndex={isFirst ? -1 : undefined}
             className={cn(
@@ -78,7 +82,7 @@ export const AppPagination: React.FC<AppPaginationProps> = ({
         {items.map((item, idx) =>
           item === 'ellipsis' ? (
             <PaginationItem key={`ellipsis-${idx}`}>
-              <PaginationEllipsis />
+              <PaginationEllipsis label={t('common.morePages')} />
             </PaginationItem>
           ) : (
             <PaginationItem key={item}>
@@ -100,6 +104,8 @@ export const AppPagination: React.FC<AppPaginationProps> = ({
         <PaginationItem>
           <PaginationNext
             href="#"
+            label={t('common.next')}
+            aria-label={t('common.goToNextPage')}
             aria-disabled={isLast || undefined}
             tabIndex={isLast ? -1 : undefined}
             className={cn(

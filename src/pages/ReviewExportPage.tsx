@@ -4,6 +4,13 @@ import { useApp } from '../context/AppContext';
 import type { ExportFormat } from '../types/quiz';
 import { AppPagination, PageHeader, SectionCard } from '../components/common';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select';
+import {
   Questionnaire,
   QuestionnaireChoice,
   QuestionnaireChoiceDescription,
@@ -25,7 +32,8 @@ export const ReviewExportPage: React.FC = () => {
     setLiveQuizId,
     exportStudySheet,
     openModal,
-    showToast
+    showToast,
+    t
   } = useApp();
 
   const navigate = useNavigate();
@@ -49,9 +57,8 @@ export const ReviewExportPage: React.FC = () => {
   const handleDownloadQuestions = () => {
     if (exportFormat === 'word') {
       openModal({
-        title: 'Word (.docx) Export Preview',
-        message:
-          'Word (.docx) export is a Phase 4 enhancement. Use the PDF format option now to download or print your formatted study sheet.'
+        title: t('modals.wordExportTitle'),
+        message: t('modals.wordExportMessage')
       });
       return;
     }
@@ -65,41 +72,59 @@ export const ReviewExportPage: React.FC = () => {
   return (
     <>
       <PageHeader
-        eyebrow="MY QUIZZES / 03"
+        breadcrumbs={[
+          { label: 'QuizClash', to: '/' },
+          { label: t('nav.yourLibrary'), to: '/quizzes' },
+          {
+            label: activeQuiz.sidebarTitle || activeQuiz.title,
+            siblingRoutes: quizzes.map((q) => ({
+              label: q.sidebarTitle || q.title,
+              active: q.id === activeQuiz.id,
+              onClick: () => {
+                setActiveQuizId(q.id);
+                setQuestionIndex(0);
+                navigate(`/quizzes/${encodeURIComponent(q.id)}`);
+              }
+            }))
+          }
+        ]}
         title={activeQuiz.title}
-        subtitle={`${total} multiple-choice questions · Source: ${
-          activeQuiz.source || 'Uploaded_Notes.txt'
-        }`}
+        subtitle={t('review.subtitle', {
+          count: total,
+          source: activeQuiz.source || 'Uploaded_Notes.txt'
+        })}
         actions={
           <div className="field-group" style={{ margin: 0, minWidth: 220 }}>
             <label className="field-label-caps" htmlFor="switch-quiz-select">
-              Switch Quiz
+              {t('review.switchQuizLabel')}
             </label>
-            <select
-              id="switch-quiz-select"
-              className="select"
+            <Select
               value={activeQuiz.id}
-              onChange={(e) => {
-                const nextId = e.target.value;
+              onValueChange={(nextId) => {
                 setActiveQuizId(nextId);
                 setQuestionIndex(0);
                 setEditing(false);
                 navigate(`/quizzes/${encodeURIComponent(nextId)}`);
               }}
             >
-              {quizzes.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.title} ({item.questions.length} Qs)
-                </option>
-              ))}
-            </select>
+              <SelectTrigger id="switch-quiz-select" className="w-full">
+                <SelectValue placeholder={t('review.switchQuizPlaceholder')} />
+              </SelectTrigger>
+              <SelectContent position="popper">
+                {quizzes.map((item) => (
+                  <SelectItem key={item.id} value={item.id}>
+                    {item.title} ({t('common.questionsShort', { count: item.questions.length })})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         }
       />
 
       <div className="btn-row" data-name="Study actions">
         <Link to="/dashboard" className="btn">
-          ← My quizzes
+          {t('review.backToQuizzes')}
         </Link>
         <button
           type="button"
@@ -109,7 +134,7 @@ export const ReviewExportPage: React.FC = () => {
             void saveQuizChanges(activeQuiz.id);
           }}
         >
-          Save changes
+          {t('common.saveChanges')}
         </button>
         <button
           type="button"
@@ -119,7 +144,7 @@ export const ReviewExportPage: React.FC = () => {
             navigate(`/quizzes/${encodeURIComponent(activeQuiz.id)}/play`);
           }}
         >
-          Start solo quiz →
+          {t('review.startSoloQuiz')}
         </button>
         <button
           type="button"
@@ -129,7 +154,7 @@ export const ReviewExportPage: React.FC = () => {
             navigate('/lobby');
           }}
         >
-          Host live game
+          {t('review.hostLiveGame')}
         </button>
       </div>
 
@@ -138,21 +163,21 @@ export const ReviewExportPage: React.FC = () => {
         <div data-name="Question editor">
           <div className="question-nav-bar" data-name="Question navigation">
             <strong style={{ fontSize: 12 }}>
-              QUESTION {safeIdx + 1} OF {total}
+              {t('review.questionOf', { current: safeIdx + 1, total })}
             </strong>
             <AppPagination
               currentPage={safeIdx + 1}
               totalPages={total}
               onPageChange={(page) => setQuestionIndex(page - 1)}
               className="mx-0 w-auto justify-end"
-              ariaLabel="Question selector"
+              ariaLabel={t('review.questionSelectorAria')}
             />
           </div>
 
           <SectionCard
             title={
               <span className="eyebrow" style={{ margin: 0 }}>
-                QUESTION {String(safeIdx + 1).padStart(2, '0')}
+                {t('review.questionEyebrow', { num: String(safeIdx + 1).padStart(2, '0') })}
               </span>
             }
             headerRight={
@@ -162,10 +187,10 @@ export const ReviewExportPage: React.FC = () => {
                 onClick={() => {
                   const nextState = !editing;
                   setEditing(nextState);
-                  if (!nextState) showToast('Question updates have been saved.');
+                  if (!nextState) showToast(t('toasts.questionSaved'));
                 }}
               >
-                {editing ? 'Done editing' : 'Edit question'}
+                {editing ? t('review.doneEditing') : t('review.editQuestion')}
               </button>
             }
             headerStyle={{ marginBottom: 8 }}
@@ -176,7 +201,7 @@ export const ReviewExportPage: React.FC = () => {
               <>
                 <div className="field-group">
                   <label className="field-label" htmlFor="edit-question-prompt">
-                    Question prompt
+                    {t('review.questionPromptLabel')}
                   </label>
                   <textarea
                     id="edit-question-prompt"
@@ -203,7 +228,7 @@ export const ReviewExportPage: React.FC = () => {
                         onClick={() =>
                           updateQuizQuestion(activeQuiz.id, safeIdx, { answer: cIdx })
                         }
-                        title="Mark as correct answer"
+                        title={t('review.markCorrectTitle')}
                       >
                         {letters[cIdx]} {currentQ.answer === cIdx ? '✓' : ''}
                       </button>
@@ -234,7 +259,7 @@ export const ReviewExportPage: React.FC = () => {
                     {currentQ.prompt}
                   </QuestionnaireTitle>
                   <QuestionnaireDescription>
-                    Click any option to set it as the correct answer.
+                    {t('review.selectCorrectHelper')}
                   </QuestionnaireDescription>
                   <QuestionnaireChoices>
                     {currentQ.choices.map((choiceText, cIdx) => {
@@ -255,7 +280,9 @@ export const ReviewExportPage: React.FC = () => {
                         >
                           <span className="font-medium text-foreground">{choiceText}</span>
                           <QuestionnaireChoiceDescription className="text-xs">
-                            {isCorrect ? '✓ Correct' : 'Click to set correct'}
+                            {isCorrect
+                              ? t('review.choiceCorrect')
+                              : t('review.choiceSetCorrect')}
                           </QuestionnaireChoiceDescription>
                         </QuestionnaireChoice>
                       );
@@ -266,7 +293,7 @@ export const ReviewExportPage: React.FC = () => {
             )}
 
             <div style={{ marginTop: 16, fontSize: 12, fontWeight: 700 }}>
-              Correct answer: {letters[currentQ.answer]}
+              {t('review.correctAnswerValue', { letter: letters[currentQ.answer] })}
             </div>
           </SectionCard>
 
@@ -275,7 +302,9 @@ export const ReviewExportPage: React.FC = () => {
             dataName="Next question preview"
           >
             <div className="eyebrow">
-              UP NEXT / QUESTION {String(((safeIdx + 1) % total) + 1).padStart(2, '0')}
+              {t('review.upNextEyebrow', {
+                num: String(((safeIdx + 1) % total) + 1).padStart(2, '0')
+              })}
             </div>
             <div style={{ fontSize: 15, fontWeight: 600 }}>{nextQ.prompt}</div>
           </SectionCard>
@@ -285,7 +314,7 @@ export const ReviewExportPage: React.FC = () => {
               currentPage={safeIdx + 1}
               totalPages={total}
               onPageChange={(page) => setQuestionIndex(page - 1)}
-              ariaLabel="Editor pagination"
+              ariaLabel={t('review.editorPaginationAria')}
             />
           </div>
         </div>
@@ -297,30 +326,28 @@ export const ReviewExportPage: React.FC = () => {
         >
           <section className="box-card" data-name="Offline export">
             <h2 className="panel-heading" style={{ marginBottom: 8 }}>
-              Print or study offline
+              {t('review.printTitle')}
             </h2>
             <p className="helper-text" style={{ marginBottom: 16 }}>
-              Download questions and a separate answer key.
+              {t('review.printSubtitle')}
             </p>
 
-            <div className="field-label-caps" style={{ marginBottom: 8 }}>
-              DOCUMENT FORMAT
-            </div>
-            <div className="btn-row" style={{ marginBottom: 16 }}>
-              <button
-                type="button"
-                className={`btn btn-sm ${exportFormat === 'pdf' ? 'btn-primary' : ''}`}
-                onClick={() => setExportFormat('pdf')}
+            <div className="field-group" style={{ marginBottom: 16 }}>
+              <label className="field-label-caps" htmlFor="export-document-format">
+                {t('review.documentFormatLabel')}
+              </label>
+              <Select
+                value={exportFormat}
+                onValueChange={(val) => setExportFormat(val as ExportFormat)}
               >
-                ({exportFormat === 'pdf' ? '●' : ' '}) PDF
-              </button>
-              <button
-                type="button"
-                className={`btn btn-sm ${exportFormat === 'word' ? 'btn-primary' : ''}`}
-                onClick={() => setExportFormat('word')}
-              >
-                ({exportFormat === 'word' ? '●' : ' '}) Word
-              </button>
+                <SelectTrigger id="export-document-format" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent position="popper">
+                  <SelectItem value="pdf">{t('review.formatPdf')}</SelectItem>
+                  <SelectItem value="word">{t('review.formatWord')}</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="doc-mini-preview" data-name="Document preview">
@@ -335,7 +362,7 @@ export const ReviewExportPage: React.FC = () => {
                 {activeQuiz.title}
               </div>
               <div className="helper-text" style={{ fontSize: 11, marginBottom: 10 }}>
-                Name: __________________
+                {t('review.worksheetName')}
               </div>
               <div style={{ fontWeight: 600, marginBottom: 8 }}>
                 {safeIdx + 1}. {currentQ.prompt}
@@ -355,22 +382,19 @@ export const ReviewExportPage: React.FC = () => {
                 className="btn btn-primary"
                 onClick={handleDownloadQuestions}
               >
-                Download questions
+                {t('review.downloadQuestions')}
               </button>
               <button type="button" className="btn" onClick={handleDownloadAnswers}>
-                Download answer key
+                {t('review.downloadAnswerKey')}
               </button>
             </div>
           </section>
 
           <section className="box-card" data-name="Review reminder">
             <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 8 }}>
-              Before you study
+              {t('review.beforeStudyTitle')}
             </h3>
-            <p className="helper-text">
-              AI-generated questions may need adjustments. Review the wording and correct
-              answers against your source material.
-            </p>
+            <p className="helper-text">{t('review.beforeStudyBody')}</p>
           </section>
         </aside>
       </div>

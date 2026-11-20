@@ -1,11 +1,13 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AppProvider } from './context/AppContext';
 import { AppLayout } from './components/layout/AppLayout';
+import { HomePage } from './pages/HomePage';
 import { DashboardPage } from './pages/DashboardPage';
 import { GenerateQuizPage } from './pages/GenerateQuizPage';
 import { ReviewExportPage } from './pages/ReviewExportPage';
 import { SoloQuizPage } from './pages/SoloQuizPage';
 import { ResultsHistoryPage } from './pages/ResultsHistoryPage';
+import { AttemptDetailPage } from './pages/AttemptDetailPage';
 import { LiveLobbyPage } from './pages/LiveLobbyPage';
 import { LiveLeaderboardPage } from './pages/LiveLeaderboardPage';
 import { SettingsPage } from './pages/SettingsPage';
@@ -15,9 +17,11 @@ export function App() {
     <AppProvider>
       <BrowserRouter>
         <Routes>
+          {/* Landing / Home Page */}
+          <Route path="/" element={<HomePage />} />
+
           <Route element={<AppLayout />}>
             {/* Screen 01: Dashboard */}
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/s1" element={<DashboardPage />} />
 
@@ -41,7 +45,7 @@ export function App() {
             {/* Screen 05: Results & History */}
             <Route path="/history" element={<ResultsHistoryPage />} />
             <Route path="/results" element={<ResultsHistoryPage />} />
-            <Route path="/attempts/:id" element={<ResultsHistoryPage />} />
+            <Route path="/attempts/:id" element={<AttemptDetailPage />} />
             <Route path="/s5" element={<ResultsHistoryPage />} />
 
             {/* Screen 06: Live Game Lobby */}
