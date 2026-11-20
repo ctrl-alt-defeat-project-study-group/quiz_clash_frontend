@@ -171,12 +171,18 @@ html[lang="my"] .nav-heading,
 html[lang="my"] .nav-dropdown-trigger,
 html[lang="my"] .field-label-caps,
 html[lang="my"] .page-title,
+html[lang="my"] .home-hero-title,
 html[lang="my"] .brand {
   letter-spacing: 0;
 }
 
+html[lang="my"] .home-hero-title {
+  line-height: 1.4;
+}
+
 html[lang="my"] .btn,
 html[lang="my"] .nav-link,
+html[lang="my"] .home-top-tab,
 html[lang="my"] .settings-tab,
 html[lang="my"] .settings-subnav-item,
 html[lang="my"] .score-badge,
@@ -1685,15 +1691,19 @@ h1, h2, h3, h4, p {
 
 .question-nav-bar {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
   background: var(--bg-surface);
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 12px 16px;
   margin-bottom: 16px;
+}
+
+.question-nav-label {
+  font-size: 12px;
+  letter-spacing: 0.4px;
 }
 
 .q-num-pills {
@@ -1884,6 +1894,25 @@ h1, h2, h3, h4, p {
 /* ==========================================================================
    Screen 06 & 07: Live Game Lobby & Leaderboard
    ========================================================================== */
+
+.lobby-entry-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+  align-items: stretch;
+}
+
+.lobby-entry-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.lobby-entry-card-body {
+  display: flex;
+  flex-direction: column;
+}
 
 .pin-invitation-card {
   background: var(--bg-subtle);
@@ -2391,7 +2420,8 @@ body.swal2-toast-shown .swal2-container.qc-swal-toast-container {
 @media (max-width: 1024px) {
   .generator-columns,
   .review-columns,
-  .practice-columns {
+  .practice-columns,
+  .lobby-entry-grid {
     grid-template-columns: 1fr;
   }
 

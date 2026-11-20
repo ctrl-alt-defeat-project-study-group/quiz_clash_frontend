@@ -86,7 +86,9 @@ interface AppContextValue {
   live: LiveGameState;
   setLiveQuizId: (quizId: string) => void;
   setLiveTimer: (seconds: number) => void;
+  createLiveRoom: (quizId?: string, timerSeconds?: number) => void;
   joinLiveRoom: (pin: string, name: string) => { ok: boolean; error?: string };
+  closeLiveRoom: () => void;
   advanceLiveRound: () => void;
 
   settings: UserSettings;
@@ -192,6 +194,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }));
 
   const [live, setLive] = useState<LiveGameState>({
+    status: 'idle',
     pin: '482 619',
     quizId: 'biology',
     timerSeconds: 20,
@@ -594,6 +597,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setLive((prev) => ({ ...prev, timerSeconds: seconds }));
   };
 
+  const formatPin = (raw: string): string => {
+    const clean = raw.replace(/\s+/g, '');
+    if (clean.length === 6) {
+      return `${clean.slice(0, 3)} ${clean.slice(3)}`;
+    }
+    return clean;
+  };
+
+  const createLiveRoom = (quizId?: string, timerSeconds?: number) => {
+    const randomPin = String(Math.floor(100000 + Math.random() * 900000));
+    const formattedPin = formatPin(randomPin);
+    setLive((prev) => ({
+      ...prev,
+      status: 'hosting',
+      pin: formattedPin,
+      quizId: quizId || prev.quizId,
+      timerSeconds: timerSeconds || prev.timerSeconds,
+      round: 1,
+      players: structuredClone(INITIAL_LIVE_PLAYERS),
+      joinedPlayerName: undefined
+    }));
+    showToast(t('toasts.roomCreated', { pin: formattedPin }));
+  };
+
   const joinLiveRoom = (pin: string, name: string): { ok: boolean; error?: string } => {
     const cleanPin = pin.replace(/\s+/g, '');
     if (!cleanPin || cleanPin.length < 4) {
@@ -602,22 +629,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         error: getErrorByCode('INVALID_ROOM_PIN', uiLanguage)
       };
     }
+    const formattedPin = formatPin(cleanPin);
     const playerName = name.trim() || settings.displayName || 'Alex M.';
     setLive((prev) => {
       const exists = prev.players.some(
         (p) => p.name.toLowerCase() === playerName.toLowerCase()
       );
-      if (exists) return prev;
       return {
         ...prev,
-        players: [
-          ...prev.players,
-          { name: playerName, status: 'Ready', correct: 3, total: 3, points: 2350 }
-        ]
+        status: 'joined',
+        pin: formattedPin,
+        joinedPlayerName: playerName,
+        players: exists
+          ? prev.players
+          : [
+              ...prev.players,
+              { name: playerName, status: 'Ready', correct: 3, total: 3, points: 2350 }
+            ]
       };
     });
-    showToast(t('toasts.joinedRoom', { pin: live.pin, name: playerName }));
+    showToast(t('toasts.joinedRoom', { pin: formattedPin, name: playerName }));
     return { ok: true };
+  };
+
+  const closeLiveRoom = () => {
+    setLive((prev) => ({
+      ...prev,
+      status: 'idle',
+      joinedPlayerName: undefined
+    }));
+    showToast(t('toasts.roomClosed'), 'info');
   };
 
   const advanceLiveRound = () => {
@@ -731,7 +772,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         live,
         setLiveQuizId,
         setLiveTimer,
+        createLiveRoom,
         joinLiveRoom,
+        closeLiveRoom,
         advanceLiveRound,
         settings,
         updateSettings,

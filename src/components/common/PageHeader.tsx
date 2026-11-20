@@ -89,6 +89,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
       to: '/lobby',
       active:
         path.startsWith('/lobby') ||
+        path.startsWith('/rooms') ||
         path.startsWith('/leaderboard') ||
         path === '/s6' ||
         path === '/s7'

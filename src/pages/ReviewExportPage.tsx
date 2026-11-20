@@ -162,14 +162,14 @@ export const ReviewExportPage: React.FC = () => {
         {/* Left Column: Question Editor */}
         <div data-name="Question editor">
           <div className="question-nav-bar" data-name="Question navigation">
-            <strong style={{ fontSize: 12 }}>
+            <strong className="question-nav-label">
               {t('review.questionOf', { current: safeIdx + 1, total })}
             </strong>
             <AppPagination
               currentPage={safeIdx + 1}
               totalPages={total}
               onPageChange={(page) => setQuestionIndex(page - 1)}
-              className="mx-0 w-auto justify-end"
+              className="mx-0 w-full justify-center"
               ariaLabel={t('review.questionSelectorAria')}
             />
           </div>

@@ -94,27 +94,27 @@ export const HomePage: React.FC = () => {
           <span>QuizClash</span>
         </Link>
 
-        <nav className="home-top-tabs" aria-label="Primary">
+        <nav className="home-top-tabs" aria-label={t('home.primaryNavAria')}>
           <button
             type="button"
             className={`home-top-tab ${activeTab === 'overview' ? 'active' : ''}`}
             onClick={() => scrollToSection('overview', 'home-overview')}
           >
-            Overview
+            {t('home.tabOverview')}
           </button>
           <button
             type="button"
             className={`home-top-tab ${activeTab === 'features' ? 'active' : ''}`}
             onClick={() => scrollToSection('features', 'home-features')}
           >
-            Features
+            {t('home.tabFeatures')}
           </button>
           <button
             type="button"
             className={`home-top-tab ${activeTab === 'how-it-works' ? 'active' : ''}`}
             onClick={() => scrollToSection('how-it-works', 'home-how-it-works')}
           >
-            How it works
+            {t('home.tabHowItWorks')}
           </button>
         </nav>
 
@@ -175,7 +175,7 @@ export const HomePage: React.FC = () => {
               </DrawerHeader>
 
               <div className="mobile-drawer-body">
-                <nav className="nav-list" aria-label="Mobile Home Navigation">
+                <nav className="nav-list" aria-label={t('home.mobileNavAria')}>
                   <button
                     type="button"
                     className={`nav-link home-drawer-btn ${
@@ -183,7 +183,7 @@ export const HomePage: React.FC = () => {
                     }`}
                     onClick={() => scrollToSection('overview', 'home-overview')}
                   >
-                    Overview
+                    {t('home.tabOverview')}
                   </button>
                   <button
                     type="button"
@@ -192,7 +192,7 @@ export const HomePage: React.FC = () => {
                     }`}
                     onClick={() => scrollToSection('features', 'home-features')}
                   >
-                    Features
+                    {t('home.tabFeatures')}
                   </button>
                   <button
                     type="button"
@@ -201,7 +201,7 @@ export const HomePage: React.FC = () => {
                     }`}
                     onClick={() => scrollToSection('how-it-works', 'home-how-it-works')}
                   >
-                    How it works
+                    {t('home.tabHowItWorks')}
                   </button>
                 </nav>
 
@@ -222,7 +222,7 @@ export const HomePage: React.FC = () => {
         <Progress
           value={scrollProgress}
           className="home-scroll-progress !h-[3px] !rounded-none bg-transparent"
-          aria-label="Page scroll progress"
+          aria-label={t('home.scrollProgressAria')}
         />
       </div>
 
@@ -230,23 +230,22 @@ export const HomePage: React.FC = () => {
       <main className="home-main">
         {/* Hero */}
         <section id="home-overview" className="home-hero box-card">
-          <div className="eyebrow">QUIZCLASH</div>
+          <div className="eyebrow">{t('home.heroEyebrow')}</div>
           <h1 className="home-hero-title">
-            Turn your study notes into active recall quizzes.
+            {t('home.heroTitle')}
           </h1>
           <p className="home-hero-subtitle">
-            Upload your lecture notes, generate multiple-choice questions in seconds,
-            track your score progress over time, or host a live quiz room with friends.
+            {t('home.heroSubtitle')}
           </p>
           <div className="btn-row">
             <Link to="/dashboard" className="btn btn-primary">
-              Open workspace →
+              {t('home.openWorkspaceBtn')}
             </Link>
             <Link to="/generate" className="btn">
-              + Create a quiz
+              {t('home.createQuizBtn')}
             </Link>
             <Link to="/lobby" className="btn">
-              Join live game
+              {t('home.joinLiveGameBtn')}
             </Link>
           </div>
         </section>
@@ -254,35 +253,32 @@ export const HomePage: React.FC = () => {
         {/* Features */}
         <section id="home-features" className="home-section">
           <div className="home-section-head">
-            <div className="eyebrow">FEATURES</div>
-            <h2 className="section-title">Everything you need to study faster.</h2>
+            <div className="eyebrow">{t('home.featuresEyebrow')}</div>
+            <h2 className="section-title">{t('home.featuresTitle')}</h2>
           </div>
 
           <div className="home-grid-3">
             <article className="box-card home-feature-card">
-              <div className="home-step-badge">01</div>
-              <h3>Document to quiz</h3>
+              <div className="home-step-badge">{t('home.feature01Num')}</div>
+              <h3>{t('home.feature01Title')}</h3>
               <p className="helper-text">
-                Upload PDF, Word, CSV, or text files to automatically generate
-                structured multiple-choice questions ready to edit or export.
+                {t('home.feature01Desc')}
               </p>
             </article>
 
             <article className="box-card home-feature-card">
-              <div className="home-step-badge">02</div>
-              <h3>Attempt history &amp; insights</h3>
+              <div className="home-step-badge">{t('home.feature02Num')}</div>
+              <h3>{t('home.feature02Title')}</h3>
               <p className="helper-text">
-                Review missed questions with explanations and monitor your accuracy
-                improvement across attempts with visual progress charts.
+                {t('home.feature02Desc')}
               </p>
             </article>
 
             <article className="box-card home-feature-card">
-              <div className="home-step-badge">03</div>
-              <h3>Live multiplayer rooms</h3>
+              <div className="home-step-badge">{t('home.feature03Num')}</div>
+              <h3>{t('home.feature03Title')}</h3>
               <p className="helper-text">
-                Create a game room with a shareable PIN and compete against friends
-                on a live leaderboard.
+                {t('home.feature03Desc')}
               </p>
             </article>
           </div>
@@ -291,32 +287,32 @@ export const HomePage: React.FC = () => {
         {/* How it works */}
         <section id="home-how-it-works" className="home-section">
           <div className="home-section-head">
-            <div className="eyebrow">HOW IT WORKS</div>
-            <h2 className="section-title">Three simple steps from notes to mastery.</h2>
+            <div className="eyebrow">{t('home.howItWorksEyebrow')}</div>
+            <h2 className="section-title">{t('home.howItWorksTitle')}</h2>
           </div>
 
           <div className="home-grid-3">
             <article className="box-subtle home-step-card">
-              <div className="eyebrow">STEP 01</div>
-              <h3>Upload your material</h3>
+              <div className="eyebrow">{t('home.step01Eyebrow')}</div>
+              <h3>{t('home.step01Title')}</h3>
               <p className="helper-text">
-                Drop in your study sheet or lecture slides and configure question count.
+                {t('home.step01Desc')}
               </p>
             </article>
 
             <article className="box-subtle home-step-card">
-              <div className="eyebrow">STEP 02</div>
-              <h3>Review or print</h3>
+              <div className="eyebrow">{t('home.step02Eyebrow')}</div>
+              <h3>{t('home.step02Title')}</h3>
               <p className="helper-text">
-                Fine-tune prompts and answer keys, or export offline study sheets.
+                {t('home.step02Desc')}
               </p>
             </article>
 
             <article className="box-subtle home-step-card">
-              <div className="eyebrow">STEP 03</div>
-              <h3>Practice &amp; compete</h3>
+              <div className="eyebrow">{t('home.step03Eyebrow')}</div>
+              <h3>{t('home.step03Title')}</h3>
               <p className="helper-text">
-                Test yourself solo or launch a live quiz room with classmates.
+                {t('home.step03Desc')}
               </p>
             </article>
           </div>
@@ -324,9 +320,9 @@ export const HomePage: React.FC = () => {
       </main>
 
       <footer className="home-footer">
-        <span className="helper-text">QuizClash · Study notes → active recall</span>
+        <span className="helper-text">{t('home.footerTagline')}</span>
         <Link to="/dashboard" className="text-link">
-          Go to dashboard →
+          {t('home.goToDashboard')}
         </Link>
       </footer>
     </div>

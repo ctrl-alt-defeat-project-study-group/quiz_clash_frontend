@@ -107,12 +107,16 @@ export interface LivePlayer {
   points: number;
 }
 
+export type LiveRoomStatus = 'idle' | 'hosting' | 'joined';
+
 export interface LiveGameState {
+  status: LiveRoomStatus;
   pin: string;
   quizId: string;
   timerSeconds: number;
   round: number;
   players: LivePlayer[];
+  joinedPlayerName?: string;
 }
 
 export interface UserSettings {

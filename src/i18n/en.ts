@@ -47,6 +47,51 @@ export const en = {
     switchToEnglish: 'Switch to English (ENG)',
     switchToMyanmar: 'Switch to Myanmar (MM)',
   },
+  home: {
+    primaryNavAria: 'Primary',
+    mobileNavAria: 'Mobile Home Navigation',
+    scrollProgressAria: 'Page scroll progress',
+    tabOverview: 'Overview',
+    tabFeatures: 'Features',
+    tabHowItWorks: 'How it works',
+    heroEyebrow: 'QUIZCLASH',
+    heroTitle: 'Turn your study notes into active recall quizzes.',
+    heroSubtitle:
+      'Upload your lecture notes, generate multiple-choice questions in seconds, track your score progress over time, or host a live quiz room with friends.',
+    openWorkspaceBtn: 'Open workspace →',
+    createQuizBtn: '+ Create a quiz',
+    joinLiveGameBtn: 'Join live game',
+    featuresEyebrow: 'FEATURES',
+    featuresTitle: 'Everything you need to study faster.',
+    feature01Num: '01',
+    feature01Title: 'Document to quiz',
+    feature01Desc:
+      'Upload PDF, Word, CSV, or text files to automatically generate structured multiple-choice questions ready to edit or export.',
+    feature02Num: '02',
+    feature02Title: 'Attempt history & insights',
+    feature02Desc:
+      'Review missed questions with explanations and monitor your accuracy improvement across attempts with visual progress charts.',
+    feature03Num: '03',
+    feature03Title: 'Live multiplayer rooms',
+    feature03Desc:
+      'Create a game room with a shareable PIN and compete against friends on a live leaderboard.',
+    howItWorksEyebrow: 'HOW IT WORKS',
+    howItWorksTitle: 'Three simple steps from notes to mastery.',
+    step01Eyebrow: 'STEP 01',
+    step01Title: 'Upload your material',
+    step01Desc:
+      'Drop in your study sheet or lecture slides and configure question count.',
+    step02Eyebrow: 'STEP 02',
+    step02Title: 'Review or print',
+    step02Desc:
+      'Fine-tune prompts and answer keys, or export offline study sheets.',
+    step03Eyebrow: 'STEP 03',
+    step03Title: 'Practice & compete',
+    step03Desc:
+      'Test yourself solo or launch a live quiz room with classmates.',
+    footerTagline: 'QuizClash · Study notes → active recall',
+    goToDashboard: 'Go to dashboard →',
+  },
   print: {
     answerKeyHeader: 'SEPARATE ANSWER KEY',
     studySheetHeader: 'OFFLINE STUDY SHEET',
@@ -251,6 +296,26 @@ export const en = {
   lobby: {
     eyebrow: 'LIVE GAMES / 06',
     title: 'Better together. Ready to compete?',
+    entrySubtitle:
+      'Create a new room to host a quiz, or enter a PIN to join an existing game.',
+    createRoomEyebrow: 'HOST A GAME',
+    createRoomTitle: 'Create a room',
+    createRoomSubtitle:
+      'Pick a quiz and question timer, then share your room PIN with friends.',
+    createRoomBtn: 'Create room →',
+    joinRoomEyebrow: 'JOIN A GAME',
+    joinRoomTitle: 'Join a room',
+    joinRoomSubtitle:
+      'Enter a 6-digit room PIN and your display name to jump into a live session.',
+    joinRoomBtn: 'Join room →',
+    leaveRoom: 'Leave room',
+    playerViewSubtitle: 'Player view · Room {{pin}} · {{quizTitle}}',
+    joinedRoomEyebrow: 'CONNECTED TO ROOM',
+    joinedAsHelper:
+      'Joined as {{name}} · Waiting for the host to start the game.',
+    enterLiveGame: 'Enter live game →',
+    breadcrumbEntry: 'Create or join room',
+    breadcrumbRoom: 'Room {{pin}}',
     subtitle: 'Host view · {{quizTitle}} · {{count}} questions',
     closeRoom: 'Close room',
     inviteEyebrow: 'INVITE FRIENDS WITH THIS ROOM PIN',
@@ -384,6 +449,8 @@ export const en = {
     preparingAnswerKey: 'Preparing the print preview for the Answer Key.',
     preparingQuestionsSheet:
       'Preparing the print preview for the Questions Sheet.',
+    roomCreated: 'Live room {{pin}} has been created.',
+    roomClosed: 'Live room has been closed.',
     joinedRoom: 'You have joined Room {{pin}} as {{name}}.',
     proceededRound: 'Proceeded to Round {{round}} of {{total}}.',
     restartedRounds: 'Live session rounds have been restarted.',

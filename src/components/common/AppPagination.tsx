@@ -24,25 +24,32 @@ function getPageItems(currentPage: number, totalPages: number): Array<number | '
     return Array.from({ length: totalPages }, (_, i) => i + 1);
   }
 
-  const pages: Array<number | 'ellipsis'> = [1];
-
-  if (currentPage > 3) {
-    pages.push('ellipsis');
+  // Always return a fixed 7-slot layout so Previous/Next controls never shift position
+  if (currentPage <= 4) {
+    return [1, 2, 3, 4, 5, 'ellipsis', totalPages];
   }
 
-  const start = Math.max(2, currentPage - 1);
-  const end = Math.min(totalPages - 1, currentPage + 1);
-
-  for (let p = start; p <= end; p++) {
-    pages.push(p);
+  if (currentPage >= totalPages - 3) {
+    return [
+      1,
+      'ellipsis',
+      totalPages - 4,
+      totalPages - 3,
+      totalPages - 2,
+      totalPages - 1,
+      totalPages,
+    ];
   }
 
-  if (currentPage < totalPages - 2) {
-    pages.push('ellipsis');
-  }
-
-  pages.push(totalPages);
-  return pages;
+  return [
+    1,
+    'ellipsis',
+    currentPage - 1,
+    currentPage,
+    currentPage + 1,
+    'ellipsis',
+    totalPages,
+  ];
 }
 
 export const AppPagination: React.FC<AppPaginationProps> = ({

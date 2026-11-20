@@ -20,10 +20,25 @@ export const LiveLeaderboardPage: React.FC = () => {
         breadcrumbs={[
           { label: 'QuizClash', to: '/' },
           { label: t('nav.liveGames'), to: '/lobby' },
+          ...(live.status !== 'idle'
+            ? [
+                {
+                  label: t('lobby.breadcrumbRoom', { pin: live.pin }),
+                  to: '/lobby'
+                }
+              ]
+            : []),
           {
             label: t('leaderboard.title'),
             siblingRoutes: [
-              { label: t('nav.liveGames'), to: '/lobby', active: false },
+              {
+                label:
+                  live.status !== 'idle'
+                    ? t('lobby.breadcrumbRoom', { pin: live.pin })
+                    : t('lobby.breadcrumbEntry'),
+                to: '/lobby',
+                active: false
+              },
               { label: t('leaderboard.title'), to: '/leaderboard', active: true }
             ]
           }
