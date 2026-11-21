@@ -1,8 +1,8 @@
 import React, { useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { Download, Loader2 } from 'lucide-react';
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts';
 import { useApp } from '../context/AppContext';
-import { SEED_HISTORY } from '../data/seedData';
 import { PageHeader, SectionCard, StatCard } from '../components/common';
 import {
   ChartContainer,
@@ -18,13 +18,14 @@ export const ResultsHistoryPage: React.FC = () => {
     setActiveAttemptId,
     startPractice,
     exportStudySheet,
+    exportingKind,
     t
   } = useApp();
 
   const navigate = useNavigate();
 
   const latest =
-    history.find((h) => h.id === activeAttemptId) || history[0] || SEED_HISTORY[0];
+    history.find((h) => h.id === activeAttemptId) ?? history[0] ?? null;
 
   const chartData = useMemo(
     () =>
@@ -47,6 +48,29 @@ export const ResultsHistoryPage: React.FC = () => {
     }),
     [t]
   );
+
+  if (!latest) {
+    return (
+      <>
+        <PageHeader
+          breadcrumbs={[
+            { label: 'QuizClash', to: '/' },
+            { label: t('nav.attemptHistory') }
+          ]}
+          title={t('results.title')}
+          subtitle={t('results.scoreTrendSubtitle')}
+        />
+        <SectionCard>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'flex-start' }}>
+            <p className="helper-text">{t('dashboard.bannerBody')}</p>
+            <Link to="/dashboard" className="btn btn-primary">
+              {t('results.backToDashboard')}
+            </Link>
+          </div>
+        </SectionCard>
+      </>
+    );
+  }
 
   return (
     <>
@@ -195,8 +219,20 @@ export const ResultsHistoryPage: React.FC = () => {
           type="button"
           className="btn"
           onClick={() => void exportStudySheet('answers')}
+          disabled={exportingKind !== null}
+          aria-busy={exportingKind === 'answers'}
+          style={{ gap: 8 }}
         >
-          {t('results.downloadAnswerKey')}
+          {exportingKind === 'answers' ? (
+            <Loader2 size={16} className="animate-spin" aria-hidden="true" />
+          ) : (
+            <Download size={16} aria-hidden="true" />
+          )}
+          <span>
+            {exportingKind === 'answers'
+              ? t('review.downloadingAnswerKey')
+              : t('results.downloadAnswerKey')}
+          </span>
         </button>
         <Link to="/lobby" className="btn">
           {t('results.challengeFriends')}

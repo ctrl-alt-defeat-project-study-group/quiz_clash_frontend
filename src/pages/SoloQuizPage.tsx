@@ -17,6 +17,7 @@ export const SoloQuizPage: React.FC = () => {
   const {
     quizzes,
     activeQuiz,
+    loadQuizDetails,
     practice,
     startPractice,
     selectPracticeAnswer,
@@ -33,20 +34,57 @@ export const SoloQuizPage: React.FC = () => {
     }
   }, [id, practice.quizId, quizzes, startPractice]);
 
-  const quiz = quizzes.find((q) => q.id === practice.quizId) || activeQuiz;
+  const quiz = quizzes.find((q) => q.id === practice.quizId) ?? activeQuiz;
+
+  useEffect(() => {
+    if (quiz?.backendId && !quiz.questionsLoaded) {
+      void loadQuizDetails(quiz.id, 'play');
+    }
+  }, [quiz, loadQuizDetails]);
+
+  if (!quiz) {
+    return (
+      <>
+        <PageHeader
+          breadcrumbs={[
+            { label: 'QuizClash', to: '/' },
+            { label: t('nav.yourLibrary'), to: '/quizzes' }
+          ]}
+          title={t('nav.myQuizzes')}
+          subtitle={t('solo.subtitle')}
+        />
+        <SectionCard>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'flex-start' }}>
+            <p className="helper-text">{t('dashboard.bannerTitle')}</p>
+            <Link to="/generate" className="btn btn-primary">
+              {t('dashboard.createQuizBtn')}
+            </Link>
+          </div>
+        </SectionCard>
+      </>
+    );
+  }
+
   const total = quiz.questions.length;
   const idx = Math.min(Math.max(0, practice.questionIndex), Math.max(0, total - 1));
-  const currentQ = quiz.questions[idx] || quiz.questions[0];
+  const currentQ = quiz.questions[idx] ||
+    quiz.questions[0] || {
+      prompt: 'Loading question…',
+      choices: ['—', '—', '—', '—'],
+      answer: 0
+    };
   const selectedChoice = practice.answers[idx];
   const answeredCount = Object.keys(practice.answers).filter(
     (k) => Number(k) < total
   ).length;
   const remainingCount = Math.max(0, total - answeredCount);
-  const pct = Math.round((answeredCount / total) * 100);
+  const pct = total > 0 ? Math.round((answeredCount / total) * 100) : 0;
 
   const handleFinish = async () => {
     const attempt = await finishPractice();
-    navigate(`/attempts/${encodeURIComponent(attempt.id)}`);
+    if (attempt) {
+      navigate(`/attempts/${encodeURIComponent(attempt.id)}`);
+    }
   };
 
   return (

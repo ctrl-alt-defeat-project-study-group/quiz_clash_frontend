@@ -20,14 +20,15 @@ import {
 
 export const SettingsPage: React.FC = () => {
   const {
+    user,
+    logout,
     theme,
     setTheme,
     uiLanguage,
     setUiLanguage,
-    quizzes,
-    history,
     settings,
     updateSettings,
+    exportAccountData,
     resetAllData,
     openModal,
     showToast,
@@ -36,13 +37,23 @@ export const SettingsPage: React.FC = () => {
 
   const navigate = useNavigate();
 
-  const [displayName, setDisplayName] = useState<string>(settings.displayName);
-  const [email, setEmail] = useState<string>(settings.email);
-  const [defaultQuestions, setDefaultQuestions] = useState<number>(
-    settings.defaultQuestions
-  );
-  const [difficulty, setDifficulty] = useState<string>(settings.difficulty);
-  const [language, setLanguage] = useState<string>(settings.language);
+  const [displayNameDraft, setDisplayNameDraft] = useState<string | null>(null);
+  const [emailDraft, setEmailDraft] = useState<string | null>(null);
+  const [defaultQuestionsDraft, setDefaultQuestionsDraft] = useState<number | null>(null);
+  const [difficultyDraft, setDifficultyDraft] = useState<string | null>(null);
+  const [languageDraft, setLanguageDraft] = useState<string | null>(null);
+
+  const displayName = displayNameDraft ?? settings.displayName;
+  const email = emailDraft ?? settings.email;
+  const defaultQuestions = defaultQuestionsDraft ?? settings.defaultQuestions;
+  const difficulty = difficultyDraft ?? settings.difficulty;
+  const language = languageDraft ?? settings.language;
+
+  const setDisplayName = (v: string) => setDisplayNameDraft(v);
+  const setEmail = (v: string) => setEmailDraft(v);
+  const setDefaultQuestions = (v: number) => setDefaultQuestionsDraft(v);
+  const setDifficulty = (v: string) => setDifficultyDraft(v);
+  const setLanguage = (v: string) => setLanguageDraft(v);
 
   const tabs: { id: UserSettings['tab']; label: string }[] = [
     { id: 'Profile', label: t('settings.tabProfile') },
@@ -57,27 +68,21 @@ export const SettingsPage: React.FC = () => {
 
   const handleSave = () => {
     updateSettings({
-      displayName: displayName.trim() || 'Alex M.',
-      email: email.trim() || 'alex.m@example.com',
+      displayName: displayName.trim(),
       defaultQuestions,
       difficulty,
       language
     });
+    setDisplayNameDraft(null);
+    setEmailDraft(null);
+    setDefaultQuestionsDraft(null);
+    setDifficultyDraft(null);
+    setLanguageDraft(null);
     showToast(t('toasts.preferencesSaved'));
   };
 
   const handleExportData = () => {
-    const blob = new Blob(
-      [JSON.stringify({ quizzes, history, settings }, null, 2)],
-      { type: 'application/json' }
-    );
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'QuizClash-study-data.json';
-    a.click();
-    URL.revokeObjectURL(url);
-    showToast(t('toasts.dataExported'));
+    void exportAccountData();
   };
 
   const handleDeleteAccountPrompt = () => {
@@ -86,8 +91,7 @@ export const SettingsPage: React.FC = () => {
       message: t('modals.resetDataMessage'),
       confirmLabel: t('modals.resetDataConfirm'),
       onConfirm: () => {
-        resetAllData();
-        navigate('/dashboard');
+        void resetAllData().then(() => navigate('/dashboard'));
       }
     });
   };
@@ -404,34 +408,67 @@ export const SettingsPage: React.FC = () => {
 
         {/* Tab 4: Privacy & Account */}
         {activeTab === 'Privacy & account' && (
-          <SectionCard dataName="Privacy and account">
-            <h2 className="section-title" style={{ marginBottom: 4 }}>
-              {t('settings.privacyTitle')}
-            </h2>
-            <p className="helper-text" style={{ marginBottom: 16 }}>
-              {t('settings.privacySubtitle')}
-            </p>
-            <div className="banner-row">
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 600 }}>
-                  {t('settings.privateQuizzesTitle')}
-                </div>
-                <div className="helper-text">{t('settings.privateQuizzesDesc')}</div>
-              </div>
+          <>
+            <SectionCard dataName="Account session">
+              <h2 className="section-title" style={{ marginBottom: 4 }}>
+                {t('auth.accountSectionTitle')}
+              </h2>
+              <p className="helper-text" style={{ marginBottom: 16 }}>
+                {user
+                  ? t('auth.signedInAs', { email: user.email })
+                  : t('auth.accountSectionDesc')}
+              </p>
               <div className="btn-row">
-                <button type="button" className="btn btn-sm" onClick={handleExportData}>
-                  {t('settings.exportDataBtn')}
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-sm btn-danger"
-                  onClick={handleDeleteAccountPrompt}
-                >
-                  {t('settings.deleteAccountBtn')}
-                </button>
+                {user ? (
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    onClick={() => void logout().then(() => navigate('/login'))}
+                  >
+                    {t('auth.signOut')}
+                  </button>
+                ) : (
+                  <>
+                    <Link to="/login" className="btn btn-sm btn-primary">
+                      {t('auth.signIn')}
+                    </Link>
+                    <Link to="/register" className="btn btn-sm">
+                      {t('auth.signUp')}
+                    </Link>
+                  </>
+                )}
               </div>
-            </div>
-          </SectionCard>
+            </SectionCard>
+
+            <SectionCard dataName="Privacy and account">
+              <h2 className="section-title" style={{ marginBottom: 4 }}>
+                {t('settings.privacyTitle')}
+              </h2>
+              <p className="helper-text" style={{ marginBottom: 16 }}>
+                {t('settings.privacySubtitle')}
+              </p>
+              <div className="banner-row">
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600 }}>
+                    {t('settings.privateQuizzesTitle')}
+                  </div>
+                  <div className="helper-text">{t('settings.privateQuizzesDesc')}</div>
+                </div>
+                <div className="btn-row">
+                  <button type="button" className="btn btn-sm" onClick={handleExportData}>
+                    {t('settings.exportDataBtn')}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-danger"
+                    onClick={handleDeleteAccountPrompt}
+                  >
+                    {t('settings.deleteAccountBtn')}
+                  </button>
+                </div>
+              </div>
+            </SectionCard>
+          </>
         )}
       </div>
 

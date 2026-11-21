@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { PageHeader, SectionCard } from '../components/common';
 import {
@@ -12,7 +12,9 @@ import {
 
 export const LiveLobbyPage: React.FC = () => {
   const { pin: routePin } = useParams<{ pin?: string }>();
+  const navigate = useNavigate();
   const {
+    user,
     quizzes,
     activeQuiz,
     live,
@@ -22,6 +24,7 @@ export const LiveLobbyPage: React.FC = () => {
     createLiveRoom,
     joinLiveRoom,
     closeLiveRoom,
+    advanceLiveRound,
     showToast,
     t
   } = useApp();
@@ -29,10 +32,13 @@ export const LiveLobbyPage: React.FC = () => {
   const [joinPin, setJoinPin] = useState<string | null>(null);
   const [joinName, setJoinName] = useState<string>(settings.displayName || '');
   const [joinError, setJoinError] = useState<string>('');
+  const [submitting, setSubmitting] = useState<boolean>(false);
 
   const displayedJoinPin = joinPin ?? routePin ?? '';
 
-  const liveQuiz = quizzes.find((q) => q.id === live.quizId) || activeQuiz;
+  const liveQuiz = quizzes.find((q) => q.id === live.quizId) ?? activeQuiz;
+  const liveQuizTitle = liveQuiz?.title || t('nav.liveGames');
+  const liveQuizCount = liveQuiz?.questionCount ?? liveQuiz?.questions.length ?? 0;
 
   const handleCopyPin = () => {
     navigator.clipboard?.writeText(live.pin.replace(/\s+/g, '')).catch(() => {});
@@ -47,20 +53,37 @@ export const LiveLobbyPage: React.FC = () => {
     showToast(t('toasts.inviteLinkCopied'));
   };
 
-  const handleCreateRoom = (e: React.FormEvent) => {
+  const handleCreateRoom = async (e: React.FormEvent) => {
     e.preventDefault();
-    createLiveRoom(live.quizId, live.timerSeconds);
+    setSubmitting(true);
+    try {
+      await createLiveRoom(live.quizId, live.timerSeconds);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const handleJoinSubmit = (e: React.FormEvent) => {
+  const handleJoinSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const res = joinLiveRoom(displayedJoinPin, joinName);
-    if (!res.ok) {
-      setJoinError(res.error || t('lobby.invalidPinFallback'));
-      return;
+    setSubmitting(true);
+    try {
+      const res = await joinLiveRoom(displayedJoinPin, joinName);
+      if (!res.ok) {
+        setJoinError(res.error || t('lobby.invalidPinFallback'));
+        return;
+      }
+      setJoinError('');
+      setJoinPin('');
+    } finally {
+      setSubmitting(false);
     }
-    setJoinError('');
-    setJoinPin('');
+  };
+
+  const handleStartLiveGame = async () => {
+    if (live.isLiveBackend && live.backendStatus === 'lobby') {
+      await advanceLiveRound();
+    }
+    navigate('/leaderboard');
   };
 
   // Entry Screen: Create a room OR Join a room
@@ -112,7 +135,7 @@ export const LiveLobbyPage: React.FC = () => {
                   </SelectContent>
                 </Select>
                 <span className="helper-text">
-                  {t('lobby.quizMeta', { count: liveQuiz.questions.length })}
+                  {t('lobby.quizMeta', { count: liveQuizCount })}
                 </span>
               </div>
 
@@ -145,9 +168,19 @@ export const LiveLobbyPage: React.FC = () => {
             </div>
 
             <div className="btn-row">
-              <button type="submit" className="btn btn-primary">
-                {t('lobby.createRoomBtn')}
-              </button>
+              {user ? (
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  disabled={submitting || quizzes.length === 0}
+                >
+                  {t('lobby.createRoomBtn')}
+                </button>
+              ) : (
+                <Link to="/login" className="btn btn-primary">
+                  {t('lobby.signInToHostBtn')}
+                </Link>
+              )}
             </div>
           </form>
 
@@ -209,7 +242,7 @@ export const LiveLobbyPage: React.FC = () => {
             </div>
 
             <div className="btn-row">
-              <button type="submit" className="btn btn-primary">
+              <button type="submit" className="btn btn-primary" disabled={submitting}>
                 {t('lobby.joinRoomBtn')}
               </button>
             </div>
@@ -250,7 +283,7 @@ export const LiveLobbyPage: React.FC = () => {
           title={t('lobby.title')}
           subtitle={t('lobby.playerViewSubtitle', {
             pin: live.pin,
-            quizTitle: liveQuiz.title
+            quizTitle: liveQuizTitle
           })}
           actions={
             <button type="button" className="btn" onClick={closeLiveRoom}>
@@ -265,7 +298,7 @@ export const LiveLobbyPage: React.FC = () => {
             <div className="pin-display">{live.pin}</div>
             <p className="helper-text">
               {t('lobby.joinedAsHelper', {
-                name: live.joinedPlayerName || settings.displayName || 'Alex M.'
+                name: live.joinedPlayerName || settings.displayName || '—'
               })}
             </p>
           </section>
@@ -332,8 +365,8 @@ export const LiveLobbyPage: React.FC = () => {
         ]}
         title={t('lobby.title')}
         subtitle={t('lobby.subtitle', {
-          quizTitle: liveQuiz.title,
-          count: liveQuiz.questions.length
+          quizTitle: liveQuizTitle,
+          count: liveQuizCount
         })}
         actions={
           <button type="button" className="btn" onClick={closeLiveRoom}>
@@ -385,9 +418,13 @@ export const LiveLobbyPage: React.FC = () => {
           </SectionCard>
 
           <div className="btn-row" data-name="Host controls">
-            <Link to="/leaderboard" className="btn btn-primary">
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => void handleStartLiveGame()}
+            >
               {t('lobby.startGame')}
-            </Link>
+            </button>
             <span className="helper-text">
               {t('lobby.allPlayersConnected', { count: live.players.length })}
             </span>
@@ -421,7 +458,7 @@ export const LiveLobbyPage: React.FC = () => {
                 </SelectContent>
               </Select>
               <span className="helper-text">
-                {t('lobby.quizMeta', { count: liveQuiz.questions.length })}
+                {t('lobby.quizMeta', { count: liveQuizCount })}
               </span>
             </div>
 

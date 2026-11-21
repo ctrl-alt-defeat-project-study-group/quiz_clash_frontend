@@ -1,9 +1,19 @@
 /* eslint-disable react-refresh/only-export-components */
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import Swal, { type SweetAlertIcon } from 'sweetalert2';
 import type {
+  ApiAttemptResponse,
+  ApiAttemptSummary,
+  ApiLiveGameState,
+  ApiLiveWsEvent,
+  ApiQuestion,
+  ApiQuizPreviewResponse,
+  ApiQuizResponse,
+  ApiQuizSummary,
+  ApiUserSettings,
   AppLanguage,
   AttemptRecord,
+  ExportFormat,
   ExportKind,
   LiveGameState,
   MissedQuestionItem,
@@ -11,14 +21,9 @@ import type {
   QuizItem,
   ResolvedTheme,
   ThemeMode,
+  UserProfile,
   UserSettings
 } from '../types/quiz';
-import {
-  DEFAULT_SETTINGS,
-  INITIAL_LIVE_PLAYERS,
-  SEED_HISTORY,
-  SEED_QUIZZES
-} from '../data/seedData';
 import * as api from '../services/api';
 import {
   getErrorByCode,
@@ -27,7 +32,37 @@ import {
   type TranslationKey
 } from '../i18n';
 
-const STORAGE_KEY = 'quiz-clash-react-v2-state';
+const PREFS_STORAGE_KEY = 'quiz-clash-ui-prefs';
+
+const DEFAULT_SETTINGS: UserSettings = {
+  tab: 'Profile',
+  displayName: '',
+  email: '',
+  defaultQuestions: 10,
+  difficulty: 'Mixed',
+  language: 'English',
+  shuffleQuestions: true,
+  showExplanations: true,
+  studyReminders: true,
+  weeklySummary: false
+};
+
+const EMPTY_PRACTICE: PracticeState = {
+  quizId: '',
+  questionIndex: 0,
+  answers: {},
+  startedAt: 0
+};
+
+const EMPTY_LIVE: LiveGameState = {
+  status: 'idle',
+  pin: '',
+  quizId: '',
+  timerSeconds: 20,
+  round: 0,
+  totalRounds: 0,
+  players: []
+};
 
 interface PracticeState {
   quizId: string;
@@ -45,6 +80,14 @@ interface ModalState {
 }
 
 interface AppContextValue {
+  user: UserProfile | null;
+  authLoading: boolean;
+  login: (email: string, password: string) => Promise<UserProfile>;
+  loginWithGoogle: (credential: string) => Promise<UserProfile>;
+  register: (email: string, password: string, displayName: string) => Promise<UserProfile>;
+  logout: () => Promise<void>;
+  refreshUser: () => Promise<UserProfile | null>;
+
   theme: ThemeMode;
   resolvedTheme: ResolvedTheme;
   setTheme: (theme: ThemeMode) => void;
@@ -58,42 +101,49 @@ interface AppContextValue {
 
   quizzes: QuizItem[];
   activeQuizId: string;
-  activeQuiz: QuizItem;
+  activeQuiz: QuizItem | null;
   setActiveQuizId: (id: string) => void;
+  loadQuizDetails: (quizId: string, mode?: 'preview' | 'play') => Promise<void>;
   updateQuizQuestion: (quizId: string, qIndex: number, updated: Partial<QuestionItem>) => void;
   saveQuizChanges: (quizId: string) => Promise<void>;
 
   history: AttemptRecord[];
   activeAttemptId: string;
   setActiveAttemptId: (id: string) => void;
+  loadAttemptDetails: (attemptId: string) => Promise<void>;
 
   practice: PracticeState;
   startPractice: (quizId?: string) => void;
   selectPracticeAnswer: (questionIndex: number, choiceIndex: number) => void;
   setPracticeQuestionIndex: (index: number) => void;
-  finishPractice: () => Promise<AttemptRecord>;
+  finishPractice: () => Promise<AttemptRecord | null>;
 
   generateQuiz: (params: {
-    file?: File | null;
+    file: File;
     fileName: string;
     title: string;
+    category?: string;
     questionCount: number;
+    useLlm?: boolean;
   }) => Promise<QuizItem>;
 
-  exportStudySheet: (kind: ExportKind) => Promise<void>;
+  exportStudySheet: (kind: ExportKind, format?: ExportFormat) => Promise<void>;
+  exportingKind: ExportKind | null;
   printKind: ExportKind;
 
   live: LiveGameState;
   setLiveQuizId: (quizId: string) => void;
   setLiveTimer: (seconds: number) => void;
-  createLiveRoom: (quizId?: string, timerSeconds?: number) => void;
-  joinLiveRoom: (pin: string, name: string) => { ok: boolean; error?: string };
+  createLiveRoom: (quizId?: string, timerSeconds?: number) => Promise<void>;
+  joinLiveRoom: (pin: string, name: string) => Promise<{ ok: boolean; error?: string }>;
   closeLiveRoom: () => void;
-  advanceLiveRound: () => void;
+  advanceLiveRound: () => Promise<void>;
+  submitLiveAnswer: (choiceId: string) => void;
 
   settings: UserSettings;
   updateSettings: (partial: Partial<UserSettings>) => void;
-  resetAllData: () => void;
+  exportAccountData: () => Promise<void>;
+  resetAllData: () => Promise<void>;
 
   toastMessage: string | null;
   showToast: (msg: string, icon?: SweetAlertIcon) => void;
@@ -127,9 +177,9 @@ const swalToast = Swal.mixin({
   }
 });
 
-function loadStoredState() {
+function loadStoredPrefs(): { theme?: ThemeMode; uiLanguage?: AppLanguage } | null {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(PREFS_STORAGE_KEY);
     if (!raw) return null;
     return JSON.parse(raw);
   } catch {
@@ -137,16 +187,135 @@ function loadStoredState() {
   }
 }
 
+function formatDuration(seconds: number | null | undefined): string {
+  const safeSec = Math.max(0, Math.round(seconds ?? 0));
+  const mm = String(Math.floor(safeSec / 60)).padStart(2, '0');
+  const ss = String(safeSec % 60).padStart(2, '0');
+  return `${mm}:${ss}`;
+}
+
+function formatShortDate(iso: string | null | undefined, fallback: string): string {
+  if (!iso) return fallback;
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return fallback;
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+function mapApiQuestions(
+  questions: ApiQuestion[],
+  fallbackExplanation: string
+): QuestionItem[] {
+  return [...questions]
+    .sort((a, b) => a.position - b.position)
+    .map((aq) => {
+      const sortedChoices = [...aq.choices].sort((a, b) => a.position - b.position);
+      const correctIdx = sortedChoices.findIndex((c) => c.is_correct);
+      return {
+        id: aq.id,
+        prompt: aq.prompt,
+        choices: sortedChoices.map((c) => c.text),
+        answer: correctIdx >= 0 ? correctIdx : 0,
+        explanation: aq.explanation || fallbackExplanation
+      };
+    });
+}
+
+function mapQuizSummaryToItem(
+  summary: ApiQuizSummary,
+  todayLabel: string
+): QuizItem {
+  return {
+    id: summary.id,
+    backendId: summary.id,
+    title: summary.title,
+    sidebarTitle: summary.title,
+    category: summary.category || 'Uploaded',
+    source: summary.source_filename || 'Uploaded study notes',
+    updated: formatShortDate(summary.updated_at, todayLabel),
+    lastScore: summary.last_score ?? 0,
+    questionCount: summary.question_count,
+    questionsLoaded: false,
+    questions: []
+  };
+}
+
+function mapAttemptResponseToRecord(
+  att: ApiAttemptResponse,
+  prevScore: number | null,
+  fallbackExplanation: string,
+  justNowLabel: string
+): AttemptRecord {
+  const scorePct = Math.round(att.percentage);
+  const diff = prevScore !== null ? scorePct - prevScore : 0;
+  const deltaPts = `${diff >= 0 ? '+' : ''}${diff} pts`;
+
+  const missed: MissedQuestionItem[] = att.questions
+    .map((q, idx) => ({ q, idx }))
+    .filter(({ q }) => !q.is_correct)
+    .map(({ q, idx }) => ({
+      number: idx + 1,
+      prompt: q.question_prompt,
+      yourAnswer: q.selected_choice_text,
+      correctAnswer: q.correct_choice_text,
+      explanation: q.explanation || fallbackExplanation
+    }));
+
+  return {
+    id: att.id,
+    backendId: att.id,
+    quizId: att.quiz_id,
+    quizTitle: att.quiz_title,
+    dateLabel: formatShortDate(att.completed_at, justNowLabel),
+    scorePct,
+    correct: att.score,
+    total: att.total_questions,
+    duration: formatDuration(att.duration_seconds),
+    deltaPts,
+    detailsLoaded: true,
+    missed,
+    questionResults: att.questions
+  };
+}
+
+function mapAttemptSummariesToRecords(
+  summaries: ApiAttemptSummary[],
+  fallbackLabel: string
+): AttemptRecord[] {
+  return summaries.map((att, idx) => {
+    const scorePct = Math.round(att.percentage);
+    const prev = summaries.slice(idx + 1).find((s) => s.quiz_id === att.quiz_id);
+    const diff = prev ? scorePct - Math.round(prev.percentage) : 0;
+    const deltaPts = `${diff >= 0 ? '+' : ''}${diff} pts`;
+    return {
+      id: att.id,
+      backendId: att.id,
+      quizId: att.quiz_id,
+      quizTitle: att.quiz_title,
+      dateLabel: formatShortDate(att.completed_at, fallbackLabel),
+      scorePct,
+      correct: att.score,
+      total: att.total_questions,
+      duration: formatDuration(att.duration_seconds),
+      deltaPts,
+      detailsLoaded: false,
+      missed: []
+    };
+  });
+}
+
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const stored = loadStoredState();
+  const storedPrefs = loadStoredPrefs();
+
+  const [user, setUser] = useState<UserProfile | null>(null);
+  const [authLoading, setAuthLoading] = useState<boolean>(true);
 
   const [theme, setThemeState] = useState<ThemeMode>(() => {
     if (
-      stored?.theme === 'dark' ||
-      stored?.theme === 'light' ||
-      stored?.theme === 'system'
+      storedPrefs?.theme === 'dark' ||
+      storedPrefs?.theme === 'light' ||
+      storedPrefs?.theme === 'system'
     ) {
-      return stored.theme;
+      return storedPrefs.theme;
     }
     return 'system';
   });
@@ -157,52 +326,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const [uiLanguage, setUiLanguageState] = useState<AppLanguage>(() => {
-    if (stored?.uiLanguage === 'mm' || stored?.uiLanguage === 'en') {
-      return stored.uiLanguage;
+    if (storedPrefs?.uiLanguage === 'mm' || storedPrefs?.uiLanguage === 'en') {
+      return storedPrefs.uiLanguage;
     }
     return 'en';
   });
 
   const resolvedTheme: ResolvedTheme =
     theme === 'system' ? (systemPrefersDark ? 'dark' : 'light') : theme;
-  const [quizzes, setQuizzes] = useState<QuizItem[]>(
-    Array.isArray(stored?.quizzes) && stored.quizzes.length
-      ? stored.quizzes
-      : structuredClone(SEED_QUIZZES)
-  );
-  const [history, setHistory] = useState<AttemptRecord[]>(
-    Array.isArray(stored?.history) && stored.history.length
-      ? stored.history
-      : structuredClone(SEED_HISTORY)
-  );
-  const [activeQuizId, setActiveQuizIdState] = useState<string>(
-    stored?.activeQuizId || 'biology'
-  );
-  const [activeAttemptId, setActiveAttemptId] = useState<string>(
-    stored?.history?.[0]?.id || SEED_HISTORY[0].id
-  );
-  const [settings, setSettings] = useState<UserSettings>(
-    stored?.settings ? { ...DEFAULT_SETTINGS, ...stored.settings } : DEFAULT_SETTINGS
-  );
 
-  // Pre-populated 4 answers matching wireframe "Question 4 of 10 · Practice in progress"
-  const [practice, setPractice] = useState<PracticeState>(() => ({
-    quizId: 'biology',
-    questionIndex: 3,
-    answers: { 0: 1, 1: 0, 2: 0, 3: 1 },
-    startedAt: Date.now() - 180000
-  }));
-
-  const [live, setLive] = useState<LiveGameState>({
-    status: 'idle',
-    pin: '482 619',
-    quizId: 'biology',
-    timerSeconds: 20,
-    round: 3,
-    players: structuredClone(INITIAL_LIVE_PLAYERS)
-  });
+  const [quizzes, setQuizzes] = useState<QuizItem[]>([]);
+  const [history, setHistory] = useState<AttemptRecord[]>([]);
+  const [activeQuizId, setActiveQuizIdState] = useState<string>('');
+  const [activeAttemptId, setActiveAttemptId] = useState<string>('');
+  const [settings, setSettings] = useState<UserSettings>(DEFAULT_SETTINGS);
+  const [practice, setPractice] = useState<PracticeState>(EMPTY_PRACTICE);
+  const [live, setLive] = useState<LiveGameState>(EMPTY_LIVE);
 
   const [printKind, setPrintKind] = useState<ExportKind>('questions');
+  const [exportingKind, setExportingKind] = useState<ExportKind | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const [modal, setModal] = useState<ModalState>({
@@ -210,6 +352,215 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     title: '',
     message: ''
   });
+
+  const wsRef = useRef<WebSocket | null>(null);
+  const pingTimerRef = useRef<number | null>(null);
+  const uiLangRef = useRef<AppLanguage>(uiLanguage);
+
+  useEffect(() => {
+    uiLangRef.current = uiLanguage;
+  }, [uiLanguage]);
+
+  const showToast = useCallback((msg: string, icon?: SweetAlertIcon) => {
+    setToastMessage(msg);
+    const resolvedIcon: SweetAlertIcon =
+      icon ??
+      (/^(appearance|preparing|proceeded|live session|switched|opening|advanced|restarted)/i.test(
+        msg
+      )
+        ? 'info'
+        : /^(error|failed)/i.test(msg)
+        ? 'error'
+        : 'success');
+
+    const isMobile =
+      typeof window !== 'undefined' && window.matchMedia('(max-width: 820px)').matches;
+
+    void swalToast.fire({
+      position: isMobile ? 'top' : 'bottom-end',
+      icon: resolvedIcon,
+      title: msg,
+      closeButtonAriaLabel: translate(uiLangRef.current, 'toasts.closeNotificationAria')
+    });
+  }, []);
+
+  const t = useCallback(
+    (key: TranslationKey, params?: Record<string, string | number>): string => {
+      return translate(uiLanguage, key, params);
+    },
+    [uiLanguage]
+  );
+
+  const getErrorMessage = useCallback(
+    (error: unknown): string => {
+      return getLocalizedErrorMessage(error, uiLanguage);
+    },
+    [uiLanguage]
+  );
+
+  const closeLiveSocket = useCallback(() => {
+    if (pingTimerRef.current !== null) {
+      window.clearInterval(pingTimerRef.current);
+      pingTimerRef.current = null;
+    }
+    if (wsRef.current) {
+      try {
+        wsRef.current.close();
+      } catch {
+        /* ignore close errors */
+      }
+      wsRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      closeLiveSocket();
+    };
+  }, [closeLiveSocket]);
+
+  const hydrateFromBackend = useCallback(async (profile: UserProfile) => {
+    const lang = uiLangRef.current;
+    const [quizzesRes, attemptsRes, settingsRes] = await Promise.allSettled([
+      api.listQuizzes(lang),
+      api.listAttempts(lang),
+      api.getSettings(lang)
+    ]);
+
+    if (quizzesRes.status === 'fulfilled') {
+      const mapped = quizzesRes.value.map((s) =>
+        mapQuizSummaryToItem(s, translate(lang, 'common.today'))
+      );
+      setQuizzes(mapped);
+      setActiveQuizIdState(mapped[0]?.id ?? '');
+      setLive((prev) => ({ ...prev, quizId: mapped[0]?.id ?? '' }));
+    }
+
+    if (attemptsRes.status === 'fulfilled') {
+      const mappedAttempts = mapAttemptSummariesToRecords(
+        attemptsRes.value,
+        translate(lang, 'common.today')
+      );
+      setHistory(mappedAttempts);
+      setActiveAttemptId(mappedAttempts[0]?.id ?? '');
+    }
+
+    if (settingsRes.status === 'fulfilled') {
+      const s = settingsRes.value;
+      setSettings((prev) => ({
+        ...prev,
+        displayName: s.display_name || profile.display_name,
+        email: s.email || profile.email,
+        defaultQuestions: s.default_questions ?? prev.defaultQuestions,
+        difficulty: s.difficulty || prev.difficulty,
+        language: s.quiz_language || prev.language,
+        shuffleQuestions: s.shuffle_questions ?? prev.shuffleQuestions,
+        showExplanations: s.show_explanations ?? prev.showExplanations,
+        studyReminders: s.study_reminders ?? prev.studyReminders,
+        weeklySummary: s.weekly_summary ?? prev.weeklySummary
+      }));
+      if (s.theme === 'light' || s.theme === 'dark' || s.theme === 'system') {
+        setThemeState(s.theme);
+      }
+      if (s.ui_language === 'en' || s.ui_language === 'mm') {
+        setUiLanguageState(s.ui_language);
+      }
+    } else {
+      setSettings((prev) => ({
+        ...prev,
+        displayName: profile.display_name,
+        email: profile.email
+      }));
+    }
+  }, []);
+
+  const refreshUser = useCallback(async (): Promise<UserProfile | null> => {
+    setAuthLoading(true);
+    try {
+      const profile = await api.getMe(uiLangRef.current);
+      setUser(profile);
+      await hydrateFromBackend(profile);
+      return profile;
+    } catch {
+      setUser(null);
+      return null;
+    } finally {
+      setAuthLoading(false);
+    }
+  }, [hydrateFromBackend]);
+
+  // Restore cookie session on initial load & subscribe to 401 expiry
+  useEffect(() => {
+    let active = true;
+    api.setOnUnauthorized(() => {
+      setUser(null);
+    });
+    void (async () => {
+      try {
+        const profile = await api.getMe(uiLangRef.current);
+        if (!active) return;
+        setUser(profile);
+        await hydrateFromBackend(profile);
+      } catch {
+        if (active) setUser(null);
+      } finally {
+        if (active) setAuthLoading(false);
+      }
+    })();
+    return () => {
+      active = false;
+      api.setOnUnauthorized(null);
+    };
+  }, [hydrateFromBackend]);
+
+  const login = async (email: string, password: string): Promise<UserProfile> => {
+    const profile = await api.login({ email, password, language: uiLanguage });
+    setUser(profile);
+    await hydrateFromBackend(profile);
+    showToast(t('toasts.signedIn', { name: profile.display_name || profile.email }));
+    return profile;
+  };
+
+  const loginWithGoogle = async (credential: string): Promise<UserProfile> => {
+    const profile = await api.googleAuth({ credential, language: uiLanguage });
+    setUser(profile);
+    await hydrateFromBackend(profile);
+    showToast(t('toasts.signedIn', { name: profile.display_name || profile.email }));
+    return profile;
+  };
+
+  const register = async (
+    email: string,
+    password: string,
+    displayName: string
+  ): Promise<UserProfile> => {
+    const profile = await api.register({
+      email,
+      password,
+      display_name: displayName,
+      language: uiLanguage
+    });
+    showToast(t('toasts.registeredVerify'), 'info');
+    return profile;
+  };
+
+  const logout = async (): Promise<void> => {
+    try {
+      await api.logout(uiLanguage);
+    } catch {
+      /* Clear local user session even if network call fails */
+    }
+    closeLiveSocket();
+    setUser(null);
+    setQuizzes([]);
+    setHistory([]);
+    setActiveQuizIdState('');
+    setActiveAttemptId('');
+    setPractice(EMPTY_PRACTICE);
+    setLive(EMPTY_LIVE);
+    setSettings(DEFAULT_SETTINGS);
+    showToast(t('toasts.signedOut'), 'info');
+  };
 
   useEffect(() => {
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
@@ -238,46 +589,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     try {
       localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify({
-          theme,
-          uiLanguage,
-          quizzes,
-          history,
-          activeQuizId,
-          settings
-        })
+        PREFS_STORAGE_KEY,
+        JSON.stringify({ theme, uiLanguage })
       );
     } catch {
       /* Ignore storage quota errors */
     }
-  }, [theme, uiLanguage, quizzes, history, activeQuizId, settings]);
+  }, [theme, uiLanguage]);
 
-  const showToast = (msg: string, icon?: SweetAlertIcon) => {
-    setToastMessage(msg);
-    const resolvedIcon: SweetAlertIcon =
-      icon ??
-      (/^(appearance|preparing|proceeded|live session|switched|opening|advanced|restarted)/i.test(
-        msg
-      )
-        ? 'info'
-        : /^(error|failed)/i.test(msg)
-        ? 'error'
-        : 'success');
-
-    const isMobile =
-      typeof window !== 'undefined' && window.matchMedia('(max-width: 820px)').matches;
-
-    void swalToast.fire({
-      position: isMobile ? 'top' : 'bottom-end',
-      icon: resolvedIcon,
-      title: msg,
-      closeButtonAriaLabel: translate(uiLanguage, 'toasts.closeNotificationAria')
-    });
-  };
+  const syncSettingsPatch = useCallback(
+    (patch: Partial<ApiUserSettings>) => {
+      if (!user) return;
+      void api.updateSettings(patch, uiLangRef.current).catch((err) => {
+        showToast(getLocalizedErrorMessage(err, uiLangRef.current), 'error');
+      });
+    },
+    [user, showToast]
+  );
 
   const setTheme = (next: ThemeMode) => {
     setThemeState(next);
+    syncSettingsPatch({ theme: next });
   };
 
   const toggleTheme = () => {
@@ -286,26 +618,96 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const setUiLanguage = (next: AppLanguage) => {
     setUiLanguageState(next);
+    syncSettingsPatch({ ui_language: next });
   };
 
   const toggleUiLanguage = () => {
-    setUiLanguageState((prev) => (prev === 'en' ? 'mm' : 'en'));
+    const next: AppLanguage = uiLanguage === 'en' ? 'mm' : 'en';
+    setUiLanguage(next);
   };
 
-  const t = (key: TranslationKey, params?: Record<string, string | number>): string => {
-    return translate(uiLanguage, key, params);
-  };
-
-  const getErrorMessage = (error: unknown): string => {
-    return getLocalizedErrorMessage(error, uiLanguage);
-  };
-
-  const activeQuiz =
-    quizzes.find((q) => q.id === activeQuizId) || quizzes[0] || SEED_QUIZZES[0];
+  const activeQuiz: QuizItem | null =
+    quizzes.find((q) => q.id === activeQuizId) ?? quizzes[0] ?? null;
 
   const setActiveQuizId = (id: string) => {
     setActiveQuizIdState(id);
   };
+
+  const loadQuizDetails = useCallback(
+    async (quizId: string, mode: 'preview' | 'play' = 'preview') => {
+      const target = quizzes.find((q) => q.id === quizId);
+      if (!target?.backendId) return;
+      if (target.questionsLoaded && target.questions.length > 0 && mode === 'play') {
+        return;
+      }
+
+      try {
+        let data: ApiQuizPreviewResponse | ApiQuizResponse;
+        if (mode === 'preview') {
+          data = await api.getQuizPreview(target.backendId, uiLangRef.current);
+        } else {
+          data = await api.getQuiz(target.backendId, uiLangRef.current);
+        }
+
+        const mappedQuestions = mapApiQuestions(
+          data.questions,
+          translate(uiLangRef.current, 'toasts.generatedExplanation')
+        );
+
+        setQuizzes((prev) =>
+          prev.map((q) =>
+            q.id === quizId
+              ? {
+                  ...q,
+                  title: data.title || q.title,
+                  sidebarTitle: data.title || q.sidebarTitle,
+                  category: data.category || q.category,
+                  source: data.source_filename || q.source,
+                  questionCount: mappedQuestions.length,
+                  questionsLoaded: true,
+                  questions: mappedQuestions
+                }
+              : q
+          )
+        );
+      } catch (err) {
+        showToast(getLocalizedErrorMessage(err, uiLangRef.current), 'error');
+      }
+    },
+    [quizzes, showToast]
+  );
+
+  const loadAttemptDetails = useCallback(
+    async (attemptId: string) => {
+      const target = history.find((h) => h.id === attemptId);
+      if (!target?.backendId || target.detailsLoaded) return;
+
+      try {
+        const detail = await api.getAttempt(target.backendId, uiLangRef.current);
+        const mapped = mapAttemptResponseToRecord(
+          detail,
+          null,
+          translate(uiLangRef.current, 'toasts.reviewConceptExplanation'),
+          translate(uiLangRef.current, 'common.today')
+        );
+        setHistory((prev) =>
+          prev.map((h) =>
+            h.id === attemptId
+              ? {
+                  ...h,
+                  missed: mapped.missed,
+                  questionResults: mapped.questionResults,
+                  detailsLoaded: true
+                }
+              : h
+          )
+        );
+      } catch (err) {
+        showToast(getLocalizedErrorMessage(err, uiLangRef.current), 'error');
+      }
+    },
+    [history, showToast]
+  );
 
   const updateQuizQuestion = (
     quizId: string,
@@ -318,147 +720,101 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const nextQuestions = q.questions.map((item, idx) =>
           idx === qIndex ? { ...item, ...updated } : item
         );
-        return { ...q, questions: nextQuestions, updated: 'Today' };
+        return { ...q, questions: nextQuestions, updated: t('common.today') };
       })
     );
   };
 
   const saveQuizChanges = async (quizId: string) => {
     const target = quizzes.find((q) => q.id === quizId);
-    if (!target) return;
+    if (!target?.backendId) return;
 
-    if (target.backendId) {
-      try {
-        await api.updateQuiz(
-          target.backendId,
-          {
-            title: target.title,
-            source_type: target.source.endsWith('.csv') ? 'csv' : 'txt',
-            questions: target.questions.map((q, idx) => ({
-              prompt: q.prompt,
-              position: idx,
-              choices: q.choices.map((cText, cIdx) => ({
-                text: cText,
-                position: cIdx,
-                is_correct: q.answer === cIdx
-              }))
+    try {
+      await api.updateQuiz(
+        target.backendId,
+        {
+          title: target.title,
+          category: target.category || undefined,
+          questions: target.questions.map((q, idx) => ({
+            prompt: q.prompt,
+            position: idx,
+            explanation: q.explanation ?? null,
+            choices: q.choices.map((cText, cIdx) => ({
+              text: cText,
+              position: cIdx,
+              is_correct: q.answer === cIdx
             }))
-          },
-          uiLanguage
-        );
-      } catch {
-        /* Saved locally when backend is unavailable */
-      }
+          }))
+        },
+        uiLanguage
+      );
+      showToast(t('toasts.quizSaved'));
+    } catch (err) {
+      showToast(getErrorMessage(err), 'error');
     }
-    showToast(t('toasts.quizSaved'));
   };
 
   const generateQuiz = async (params: {
-    file?: File | null;
+    file: File;
     fileName: string;
     title: string;
+    category?: string;
     questionCount: number;
+    useLlm?: boolean;
   }): Promise<QuizItem> => {
-    const cleanTitle = params.title.trim() || 'Cell structure';
+    const cleanTitle = params.title.trim() || params.file.name.replace(/\.[^.]+$/, '');
     const count = params.questionCount || 10;
 
-    // Attempt backend upload if a CSV or TXT file is provided
-    if (params.file && /\.(csv|txt)$/i.test(params.file.name)) {
-      try {
-        const apiQuiz = await api.createQuizFromFile({
-          file: params.file,
-          title: cleanTitle,
-          questionCount: count,
-          useLlm: false,
-          language: uiLanguage
-        });
-
-        let previewQuestions = apiQuiz.questions;
-        try {
-          const preview = await api.getQuizPreview(apiQuiz.id, uiLanguage);
-          previewQuestions = preview.questions;
-        } catch {
-          /* Use initial response if preview fails */
-        }
-
-        const mappedQuestions: QuestionItem[] = previewQuestions.map((aq) => {
-          const sortedChoices = [...aq.choices].sort((a, b) => a.position - b.position);
-          const correctIdx = sortedChoices.findIndex((c) => c.is_correct);
-          return {
-            id: aq.id,
-            prompt: aq.prompt,
-            choices: sortedChoices.map((c) => c.text),
-            answer: correctIdx >= 0 ? correctIdx : 0,
-            explanation: t('toasts.generatedExplanation')
-          };
-        });
-
-        if (mappedQuestions.length > 0) {
-          const newQuiz: QuizItem = {
-            id: apiQuiz.id,
-            backendId: apiQuiz.id,
-            title: apiQuiz.title || cleanTitle,
-            sidebarTitle: apiQuiz.title || cleanTitle,
-            category: 'Uploaded',
-            source: params.file.name,
-            updated: t('common.justNow'),
-            lastScore: 100,
-            questions: mappedQuestions
-          };
-
-          setQuizzes((prev) => [newQuiz, ...prev.filter((q) => q.id !== newQuiz.id)]);
-          setActiveQuizIdState(newQuiz.id);
-          showToast(
-            t('toasts.quizCreated', {
-              title: newQuiz.title,
-              count: mappedQuestions.length
-            })
-          );
-          return newQuiz;
-        }
-      } catch {
-        /* Fall back to local generation when backend is offline */
-      }
-    }
-
-    // Local deterministic generation fallback
-    const templateQuestions = SEED_QUIZZES[0].questions;
-    const generatedQuestions: QuestionItem[] = Array.from({ length: count }, (_, idx) => {
-      const base = templateQuestions[idx % templateQuestions.length];
-      return {
-        ...structuredClone(base),
-        id: `q_${idx + 1}`
-      };
+    const apiQuiz = await api.createQuizFromFile({
+      file: params.file,
+      title: cleanTitle,
+      category: params.category,
+      questionCount: count,
+      useLlm: params.useLlm ?? false,
+      language: uiLanguage
     });
 
-    const existing = quizzes.find(
-      (q) => q.title.toLowerCase() === cleanTitle.toLowerCase()
-    );
-    const quizId = existing ? existing.id : `quiz_${Date.now()}`;
+    let previewQuestions: ApiQuestion[] = apiQuiz.questions;
+    try {
+      const preview = await api.getQuizPreview(apiQuiz.id, uiLanguage);
+      previewQuestions = preview.questions;
+    } catch {
+      /* Use initial response if preview fails */
+    }
 
-    const createdQuiz: QuizItem = {
-      id: quizId,
-      title: cleanTitle,
-      sidebarTitle: cleanTitle,
-      category: 'Custom',
-      source: params.fileName || 'Cell_Biology_Notes.pdf',
+    const mappedQuestions = mapApiQuestions(
+      previewQuestions,
+      t('toasts.generatedExplanation')
+    );
+
+    const newQuiz: QuizItem = {
+      id: apiQuiz.id,
+      backendId: apiQuiz.id,
+      title: apiQuiz.title || cleanTitle,
+      sidebarTitle: apiQuiz.title || cleanTitle,
+      category: apiQuiz.category || params.category || 'Uploaded',
+      source: apiQuiz.source_filename || params.file.name,
       updated: t('common.justNow'),
-      lastScore: existing?.lastScore ?? 100,
-      questions: generatedQuestions
+      lastScore: 0,
+      questionCount: mappedQuestions.length,
+      questionsLoaded: true,
+      questions: mappedQuestions
     };
 
-    setQuizzes((prev) =>
-      existing
-        ? prev.map((q) => (q.id === existing.id ? createdQuiz : q))
-        : [createdQuiz, ...prev]
+    setQuizzes((prev) => [newQuiz, ...prev.filter((q) => q.id !== newQuiz.id)]);
+    setActiveQuizIdState(newQuiz.id);
+    showToast(
+      t('toasts.quizCreated', {
+        title: newQuiz.title,
+        count: mappedQuestions.length
+      })
     );
-    setActiveQuizIdState(createdQuiz.id);
-    showToast(t('toasts.quizCreated', { title: cleanTitle, count }));
-    return createdQuiz;
+    return newQuiz;
   };
 
   const startPractice = (quizId?: string) => {
-    const targetId = quizId || activeQuiz.id;
+    const targetId = quizId || activeQuiz?.id || '';
+    if (!targetId) return;
     setActiveQuizIdState(targetId);
     setPractice({
       quizId: targetId,
@@ -482,111 +838,100 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setPractice((prev) => ({ ...prev, questionIndex: index }));
   };
 
-  const finishPractice = async (): Promise<AttemptRecord> => {
-    const quiz = quizzes.find((q) => q.id === practice.quizId) || activeQuiz;
-    const total = quiz.questions.length;
+  const finishPractice = async (): Promise<AttemptRecord | null> => {
+    const quiz = quizzes.find((q) => q.id === practice.quizId) ?? activeQuiz;
+    if (!quiz?.backendId) return null;
 
-    // Try server-side grading if quiz exists in backend
-    if (quiz.backendId) {
-      try {
-        const letters = ['a', 'b', 'c', 'd'];
-        const payload = Object.entries(practice.answers).map(([qIdxStr, cIdx]) => {
-          const qIdx = Number(qIdxStr);
-          const qObj = quiz.questions[qIdx];
-          return {
-            question_id: qObj?.id || `q_${qIdx + 1}`,
-            choice_id: letters[cIdx] || 'a'
-          };
-        });
-        await api.submitAttempt(quiz.backendId, payload, uiLanguage);
-      } catch {
-        /* Fallback to local grading calculation */
-      }
-    }
-
-    let correct = 0;
-    const missed: MissedQuestionItem[] = [];
-
-    quiz.questions.forEach((q, idx) => {
-      const chosen = practice.answers[idx];
-      if (chosen === q.answer) {
-        correct++;
-      } else {
-        missed.push({
-          number: idx + 1,
-          prompt: q.prompt,
-          yourAnswer: chosen !== undefined ? q.choices[chosen] : t('common.notAnswered'),
-          correctAnswer: q.choices[q.answer],
-          explanation: q.explanation || t('toasts.reviewConceptExplanation')
-        });
-      }
-    });
-
-    const scorePct = Math.round((correct / total) * 100);
     const elapsedSec = Math.max(
-      45,
+      1,
       Math.round((Date.now() - (practice.startedAt || Date.now())) / 1000)
     );
-    const mm = String(Math.floor(elapsedSec / 60)).padStart(2, '0');
-    const ss = String(elapsedSec % 60).padStart(2, '0');
     const prevAttempt = history.find((h) => h.quizId === quiz.id);
-    const diff = prevAttempt ? scorePct - prevAttempt.scorePct : 20;
-    const deltaPts = `${diff >= 0 ? '+' : ''}${diff} pts`;
 
-    const newRecord: AttemptRecord = {
-      id: `att_${Date.now()}`,
-      quizId: quiz.id,
-      quizTitle: quiz.title,
-      dateLabel: t('common.justNow'),
-      scorePct,
-      correct,
-      total,
-      duration: `${mm}:${ss}`,
-      deltaPts,
-      missed
-    };
+    try {
+      const letters = ['a', 'b', 'c', 'd'];
+      const payload = Object.entries(practice.answers).map(([qIdxStr, cIdx]) => {
+        const qIdx = Number(qIdxStr);
+        const qObj = quiz.questions[qIdx];
+        return {
+          question_id: qObj?.id || `q_${qIdx + 1}`,
+          choice_id: letters[cIdx] || 'a'
+        };
+      });
 
-    setQuizzes((prev) =>
-      prev.map((q) =>
-        q.id === quiz.id ? { ...q, lastScore: scorePct, updated: t('common.today') } : q
-      )
-    );
-    setHistory((prev) => [newRecord, ...prev]);
-    setActiveAttemptId(newRecord.id);
-    showToast(
-      t('toasts.assessmentCompleted', {
-        score: scorePct,
-        correct,
-        total
-      })
-    );
-    return newRecord;
+      const serverAttempt = await api.submitAttempt(quiz.backendId, payload, {
+        durationSeconds: elapsedSec,
+        language: uiLanguage
+      });
+
+      const newRecord = mapAttemptResponseToRecord(
+        serverAttempt,
+        prevAttempt ? prevAttempt.scorePct : null,
+        t('toasts.reviewConceptExplanation'),
+        t('common.justNow')
+      );
+
+      setQuizzes((prev) =>
+        prev.map((q) =>
+          q.id === quiz.id
+            ? { ...q, lastScore: newRecord.scorePct, updated: t('common.today') }
+            : q
+        )
+      );
+      setHistory((prev) => [newRecord, ...prev]);
+      setActiveAttemptId(newRecord.id);
+      showToast(
+        t('toasts.assessmentCompleted', {
+          score: newRecord.scorePct,
+          correct: newRecord.correct,
+          total: newRecord.total
+        })
+      );
+      return newRecord;
+    } catch (err) {
+      showToast(getErrorMessage(err), 'error');
+      return null;
+    }
   };
 
-  const exportStudySheet = async (kind: ExportKind) => {
+  const exportStudySheet = async (
+    kind: ExportKind,
+    format: ExportFormat = 'pdf'
+  ) => {
+    if (!activeQuiz?.backendId || exportingKind) return;
     setPrintKind(kind);
+    setExportingKind(kind);
 
-    if (activeQuiz.backendId) {
-      try {
-        await api.downloadQuizPdf(activeQuiz.backendId, kind, activeQuiz.title, uiLanguage);
+    try {
+      const minDelay = new Promise((resolve) => window.setTimeout(resolve, 550));
+      await Promise.all([
+        api.downloadQuizExport(
+          activeQuiz.backendId,
+          kind,
+          format,
+          activeQuiz.title,
+          uiLanguage
+        ),
+        minDelay
+      ]);
+      if (format === 'word') {
+        showToast(
+          kind === 'answers'
+            ? t('toasts.answerKeyWordDownloaded')
+            : t('toasts.questionsSheetWordDownloaded')
+        );
+      } else {
         showToast(
           kind === 'answers'
             ? t('toasts.answerKeyDownloaded')
             : t('toasts.questionsSheetDownloaded')
         );
-        return;
-      } catch {
-        /* Fall back to browser print/save-as-PDF sheet */
       }
+    } catch (err) {
+      showToast(getErrorMessage(err), 'error');
+    } finally {
+      setExportingKind(null);
     }
-
-    showToast(
-      kind === 'answers'
-        ? t('toasts.preparingAnswerKey')
-        : t('toasts.preparingQuestionsSheet'),
-      'info'
-    );
-    window.setTimeout(() => window.print(), 120);
   };
 
   const setLiveQuizId = (quizId: string) => {
@@ -597,115 +942,306 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setLive((prev) => ({ ...prev, timerSeconds: seconds }));
   };
 
-  const formatPin = (raw: string): string => {
-    const clean = raw.replace(/\s+/g, '');
-    if (clean.length === 6) {
-      return `${clean.slice(0, 3)} ${clean.slice(3)}`;
+  const applyBackendLiveState = useCallback(
+    (state: ApiLiveGameState, extra?: Partial<LiveGameState>) => {
+      setLive((prev) => ({
+        ...prev,
+        isLiveBackend: true,
+        backendStatus: state.status,
+        pin: state.pin,
+        quizId: state.quiz_id,
+        timerSeconds: state.timer_seconds,
+        round: state.round,
+        totalRounds: state.total_rounds,
+        players: state.players.map((p) => ({
+          id: p.id,
+          name: p.name,
+          status: p.status,
+          correct: p.correct,
+          total: p.total,
+          points: p.points
+        })),
+        ...(extra || {})
+      }));
+    },
+    []
+  );
+
+  const connectLiveSocket = useCallback(
+    (pin: string, opts?: { playerId?: string; displayName?: string }) => {
+      closeLiveSocket();
+      const wsUrl = api.getLiveRoomWsUrl(pin, opts);
+      const ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        pingTimerRef.current = window.setInterval(() => {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'ping' }));
+          }
+        }, 25000);
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(String(event.data)) as ApiLiveWsEvent;
+          switch (msg.type) {
+            case 'pong':
+              break;
+            case 'room_state':
+              applyBackendLiveState(msg.state, {
+                ...(msg.player_id ? { playerId: msg.player_id } : {}),
+                ...(msg.question !== undefined ? { currentQuestion: msg.question } : {})
+              });
+              break;
+            case 'joined':
+              applyBackendLiveState(msg.state, { playerId: msg.player_id });
+              break;
+            case 'player_joined':
+              applyBackendLiveState(msg.state);
+              break;
+            case 'question':
+              applyBackendLiveState(msg.state, {
+                currentQuestion: msg.question,
+                selectedChoiceId: null,
+                lastAnswerResult: null,
+                lastRoundCorrectChoiceId: null
+              });
+              break;
+            case 'answer_result':
+              setLive((prev) => ({
+                ...prev,
+                lastAnswerResult: {
+                  is_correct: msg.is_correct,
+                  correct_choice_id: msg.correct_choice_id,
+                  points_earned: msg.points_earned,
+                  total_points: msg.total_points,
+                  round: msg.round
+                }
+              }));
+              showToast(
+                msg.is_correct
+                  ? translate(uiLangRef.current, 'toasts.liveAnswerCorrect', {
+                      points: msg.points_earned,
+                      total: msg.total_points
+                    })
+                  : translate(uiLangRef.current, 'toasts.liveAnswerIncorrect'),
+                msg.is_correct ? 'success' : 'info'
+              );
+              break;
+            case 'leaderboard':
+              applyBackendLiveState(msg.state);
+              break;
+            case 'round_ended':
+              applyBackendLiveState(msg.state, {
+                lastRoundCorrectChoiceId: msg.correct_choice_id
+              });
+              break;
+            case 'game_finished':
+              applyBackendLiveState(msg.state, {
+                currentQuestion: null
+              });
+              showToast(translate(uiLangRef.current, 'toasts.liveGameFinished'), 'info');
+              break;
+            case 'error':
+              showToast(
+                getLocalizedErrorMessage(
+                  { code: msg.code, message: msg.message },
+                  uiLangRef.current
+                ),
+                'error'
+              );
+              break;
+          }
+        } catch {
+          /* Ignore malformed WS frames */
+        }
+      };
+
+      ws.onclose = () => {
+        if (pingTimerRef.current !== null) {
+          window.clearInterval(pingTimerRef.current);
+          pingTimerRef.current = null;
+        }
+      };
+    },
+    [applyBackendLiveState, closeLiveSocket, showToast]
+  );
+
+  const createLiveRoom = async (quizId?: string, timerSeconds?: number) => {
+    const targetQuizId = quizId || live.quizId || activeQuiz?.id || '';
+    const targetTimer = timerSeconds || live.timerSeconds || 20;
+    const targetQuiz = quizzes.find((q) => q.id === targetQuizId) ?? activeQuiz;
+
+    if (!targetQuiz?.backendId) {
+      showToast(getErrorByCode('QUIZ_NOT_FOUND', uiLanguage), 'error');
+      return;
     }
-    return clean;
+
+    try {
+      const room = await api.createLiveRoom({
+        quizId: targetQuiz.backendId,
+        timerSeconds: targetTimer,
+        language: uiLanguage
+      });
+      applyBackendLiveState(room, {
+        status: 'hosting',
+        joinedPlayerName: undefined,
+        playerId: undefined,
+        currentQuestion: null,
+        selectedChoiceId: null,
+        lastAnswerResult: null,
+        lastRoundCorrectChoiceId: null
+      });
+      connectLiveSocket(room.pin);
+      showToast(t('toasts.roomCreated', { pin: room.pin }));
+    } catch (err) {
+      showToast(getErrorMessage(err), 'error');
+    }
   };
 
-  const createLiveRoom = (quizId?: string, timerSeconds?: number) => {
-    const randomPin = String(Math.floor(100000 + Math.random() * 900000));
-    const formattedPin = formatPin(randomPin);
-    setLive((prev) => ({
-      ...prev,
-      status: 'hosting',
-      pin: formattedPin,
-      quizId: quizId || prev.quizId,
-      timerSeconds: timerSeconds || prev.timerSeconds,
-      round: 1,
-      players: structuredClone(INITIAL_LIVE_PLAYERS),
-      joinedPlayerName: undefined
-    }));
-    showToast(t('toasts.roomCreated', { pin: formattedPin }));
-  };
-
-  const joinLiveRoom = (pin: string, name: string): { ok: boolean; error?: string } => {
-    const cleanPin = pin.replace(/\s+/g, '');
-    if (!cleanPin || cleanPin.length < 4) {
+  const joinLiveRoom = async (
+    pin: string,
+    name: string
+  ): Promise<{ ok: boolean; error?: string }> => {
+    const cleanPin = pin.replace(/\D+/g, '');
+    if (!cleanPin || cleanPin.length !== 6) {
       return {
         ok: false,
         error: getErrorByCode('INVALID_ROOM_PIN', uiLanguage)
       };
     }
-    const formattedPin = formatPin(cleanPin);
-    const playerName = name.trim() || settings.displayName || 'Alex M.';
-    setLive((prev) => {
-      const exists = prev.players.some(
-        (p) => p.name.toLowerCase() === playerName.toLowerCase()
-      );
-      return {
-        ...prev,
+    const playerName = name.trim() || settings.displayName || user?.display_name || '';
+
+    try {
+      const joined = await api.joinLiveRoom(cleanPin, playerName, uiLanguage);
+      applyBackendLiveState(joined, {
         status: 'joined',
-        pin: formattedPin,
         joinedPlayerName: playerName,
-        players: exists
-          ? prev.players
-          : [
-              ...prev.players,
-              { name: playerName, status: 'Ready', correct: 3, total: 3, points: 2350 }
-            ]
-      };
-    });
-    showToast(t('toasts.joinedRoom', { pin: formattedPin, name: playerName }));
-    return { ok: true };
+        playerId: joined.player_id,
+        currentQuestion: null,
+        selectedChoiceId: null,
+        lastAnswerResult: null,
+        lastRoundCorrectChoiceId: null
+      });
+      connectLiveSocket(joined.pin, { playerId: joined.player_id });
+      showToast(t('toasts.joinedRoom', { pin: joined.pin, name: playerName }));
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: getErrorMessage(err) };
+    }
   };
 
   const closeLiveRoom = () => {
+    closeLiveSocket();
     setLive((prev) => ({
-      ...prev,
-      status: 'idle',
-      joinedPlayerName: undefined
+      ...EMPTY_LIVE,
+      quizId: prev.quizId || activeQuiz?.id || '',
+      timerSeconds: prev.timerSeconds || 20
     }));
     showToast(t('toasts.roomClosed'), 'info');
   };
 
-  const advanceLiveRound = () => {
-    const liveQuiz = quizzes.find((q) => q.id === live.quizId) || activeQuiz;
-    const totalRounds = liveQuiz.questions.length;
-
-    setLive((prev) => {
-      if (prev.round < totalRounds) {
-        const nextRound = prev.round + 1;
-        const updatedPlayers = prev.players.map((p, idx) => {
-          const gotIt = (nextRound + idx) % 4 !== 0;
-          return gotIt
-            ? {
-                ...p,
-                correct: Math.min(nextRound, p.correct + 1),
-                points: p.points + 650 + (3 - (idx % 3)) * 90
-              }
-            : p;
-        });
+  const advanceLiveRound = async () => {
+    if (!live.pin) return;
+    try {
+      const next = await api.advanceLiveRoom(live.pin, uiLanguage);
+      applyBackendLiveState(next, {
+        currentQuestion: next.current_question,
+        selectedChoiceId: null,
+        lastAnswerResult: null,
+        lastRoundCorrectChoiceId: null
+      });
+      if (next.status === 'finished') {
+        showToast(t('toasts.liveGameFinished'), 'info');
+      } else {
         showToast(
-          t('toasts.proceededRound', { round: nextRound, total: totalRounds }),
+          t('toasts.proceededRound', {
+            round: next.round,
+            total: next.total_rounds
+          }),
           'info'
         );
-        return { ...prev, round: nextRound, players: updatedPlayers };
-      } else {
-        const resetPlayers = prev.players.map((p, idx) => ({
-          ...p,
-          correct: 1,
-          points: 850 - idx * 60
-        }));
-        showToast(t('toasts.restartedRounds'), 'info');
-        return { ...prev, round: 1, players: resetPlayers };
       }
-    });
+    } catch (err) {
+      showToast(getErrorMessage(err), 'error');
+    }
+  };
+
+  const submitLiveAnswer = (choiceId: string) => {
+    setLive((prev) => ({ ...prev, selectedChoiceId: choiceId }));
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(
+        JSON.stringify({
+          type: 'answer',
+          choice_id: choiceId,
+          ...(live.playerId ? { player_id: live.playerId } : {})
+        })
+      );
+    }
   };
 
   const updateSettings = (partial: Partial<UserSettings>) => {
     setSettings((prev) => ({ ...prev, ...partial }));
+
+    if (user) {
+      const apiPatch: Partial<ApiUserSettings> = {};
+      if (partial.displayName !== undefined) apiPatch.display_name = partial.displayName;
+      if (partial.defaultQuestions !== undefined) {
+        apiPatch.default_questions = partial.defaultQuestions;
+      }
+      if (partial.difficulty !== undefined) apiPatch.difficulty = partial.difficulty;
+      if (partial.language !== undefined) apiPatch.quiz_language = partial.language;
+      if (partial.shuffleQuestions !== undefined) {
+        apiPatch.shuffle_questions = partial.shuffleQuestions;
+      }
+      if (partial.showExplanations !== undefined) {
+        apiPatch.show_explanations = partial.showExplanations;
+      }
+      if (partial.studyReminders !== undefined) {
+        apiPatch.study_reminders = partial.studyReminders;
+      }
+      if (partial.weeklySummary !== undefined) {
+        apiPatch.weekly_summary = partial.weeklySummary;
+      }
+      if (Object.keys(apiPatch).length > 0) {
+        syncSettingsPatch(apiPatch);
+      }
+    }
   };
 
-  const resetAllData = () => {
-    localStorage.removeItem(STORAGE_KEY);
-    setQuizzes(structuredClone(SEED_QUIZZES));
-    setHistory(structuredClone(SEED_HISTORY));
-    setActiveQuizIdState('biology');
-    setSettings(DEFAULT_SETTINGS);
-    showToast(t('toasts.workspaceRestored'));
+  const exportAccountData = async () => {
+    try {
+      const payload = await api.exportAccountData(uiLanguage);
+      const blob = new Blob([JSON.stringify(payload, null, 2)], {
+        type: 'application/json'
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'QuizClash-study-data.json';
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast(t('toasts.dataExported'));
+    } catch (err) {
+      showToast(getErrorMessage(err), 'error');
+    }
+  };
+
+  const resetAllData = async () => {
+    try {
+      await api.deleteAccountData(uiLanguage);
+      closeLiveSocket();
+      setQuizzes([]);
+      setHistory([]);
+      setActiveQuizIdState('');
+      setActiveAttemptId('');
+      setPractice(EMPTY_PRACTICE);
+      setLive(EMPTY_LIVE);
+      showToast(t('toasts.workspaceRestored'));
+    } catch (err) {
+      showToast(getErrorMessage(err), 'error');
+    }
   };
 
   const openModal = (opts: Omit<ModalState, 'open'>) => {
@@ -743,6 +1279,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   return (
     <AppContext.Provider
       value={{
+        user,
+        authLoading,
+        login,
+        loginWithGoogle,
+        register,
+        logout,
+        refreshUser,
         theme,
         resolvedTheme,
         setTheme,
@@ -756,11 +1299,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         activeQuizId,
         activeQuiz,
         setActiveQuizId,
+        loadQuizDetails,
         updateQuizQuestion,
         saveQuizChanges,
         history,
         activeAttemptId,
         setActiveAttemptId,
+        loadAttemptDetails,
         practice,
         startPractice,
         selectPracticeAnswer,
@@ -768,6 +1313,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         finishPractice,
         generateQuiz,
         exportStudySheet,
+        exportingKind,
         printKind,
         live,
         setLiveQuizId,
@@ -776,8 +1322,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         joinLiveRoom,
         closeLiveRoom,
         advanceLiveRound,
+        submitLiveAnswer,
         settings,
         updateSettings,
+        exportAccountData,
         resetAllData,
         toastMessage,
         showToast,

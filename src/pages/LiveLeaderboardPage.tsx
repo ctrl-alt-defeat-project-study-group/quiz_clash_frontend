@@ -1,18 +1,48 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { PageHeader, SectionCard } from '../components/common';
 
 export const LiveLeaderboardPage: React.FC = () => {
-  const { quizzes, activeQuiz, live, advanceLiveRound, t } = useApp();
+  const { quizzes, activeQuiz, live, advanceLiveRound, submitLiveAnswer, t } = useApp();
 
-  const liveQuiz = quizzes.find((q) => q.id === live.quizId) || activeQuiz;
-  const totalRounds = liveQuiz.questions.length;
-  const round = Math.min(Math.max(1, live.round), totalRounds);
+  const activeQuestionKey = `${live.currentQuestion?.id || ''}:${live.round}:${live.timerSeconds}`;
+  const [prevQuestionKey, setPrevQuestionKey] = useState<string>(activeQuestionKey);
+  const [remainingSeconds, setRemainingSeconds] = useState<number>(live.timerSeconds || 20);
+
+  if (prevQuestionKey !== activeQuestionKey) {
+    setPrevQuestionKey(activeQuestionKey);
+    setRemainingSeconds(live.timerSeconds || 20);
+  }
+
+  useEffect(() => {
+    if (!live.currentQuestion?.id) return;
+    const id = window.setInterval(() => {
+      setRemainingSeconds((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [activeQuestionKey, live.currentQuestion?.id]);
+
+  const liveQuiz = quizzes.find((q) => q.id === live.quizId) ?? activeQuiz;
+  const liveQuizTitle = liveQuiz?.title || t('nav.liveGames');
+  const liveQuestions = liveQuiz?.questions ?? [];
+  const totalRounds = Math.max(1, live.totalRounds || liveQuestions.length || 1);
+  const round = Math.min(Math.max(1, live.round || 1), totalRounds);
+  const fallbackQ = {
+    prompt: live.currentQuestion?.prompt || 'Waiting for next question…',
+    choices: live.currentQuestion?.choices.map((c) => c.text) || ['—', '—', '—', '—'],
+    answer: 0
+  };
   const currentQ =
-    liveQuiz.questions[(round - 1) % totalRounds] || liveQuiz.questions[0];
-  const nextQ = liveQuiz.questions[round % totalRounds] || currentQ;
+    liveQuestions.length > 0
+      ? liveQuestions[(round - 1) % liveQuestions.length] || fallbackQ
+      : fallbackQ;
+  const nextQ =
+    liveQuestions.length > 0
+      ? liveQuestions[round % liveQuestions.length] || currentQ
+      : currentQ;
   const sortedPlayers = [...live.players].sort((a, b) => b.points - a.points);
+  const answeredCount = live.players.filter((p) => p.status === 'Answered').length;
 
   return (
     <>
@@ -44,10 +74,13 @@ export const LiveLeaderboardPage: React.FC = () => {
           }
         ]}
         title={t('leaderboard.title')}
-        subtitle={t('leaderboard.subtitle', {
-          quizTitle: liveQuiz.title,
-          pin: live.pin
-        })}
+        subtitle={t(
+          live.status === 'joined' ? 'leaderboard.playerSubtitle' : 'leaderboard.subtitle',
+          {
+            quizTitle: liveQuizTitle,
+            pin: live.pin || '—'
+          }
+        )}
         actions={
           <Link to="/lobby" className="btn">
             {t('leaderboard.endGame')}
@@ -66,6 +99,65 @@ export const LiveLeaderboardPage: React.FC = () => {
           })}
         </span>
       </div>
+
+      {live.status === 'joined' && live.currentQuestion && (
+        <SectionCard dataName="Active live question">
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: 6
+            }}
+          >
+            <div className="eyebrow">
+              {t('leaderboard.questionEyebrow', {
+                num: String(round).padStart(2, '0')
+              })}
+            </div>
+            <span className="score-badge">
+              {t('leaderboard.timeRemaining', { seconds: remainingSeconds })}
+            </span>
+          </div>
+          <h2 className="panel-heading" style={{ marginBottom: 14 }}>
+            {live.currentQuestion.prompt}
+          </h2>
+          <div className="grid-2-equal" style={{ gap: 10 }}>
+            {[...live.currentQuestion.choices]
+              .sort((a, b) => a.position - b.position)
+              .map((choice) => {
+                const isSelected = live.selectedChoiceId === choice.id;
+                const revealedCorrectId =
+                  live.lastAnswerResult?.correct_choice_id ||
+                  live.lastRoundCorrectChoiceId;
+                const isRevealedCorrect =
+                  Boolean(revealedCorrectId) && revealedCorrectId === choice.id;
+                const locked = Boolean(live.selectedChoiceId) || remainingSeconds === 0;
+                return (
+                  <button
+                    key={choice.id}
+                    type="button"
+                    className={`btn ${isSelected ? 'btn-primary' : ''}`}
+                    style={{
+                      justifyContent: 'flex-start',
+                      textAlign: 'left',
+                      ...(isRevealedCorrect
+                        ? {
+                            borderColor: 'var(--success-border)',
+                            background: 'var(--success-bg)'
+                          }
+                        : {})
+                    }}
+                    disabled={locked}
+                    onClick={() => submitLiveAnswer(choice.id)}
+                  >
+                    <strong>{String(choice.id).toUpperCase()}.</strong> {choice.text}
+                  </button>
+                );
+              })}
+          </div>
+        </SectionCard>
+      )}
 
       <div className="review-columns" data-name="Live results columns">
         {/* Left: Current Standings */}
@@ -137,44 +229,54 @@ export const LiveLeaderboardPage: React.FC = () => {
           <div className="grid-2-equal" style={{ marginBottom: 16 }}>
             <div>
               <div style={{ fontSize: 24, fontWeight: 700 }}>
-                3 / {live.players.length}
+                {answeredCount} / {live.players.length}
               </div>
               <div className="helper-text">{t('leaderboard.answeredCorrectly')}</div>
             </div>
             <div>
-              <div style={{ fontSize: 24, fontWeight: 700 }}>8.4 s</div>
-              <div className="helper-text">{t('leaderboard.averageResponse')}</div>
+              <div style={{ fontSize: 24, fontWeight: 700 }}>{live.timerSeconds} s</div>
+              <div className="helper-text">{t('lobby.timerLabel')}</div>
             </div>
           </div>
 
-          <p className="helper-text">
-            {t('leaderboard.topPlayerSummary', {
-              name: sortedPlayers[0]?.name || 'Maya'
-            })}
-          </p>
+          {sortedPlayers[0] && (
+            <p className="helper-text">
+              {sortedPlayers[0].name} · {sortedPlayers[0].points.toLocaleString()} pts
+            </p>
+          )}
         </aside>
       </div>
 
-      <SectionCard className="banner-row" dataName="Next round controls">
-        <div>
-          <div className="eyebrow">
-            {t('leaderboard.upNextEyebrow', {
-              num: String((round % totalRounds) + 1).padStart(2, '0')
-            })}
+      {live.status !== 'joined' ? (
+        <SectionCard className="banner-row" dataName="Next round controls">
+          <div>
+            <div className="eyebrow">
+              {t('leaderboard.upNextEyebrow', {
+                num: String((round % totalRounds) + 1).padStart(2, '0')
+              })}
+            </div>
+            <h3 style={{ fontSize: 17, fontWeight: 600, marginBottom: 4 }}>
+              {nextQ.prompt}
+            </h3>
+            <p className="helper-text">
+              {t('leaderboard.timerStartsNote', { seconds: live.timerSeconds })}
+            </p>
           </div>
-          <h3 style={{ fontSize: 17, fontWeight: 600, marginBottom: 4 }}>
-            {nextQ.prompt}
-          </h3>
-          <p className="helper-text">
-            {t('leaderboard.timerStartsNote', { seconds: live.timerSeconds })}
-          </p>
-        </div>
-        <button type="button" className="btn btn-primary" onClick={advanceLiveRound}>
-          {round < totalRounds
-            ? t('leaderboard.nextQuestionBtn')
-            : t('leaderboard.restartRoundsBtn')}
-        </button>
-      </SectionCard>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => void advanceLiveRound()}
+          >
+            {round < totalRounds
+              ? t('leaderboard.nextQuestionBtn')
+              : t('leaderboard.restartRoundsBtn')}
+          </button>
+        </SectionCard>
+      ) : (
+        <SectionCard dataName="Player waiting note">
+          <span className="helper-text">{t('leaderboard.waitingForNextQuestion')}</span>
+        </SectionCard>
+      )}
 
       <div className="box-card" style={{ padding: '14px 18px' }} data-name="Player view note">
         <span className="helper-text">{t('leaderboard.playerViewNote')}</span>

@@ -9,9 +9,9 @@ export const DashboardPage: React.FC = () => {
 
   const avgScore = history.length
     ? Math.round(history.reduce((sum, h) => sum + h.scorePct, 0) / history.length)
-    : 82;
-  const savedCount = Math.max(12, quizzes.length);
-  const completedCount = Math.max(28, history.length);
+    : 0;
+  const savedCount = quizzes.length;
+  const completedCount = history.length;
   const answeredCount = Object.keys(practice.answers).length;
 
   return (
@@ -66,30 +66,44 @@ export const DashboardPage: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {quizzes.map((q) => (
-                <tr key={q.id}>
-                  <td>
-                    <strong>{q.title}</strong>
-                  </td>
-                  <td>{t('common.questionsCount', { count: q.questions.length })}</td>
-                  <td>
-                    <span className="score-badge">{q.lastScore ?? 80}%</span>
-                  </td>
-                  <td>{q.updated || t('common.today')}</td>
-                  <td>
-                    <button
-                      type="button"
-                      className="text-link"
-                      onClick={() => {
-                        setActiveQuizId(q.id);
-                        navigate(`/quizzes/${encodeURIComponent(q.id)}`);
-                      }}
-                    >
-                      {t('dashboard.openQuiz')}
-                    </button>
+              {quizzes.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="helper-text" style={{ textAlign: 'center', padding: 24 }}>
+                    <Link to="/generate" className="text-link">
+                      {t('dashboard.createQuizBtn')}
+                    </Link>
                   </td>
                 </tr>
-              ))}
+              ) : (
+                quizzes.map((q) => (
+                  <tr key={q.id}>
+                    <td>
+                      <strong>{q.title}</strong>
+                    </td>
+                    <td>
+                      {t('common.questionsCount', {
+                        count: q.questionCount ?? q.questions.length
+                      })}
+                    </td>
+                    <td>
+                      <span className="score-badge">{q.lastScore ?? 0}%</span>
+                    </td>
+                    <td>{q.updated || t('common.today')}</td>
+                    <td>
+                      <button
+                        type="button"
+                        className="text-link"
+                        onClick={() => {
+                          setActiveQuizId(q.id);
+                          navigate(`/quizzes/${encodeURIComponent(q.id)}`);
+                        }}
+                      >
+                        {t('dashboard.openQuiz')}
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -97,24 +111,44 @@ export const DashboardPage: React.FC = () => {
 
       <section className="grid-2-equal" data-name="Continue learning">
         <div className="box-card continue-card" data-name="Resume studying">
-          <div>
-            <div className="eyebrow">{t('dashboard.resumeEyebrow')}</div>
-            <h3>{activeQuiz.title}</h3>
-            <p className="page-subtitle">
-              {t('dashboard.resumeProgress', {
-                current: Math.min(practice.questionIndex + 1, activeQuiz.questions.length),
-                total: activeQuiz.questions.length,
-                status: answeredCount
-                  ? t('dashboard.statusInProgress')
-                  : t('dashboard.statusReady')
-              })}
-            </p>
-          </div>
-          <div className="btn-row">
-            <Link to="/play" className="btn btn-primary">
-              {t('dashboard.continueQuiz')}
-            </Link>
-          </div>
+          {activeQuiz ? (
+            <>
+              <div>
+                <div className="eyebrow">{t('dashboard.resumeEyebrow')}</div>
+                <h3>{activeQuiz.title}</h3>
+                <p className="page-subtitle">
+                  {t('dashboard.resumeProgress', {
+                    current: Math.min(
+                      practice.questionIndex + 1,
+                      Math.max(1, activeQuiz.questionCount ?? activeQuiz.questions.length)
+                    ),
+                    total: activeQuiz.questionCount ?? activeQuiz.questions.length,
+                    status: answeredCount
+                      ? t('dashboard.statusInProgress')
+                      : t('dashboard.statusReady')
+                  })}
+                </p>
+              </div>
+              <div className="btn-row">
+                <Link to="/play" className="btn btn-primary">
+                  {t('dashboard.continueQuiz')}
+                </Link>
+              </div>
+            </>
+          ) : (
+            <>
+              <div>
+                <div className="eyebrow">{t('dashboard.resumeEyebrow')}</div>
+                <h3>{t('dashboard.bannerTitle')}</h3>
+                <p className="page-subtitle">{t('dashboard.bannerBody')}</p>
+              </div>
+              <div className="btn-row">
+                <Link to="/generate" className="btn btn-primary">
+                  {t('dashboard.createQuizBtn')}
+                </Link>
+              </div>
+            </>
+          )}
         </div>
 
         <div className="box-card continue-card" data-name="Multiplayer shortcut">

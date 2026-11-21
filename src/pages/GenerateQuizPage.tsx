@@ -5,8 +5,7 @@ import { IconCloud } from '@tabler/icons-react';
 import { CheckIcon, CircleIcon, PlayIcon } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import type { QuizItem } from '../types/quiz';
-import { SAMPLE_CSV_CONTENT } from '../data/seedData';
-import { PageHeader, SectionCard } from '../components/common';
+import { PageHeader, SectionCard, SettingToggleRow } from '../components/common';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -36,7 +35,7 @@ import {
 } from '../components/reui/timeline';
 
 export const GenerateQuizPage: React.FC = () => {
-  const { generateQuiz, startPractice, settings, t } = useApp();
+  const { generateQuiz, startPractice, settings, getErrorMessage, t } = useApp();
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -57,6 +56,8 @@ export const GenerateQuizPage: React.FC = () => {
   const [previewTitle, setPreviewTitle] = useState<string>('');
   const [previewText, setPreviewText] = useState<string>('');
   const [quizTitle, setQuizTitle] = useState<string>('');
+  const [quizCategory, setQuizCategory] = useState<string>('');
+  const [useLlm, setUseLlm] = useState<boolean>(false);
   const [questionCount, setQuestionCount] = useState<number>(settings.defaultQuestions || 10);
   const [questionFormat, setQuestionFormat] = useState<string>('Multiple choice');
   const [dragging, setDragging] = useState<boolean>(false);
@@ -109,21 +110,6 @@ export const GenerateQuizPage: React.FC = () => {
     }
   };
 
-  const handleLoadSample = () => {
-    const sampleFile = new File([SAMPLE_CSV_CONTENT], 'Cell_Biology_Notes.csv', {
-      type: 'text/csv',
-    });
-    setSelectedFile(sampleFile);
-    setFileName('Cell_Biology_Notes.pdf');
-    setFileMeta(t('generate.sampleFileMeta'));
-    setPreviewTitle('Cell structure and function');
-    setPreviewText(
-      'Cells are the basic unit of life. The cell membrane regulates movement into and out of the cell. Mitochondria produce energy, while ribosomes synthesize proteins…'
-    );
-    setQuizTitle('Cell structure');
-    setError('');
-  };
-
   const handleRemoveFile = () => {
     setSelectedFile(null);
     setFileName('');
@@ -135,7 +121,7 @@ export const GenerateQuizPage: React.FC = () => {
   };
 
   const handleNextToConfigure = () => {
-    if (!fileName) {
+    if (!selectedFile) {
       setError(t('generate.errNoFileSelected'));
       return;
     }
@@ -144,7 +130,7 @@ export const GenerateQuizPage: React.FC = () => {
   };
 
   const handleGenerate = async () => {
-    if (!fileName) {
+    if (!selectedFile) {
       setError(t('generate.errNoFileSelected'));
       setCurrentStep(1);
       return;
@@ -156,10 +142,14 @@ export const GenerateQuizPage: React.FC = () => {
         file: selectedFile,
         fileName,
         title: quizTitle.trim() || fileName.replace(/\.[^.]+$/, ''),
+        category: quizCategory.trim() || undefined,
         questionCount,
+        useLlm,
       });
       setCreatedQuiz(created);
       setCurrentStep(3);
+    } catch (err) {
+      setError(getErrorMessage(err));
     } finally {
       setGenerating(false);
     }
@@ -353,7 +343,7 @@ export const GenerateQuizPage: React.FC = () => {
             </p>
           )}
 
-          {fileName ? (
+          {fileName && (
             <div className="uploaded-source-bar" data-name="Uploaded source">
               <div>
                 <div className="source-name">{fileName}</div>
@@ -361,13 +351,6 @@ export const GenerateQuizPage: React.FC = () => {
               </div>
               <button type="button" className="btn btn-sm" onClick={handleRemoveFile}>
                 {t('common.remove')}
-              </button>
-            </div>
-          ) : (
-            <div className="uploaded-source-bar">
-              <span className="helper-text">{t('generate.noFileYet')}</span>
-              <button type="button" className="btn btn-sm" onClick={handleLoadSample}>
-                {t('generate.loadSampleBtn')}
               </button>
             </div>
           )}
@@ -422,6 +405,21 @@ export const GenerateQuizPage: React.FC = () => {
           </div>
 
           <div className="field-group">
+            <label className="field-label" htmlFor="gen-quiz-category">
+              {t('generate.categoryLabel')}
+            </label>
+            <input
+              id="gen-quiz-category"
+              className="input"
+              type="text"
+              maxLength={60}
+              value={quizCategory}
+              onChange={(e) => setQuizCategory(e.target.value)}
+              placeholder={t('generate.categoryPlaceholder')}
+            />
+          </div>
+
+          <div className="field-group">
             <label className="field-label" htmlFor="gen-question-count">
               {t('generate.questionCountLabel')}
             </label>
@@ -461,7 +459,20 @@ export const GenerateQuizPage: React.FC = () => {
             </Select>
           </div>
 
+          <SettingToggleRow
+            label={t('generate.useLlmLabel')}
+            description={t('generate.useLlmDesc')}
+            checked={useLlm}
+            onToggle={() => setUseLlm((prev) => !prev)}
+          />
+
           <p className="helper-text">{t('generate.distractorHelper')}</p>
+
+          {error && (
+            <p className="error-text" role="alert" style={{ marginTop: 12 }}>
+              {error}
+            </p>
+          )}
 
           <div className="summary-callout" data-name="Generation summary">
             <div className="eyebrow" style={{ marginBottom: 2 }}>

@@ -17,6 +17,7 @@ import {
 
 export const AppLayout: React.FC = () => {
   const {
+    user,
     quizzes,
     activeQuizId,
     activeQuiz,
@@ -152,6 +153,16 @@ export const AppLayout: React.FC = () => {
             >
               {t('nav.liveGames')}
             </Link>
+            {user?.role === 'admin' && (
+              <Link
+                to="/admin"
+                className={`nav-link ${path.startsWith('/admin') ? 'active' : ''}`}
+                aria-current={path.startsWith('/admin') ? 'page' : undefined}
+                onClick={isMobile ? () => setDrawerOpen(false) : undefined}
+              >
+                {t('nav.adminPanel')}
+              </Link>
+            )}
           </nav>
         </div>
 
@@ -210,14 +221,16 @@ export const AppLayout: React.FC = () => {
             >
               <img
                 src={defaultAvatar}
-                alt={settings.displayName || 'Alex M.'}
+                alt={user?.display_name || settings.displayName || t('auth.signIn')}
                 className="sidebar-avatar"
               />
               <span className="sidebar-profile-meta">
                 <span className="sidebar-profile-name">
-                  {settings.displayName || 'Alex M.'}
+                  {user?.display_name || settings.displayName || t('auth.signIn')}
                 </span>
-                <span className="sidebar-profile-sub">{t('nav.workspaceCaption')}</span>
+                <span className="sidebar-profile-sub">
+                  {user ? user.email : t('auth.notSignedInCaption')}
+                </span>
               </span>
             </button>
 
@@ -265,20 +278,25 @@ export const AppLayout: React.FC = () => {
 
           <div className="header-right">
             <LanguageSwitch />
+            {!user && (
+              <Link to="/login" className="btn btn-sm btn-primary">
+                {t('auth.signIn')}
+              </Link>
+            )}
             <Link to="/lobby" className="btn btn-sm header-join-btn" data-name="Join game">
               <span className="join-full-text">{t('nav.joinGame')}</span>
               <span className="join-short-text">{t('nav.joinShort')}</span>
             </Link>
             <Link
-              to="/settings"
+              to={user ? '/settings' : '/login'}
               className="user-badge"
               data-name="User profile"
-              title={settings.displayName || 'Alex M.'}
-              aria-label={settings.displayName || 'Alex M.'}
+              title={user?.display_name || settings.displayName || t('auth.signIn')}
+              aria-label={user?.display_name || settings.displayName || t('auth.signIn')}
             >
               <img
                 src={defaultAvatar}
-                alt={settings.displayName || 'Alex M.'}
+                alt={user?.display_name || settings.displayName || t('auth.signIn')}
                 className="header-avatar"
               />
             </Link>
@@ -372,62 +390,64 @@ export const AppLayout: React.FC = () => {
       </div>
 
       {/* Printable Study Sheet (Visible only in @media print) */}
-      <section className="print-sheet" aria-hidden="true">
-        <div
-          style={{
-            borderBottom: '2px solid #000',
-            paddingBottom: 12,
-            marginBottom: 20
-          }}
-        >
+      {activeQuiz && (
+        <section className="print-sheet" aria-hidden="true">
           <div
             style={{
-              fontSize: 11,
-              fontWeight: 700,
-              letterSpacing: 1,
-              textTransform: 'uppercase'
+              borderBottom: '2px solid #000',
+              paddingBottom: 12,
+              marginBottom: 20
             }}
           >
-            QuizClash ·{' '}
-            {printKind === 'answers'
-              ? t('print.answerKeyHeader')
-              : t('print.studySheetHeader')}
+            <div
+              style={{
+                fontSize: 11,
+                fontWeight: 700,
+                letterSpacing: 1,
+                textTransform: 'uppercase'
+              }}
+            >
+              QuizClash ·{' '}
+              {printKind === 'answers'
+                ? t('print.answerKeyHeader')
+                : t('print.studySheetHeader')}
+            </div>
+            <h1>{activeQuiz.title}</h1>
+            {printKind === 'questions' ? (
+              <p>{t('print.nameDateLine')}</p>
+            ) : (
+              <p>
+                {t('print.metaSummary', {
+                  count: activeQuiz.questions.length,
+                  source: activeQuiz.source
+                })}
+              </p>
+            )}
           </div>
-          <h1>{activeQuiz.title}</h1>
-          {printKind === 'questions' ? (
-            <p>{t('print.nameDateLine')}</p>
-          ) : (
-            <p>
-              {t('print.metaSummary', {
-                count: activeQuiz.questions.length,
-                source: activeQuiz.source
-              })}
-            </p>
-          )}
-        </div>
-        <ol>
-          {activeQuiz.questions.map((q, idx) => (
-            <li key={idx}>
-              <strong>{q.prompt}</strong>
-              <br />
-              {printKind === 'answers' ? (
-                <span>
-                  {t('print.correctAnswerLabel')}{' '}
-                  <strong>
-                    {letters[q.answer]}. {q.choices[q.answer]}
-                  </strong>
-                </span>
-              ) : (
-                q.choices.map((c, cIdx) => (
-                  <div key={cIdx}>
-                    {letters[cIdx]}. {c}
-                  </div>
-                ))
-              )}
-            </li>
-          ))}
-        </ol>
-      </section>
+          <ol>
+            {activeQuiz.questions.map((q, idx) => (
+              <li key={idx}>
+                <strong>{q.prompt}</strong>
+                <br />
+                {printKind === 'answers' ? (
+                  <span>
+                    {t('print.correctAnswerLabel')}{' '}
+                    <strong>
+                      {letters[q.answer]}. {q.choices[q.answer]}
+                    </strong>
+                  </span>
+                ) : (
+                  q.choices.map((c, cIdx) => (
+                    <div key={cIdx}>
+                      {letters[cIdx]}. {c}
+                    </div>
+                  ))
+                )}
+              </li>
+            ))}
+          </ol>
+        </section>
+      )}
     </>
   );
 };

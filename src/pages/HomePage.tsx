@@ -22,7 +22,7 @@ const HOME_SECTIONS: { id: HomeNavTab; elementId: string }[] = [
 ];
 
 export const HomePage: React.FC = () => {
-  const { t } = useApp();
+  const { user, t } = useApp();
   const frameRef = useRef<HTMLDivElement | null>(null);
   const [activeTab, setActiveTab] = useState<HomeNavTab>('overview');
   const [scrollProgress, setScrollProgress] = useState<number>(0);
@@ -120,9 +120,20 @@ export const HomePage: React.FC = () => {
 
         <div className="home-header-actions">
           <LanguageSwitch />
-          <Link to="/dashboard" className="btn btn-sm btn-primary home-desktop-cta">
-            {t('nav.dashboard')}
-          </Link>
+          {user ? (
+            <Link to="/dashboard" className="btn btn-sm btn-primary home-desktop-cta">
+              {t('nav.dashboard')}
+            </Link>
+          ) : (
+            <>
+              <Link to="/login" className="btn btn-sm home-desktop-cta">
+                {t('auth.signIn')}
+              </Link>
+              <Link to="/register" className="btn btn-sm btn-primary home-desktop-cta">
+                {t('auth.signUp')}
+              </Link>
+            </>
+          )}
           <Drawer direction="right" open={menuOpen} onOpenChange={setMenuOpen}>
             <DrawerTrigger asChild>
               <button
@@ -205,14 +216,33 @@ export const HomePage: React.FC = () => {
                   </button>
                 </nav>
 
-                <div className="sidebar-footer">
-                  <Link
-                    to="/dashboard"
-                    className="btn btn-primary w-full"
-                    onClick={() => setMenuOpen(false)}
-                  >
-                    {t('nav.dashboard')}
-                  </Link>
+                <div className="sidebar-footer" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {user ? (
+                    <Link
+                      to="/dashboard"
+                      className="btn btn-primary w-full"
+                      onClick={() => setMenuOpen(false)}
+                    >
+                      {t('nav.dashboard')}
+                    </Link>
+                  ) : (
+                    <>
+                      <Link
+                        to="/login"
+                        className="btn btn-primary w-full"
+                        onClick={() => setMenuOpen(false)}
+                      >
+                        {t('auth.signIn')}
+                      </Link>
+                      <Link
+                        to="/register"
+                        className="btn w-full"
+                        onClick={() => setMenuOpen(false)}
+                      >
+                        {t('auth.signUp')}
+                      </Link>
+                    </>
+                  )}
                 </div>
               </div>
             </DrawerContent>
@@ -238,15 +268,28 @@ export const HomePage: React.FC = () => {
             {t('home.heroSubtitle')}
           </p>
           <div className="btn-row">
-            <Link to="/dashboard" className="btn btn-primary">
-              {t('home.openWorkspaceBtn')}
-            </Link>
-            <Link to="/generate" className="btn">
-              {t('home.createQuizBtn')}
-            </Link>
-            <Link to="/lobby" className="btn">
-              {t('home.joinLiveGameBtn')}
-            </Link>
+            {user ? (
+              <>
+                <Link to="/dashboard" className="btn btn-primary">
+                  {t('home.openWorkspaceBtn')}
+                </Link>
+                <Link to="/generate" className="btn">
+                  {t('home.createQuizBtn')}
+                </Link>
+                <Link to="/lobby" className="btn">
+                  {t('home.joinLiveGameBtn')}
+                </Link>
+              </>
+            ) : (
+              <>
+                <Link to="/register" className="btn btn-primary">
+                  {t('auth.signUp')}
+                </Link>
+                <Link to="/login" className="btn">
+                  {t('auth.signIn')}
+                </Link>
+              </>
+            )}
           </div>
         </section>
 
@@ -321,9 +364,15 @@ export const HomePage: React.FC = () => {
 
       <footer className="home-footer">
         <span className="helper-text">{t('home.footerTagline')}</span>
-        <Link to="/dashboard" className="text-link">
-          {t('home.goToDashboard')}
-        </Link>
+        {user ? (
+          <Link to="/dashboard" className="text-link">
+            {t('home.goToDashboard')}
+          </Link>
+        ) : (
+          <Link to="/login" className="text-link">
+            {t('auth.signIn')} →
+          </Link>
+        )}
       </footer>
     </div>
   );

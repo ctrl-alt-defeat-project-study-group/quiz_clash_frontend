@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Download, Loader2 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { SEED_HISTORY } from '../data/seedData';
 import { PageHeader, SectionCard, StatCard } from '../components/common';
 
 export const AttemptDetailPage: React.FC = () => {
@@ -11,9 +11,11 @@ export const AttemptDetailPage: React.FC = () => {
     history,
     activeAttemptId,
     setActiveAttemptId,
+    loadAttemptDetails,
     activeQuiz,
     startPractice,
     exportStudySheet,
+    exportingKind,
     t
   } = useApp();
 
@@ -30,9 +32,35 @@ export const AttemptDetailPage: React.FC = () => {
     (id && history.find((h) => h.id === id)) ||
     history.find((h) => h.id === activeAttemptId) ||
     history[0] ||
-    SEED_HISTORY[0];
+    null;
 
-  const quiz = quizzes.find((q) => q.id === attempt.quizId) || activeQuiz;
+  useEffect(() => {
+    if (attempt?.backendId && !attempt.detailsLoaded) {
+      void loadAttemptDetails(attempt.id);
+    }
+  }, [attempt, loadAttemptDetails]);
+
+  if (!attempt) {
+    return (
+      <>
+        <PageHeader
+          breadcrumbs={[
+            { label: 'QuizClash', to: '/' },
+            { label: t('nav.attemptHistory'), to: '/history' }
+          ]}
+          title={t('nav.attemptHistory')}
+          subtitle={t('results.scoreTrendSubtitle')}
+        />
+        <SectionCard>
+          <Link to="/history" className="btn btn-primary">
+            {t('common.back')}
+          </Link>
+        </SectionCard>
+      </>
+    );
+  }
+
+  const quiz = quizzes.find((q) => q.id === attempt.quizId) ?? activeQuiz;
   const missedList = attempt.missed || [];
 
   return (
@@ -81,8 +109,8 @@ export const AttemptDetailPage: React.FC = () => {
         title={
           showAllAnswers
             ? t('results.allQuestionsTitle', {
-                count: quiz.questions.length,
-                title: quiz.title
+                count: attempt.questionResults?.length ?? quiz?.questions.length ?? attempt.total,
+                title: quiz?.title ?? attempt.quizTitle
               })
             : missedList.length === 1
             ? t('results.missedSingleTitle')
@@ -105,22 +133,49 @@ export const AttemptDetailPage: React.FC = () => {
       >
         <div className="missed-grid">
           {showAllAnswers
-            ? quiz.questions.map((q, idx) => (
-                <article key={idx} className="feedback-card is-right">
-                  <div className="eyebrow">
-                    {t('results.questionEyebrow', {
-                      num: String(idx + 1).padStart(2, '0')
-                    })}
-                  </div>
-                  <h3 style={{ fontSize: 16, fontWeight: 600 }}>{q.prompt}</h3>
-                  <p style={{ fontSize: 13 }}>
-                    <strong>{t('results.correctAnswerLabel')}</strong> {q.choices[q.answer]}
-                  </p>
-                  <p className="helper-text">
-                    {q.explanation || t('results.verifiedExplanation')}
-                  </p>
-                </article>
-              ))
+            ? attempt.questionResults && attempt.questionResults.length > 0
+              ? attempt.questionResults.map((qr, idx) => (
+                  <article
+                    key={qr.question_id || idx}
+                    className={`feedback-card ${qr.is_correct ? 'is-right' : 'is-wrong'}`}
+                  >
+                    <div className="eyebrow">
+                      {t('results.questionEyebrow', {
+                        num: String(idx + 1).padStart(2, '0')
+                      })}
+                    </div>
+                    <h3 style={{ fontSize: 16, fontWeight: 600 }}>{qr.question_prompt}</h3>
+                    <div style={{ fontSize: 13, lineHeight: 1.5 }}>
+                      <div>
+                        {t('results.yourAnswerLabel')}{' '}
+                        <strong>{qr.selected_choice_text}</strong>
+                      </div>
+                      <div>
+                        {t('results.correctAnswerLabel')}{' '}
+                        <strong>{qr.correct_choice_text}</strong>
+                      </div>
+                    </div>
+                    <p className="helper-text">
+                      {qr.explanation || t('results.verifiedExplanation')}
+                    </p>
+                  </article>
+                ))
+              : (quiz?.questions ?? []).map((q, idx) => (
+                  <article key={idx} className="feedback-card is-right">
+                    <div className="eyebrow">
+                      {t('results.questionEyebrow', {
+                        num: String(idx + 1).padStart(2, '0')
+                      })}
+                    </div>
+                    <h3 style={{ fontSize: 16, fontWeight: 600 }}>{q.prompt}</h3>
+                    <p style={{ fontSize: 13 }}>
+                      <strong>{t('results.correctAnswerLabel')}</strong> {q.choices[q.answer]}
+                    </p>
+                    <p className="helper-text">
+                      {q.explanation || t('results.verifiedExplanation')}
+                    </p>
+                  </article>
+                ))
             : missedList.map((m, idx) => (
                 <article key={idx} className="feedback-card is-wrong">
                   <div className="eyebrow">
@@ -158,8 +213,20 @@ export const AttemptDetailPage: React.FC = () => {
           type="button"
           className="btn"
           onClick={() => void exportStudySheet('answers')}
+          disabled={exportingKind !== null}
+          aria-busy={exportingKind === 'answers'}
+          style={{ gap: 8 }}
         >
-          {t('results.downloadAnswerKey')}
+          {exportingKind === 'answers' ? (
+            <Loader2 size={16} className="animate-spin" aria-hidden="true" />
+          ) : (
+            <Download size={16} aria-hidden="true" />
+          )}
+          <span>
+            {exportingKind === 'answers'
+              ? t('review.downloadingAnswerKey')
+              : t('results.downloadAnswerKey')}
+          </span>
         </button>
         <Link to="/lobby" className="btn">
           {t('results.challengeFriends')}

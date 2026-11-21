@@ -17,6 +17,8 @@ export type ErrorCode =
   | 'EXPORT_FAILED'
   | 'VALIDATION_ERROR'
   | 'UNAUTHORIZED'
+  | 'EMAIL_NOT_VERIFIED'
+  | 'ACCOUNT_DISABLED'
   | 'FORBIDDEN'
   | 'RATE_LIMITED'
   | 'NETWORK_ERROR'
@@ -67,6 +69,14 @@ export const ERROR_MESSAGES: Record<ErrorCode, LocalizedText> = {
   UNAUTHORIZED: {
     en: 'Please sign in to continue.',
     mm: 'ဆက်လက်လုပ်ဆောင်ရန် အကောင့်ဝင်ရောက်ပါ။'
+  },
+  EMAIL_NOT_VERIFIED: {
+    en: 'Please verify your email address before signing in.',
+    mm: 'အကောင့်မဝင်မီ သင်၏အီးမေးလ်လိပ်စာကို အတည်ပြုပေးပါ။'
+  },
+  ACCOUNT_DISABLED: {
+    en: 'This account has been deactivated by an administrator.',
+    mm: 'ဤအကောင့်ကို စီမံခန့်ခွဲသူမှ ပိတ်ထားပါသည်။'
   },
   FORBIDDEN: {
     en: 'You do not have permission to perform this action.',

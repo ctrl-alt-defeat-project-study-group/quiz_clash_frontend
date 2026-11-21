@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Download, Loader2 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import type { ExportFormat } from '../types/quiz';
 import { AppPagination, PageHeader, SectionCard } from '../components/common';
@@ -26,12 +27,13 @@ export const ReviewExportPage: React.FC = () => {
     quizzes,
     activeQuiz,
     setActiveQuizId,
+    loadQuizDetails,
     updateQuizQuestion,
     saveQuizChanges,
     startPractice,
     setLiveQuizId,
     exportStudySheet,
-    openModal,
+    exportingKind,
     showToast,
     t
   } = useApp();
@@ -48,25 +50,53 @@ export const ReviewExportPage: React.FC = () => {
     }
   }, [id, quizzes, setActiveQuizId]);
 
+  useEffect(() => {
+    if (activeQuiz?.backendId && !activeQuiz.questionsLoaded) {
+      void loadQuizDetails(activeQuiz.id, 'preview');
+    }
+  }, [activeQuiz, loadQuizDetails]);
+
+  if (!activeQuiz) {
+    return (
+      <>
+        <PageHeader
+          breadcrumbs={[
+            { label: 'QuizClash', to: '/' },
+            { label: t('nav.yourLibrary') }
+          ]}
+          title={t('nav.myQuizzes')}
+          subtitle={t('dashboard.bannerBody')}
+        />
+        <SectionCard>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'flex-start' }}>
+            <p className="helper-text">{t('dashboard.bannerTitle')}</p>
+            <Link to="/generate" className="btn btn-primary">
+              {t('dashboard.createQuizBtn')}
+            </Link>
+          </div>
+        </SectionCard>
+      </>
+    );
+  }
+
   const total = activeQuiz.questions.length;
   const safeIdx = Math.min(Math.max(0, questionIndex), Math.max(0, total - 1));
-  const currentQ = activeQuiz.questions[safeIdx] || activeQuiz.questions[0];
-  const nextQ = activeQuiz.questions[(safeIdx + 1) % total] || currentQ;
+  const currentQ = activeQuiz.questions[safeIdx] ||
+    activeQuiz.questions[0] || {
+      prompt: 'Loading question…',
+      choices: ['—', '—', '—', '—'],
+      answer: 0
+    };
+  const nextQ =
+    total > 0 ? activeQuiz.questions[(safeIdx + 1) % total] || currentQ : currentQ;
   const letters = ['A', 'B', 'C', 'D'];
 
   const handleDownloadQuestions = () => {
-    if (exportFormat === 'word') {
-      openModal({
-        title: t('modals.wordExportTitle'),
-        message: t('modals.wordExportMessage')
-      });
-      return;
-    }
-    void exportStudySheet('questions');
+    void exportStudySheet('questions', exportFormat);
   };
 
   const handleDownloadAnswers = () => {
-    void exportStudySheet('answers');
+    void exportStudySheet('answers', exportFormat);
   };
 
   return (
@@ -381,11 +411,39 @@ export const ReviewExportPage: React.FC = () => {
                 type="button"
                 className="btn btn-primary"
                 onClick={handleDownloadQuestions}
+                disabled={exportingKind !== null}
+                aria-busy={exportingKind === 'questions'}
+                style={{ gap: 8 }}
               >
-                {t('review.downloadQuestions')}
+                {exportingKind === 'questions' ? (
+                  <Loader2 size={16} className="animate-spin" aria-hidden="true" />
+                ) : (
+                  <Download size={16} aria-hidden="true" />
+                )}
+                <span>
+                  {exportingKind === 'questions'
+                    ? t('review.downloadingQuestions')
+                    : t('review.downloadQuestions')}
+                </span>
               </button>
-              <button type="button" className="btn" onClick={handleDownloadAnswers}>
-                {t('review.downloadAnswerKey')}
+              <button
+                type="button"
+                className="btn"
+                onClick={handleDownloadAnswers}
+                disabled={exportingKind !== null}
+                aria-busy={exportingKind === 'answers'}
+                style={{ gap: 8 }}
+              >
+                {exportingKind === 'answers' ? (
+                  <Loader2 size={16} className="animate-spin" aria-hidden="true" />
+                ) : (
+                  <Download size={16} aria-hidden="true" />
+                )}
+                <span>
+                  {exportingKind === 'answers'
+                    ? t('review.downloadingAnswerKey')
+                    : t('review.downloadAnswerKey')}
+                </span>
               </button>
             </div>
           </section>
