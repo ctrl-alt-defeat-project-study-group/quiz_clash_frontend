@@ -5,6 +5,7 @@ import type {
   ApiAttemptResponse,
   ApiAttemptSummary,
   ApiLiveGameState,
+  ApiLiveRoomHistoryItem,
   ApiLiveWsEvent,
   ApiQuestion,
   ApiQuizPreviewResponse,
@@ -83,18 +84,19 @@ interface AppContextValue {
   user: UserProfile | null;
   authLoading: boolean;
   login: (email: string, password: string) => Promise<UserProfile>;
-  loginWithGoogle: (credential: string) => Promise<UserProfile>;
+  startGoogleOAuth: (nextPath?: string) => void;
+  unlinkGoogleOAuth: () => Promise<void>;
   register: (email: string, password: string, displayName: string) => Promise<UserProfile>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<UserProfile | null>;
 
   theme: ThemeMode;
   resolvedTheme: ResolvedTheme;
-  setTheme: (theme: ThemeMode) => void;
+  setTheme: (theme: ThemeMode, opts?: { persist?: boolean }) => void;
   toggleTheme: () => void;
 
   uiLanguage: AppLanguage;
-  setUiLanguage: (lang: AppLanguage) => void;
+  setUiLanguage: (lang: AppLanguage, opts?: { persist?: boolean }) => void;
   toggleUiLanguage: () => void;
   t: (key: TranslationKey, params?: Record<string, string | number>) => string;
   getErrorMessage: (error: unknown) => string;
@@ -105,15 +107,23 @@ interface AppContextValue {
   setActiveQuizId: (id: string) => void;
   loadQuizDetails: (quizId: string, mode?: 'preview' | 'play') => Promise<void>;
   updateQuizQuestion: (quizId: string, qIndex: number, updated: Partial<QuestionItem>) => void;
+  deleteQuizQuestion: (quizId: string, qIndex: number) => Promise<void>;
+  deleteQuiz: (quizId: string) => Promise<boolean>;
   saveQuizChanges: (quizId: string) => Promise<void>;
 
   history: AttemptRecord[];
+  liveHistory: ApiLiveRoomHistoryItem[];
   activeAttemptId: string;
   setActiveAttemptId: (id: string) => void;
   loadAttemptDetails: (attemptId: string) => Promise<void>;
+  deleteAttempt: (attemptId: string) => Promise<void>;
+  clearAllAttempts: () => Promise<void>;
+  deleteLiveHistoryRoom: (roomId: string) => Promise<void>;
+  refreshHistory: () => Promise<void>;
 
   practice: PracticeState;
   startPractice: (quizId?: string) => void;
+  resetPractice: () => void;
   selectPracticeAnswer: (questionIndex: number, choiceIndex: number) => void;
   setPracticeQuestionIndex: (index: number) => void;
   finishPractice: () => Promise<AttemptRecord | null>;
@@ -134,14 +144,24 @@ interface AppContextValue {
   live: LiveGameState;
   setLiveQuizId: (quizId: string) => void;
   setLiveTimer: (seconds: number) => void;
-  createLiveRoom: (quizId?: string, timerSeconds?: number) => Promise<void>;
+  createLiveRoom: (
+    quizId?: string,
+    timerSeconds?: number,
+    options?: { participateAsHost?: boolean }
+  ) => Promise<void>;
   joinLiveRoom: (pin: string, name: string) => Promise<{ ok: boolean; error?: string }>;
+  joinAsHostPlayer: () => Promise<void>;
+  leaveAsHostPlayer: () => Promise<void>;
+  markLivePlayerReady: () => Promise<void>;
   closeLiveRoom: () => void;
   advanceLiveRound: () => Promise<void>;
   submitLiveAnswer: (choiceId: string) => void;
 
   settings: UserSettings;
-  updateSettings: (partial: Partial<UserSettings>) => void;
+  updateSettings: (partial: Partial<UserSettings>, opts?: { persist?: boolean }) => void;
+  saveSettingsToBackend: (
+    payload: Partial<UserSettings> & { theme?: ThemeMode; uiLanguage?: AppLanguage }
+  ) => Promise<void>;
   exportAccountData: () => Promise<void>;
   resetAllData: () => Promise<void>;
 
@@ -337,6 +357,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [quizzes, setQuizzes] = useState<QuizItem[]>([]);
   const [history, setHistory] = useState<AttemptRecord[]>([]);
+  const [liveHistory, setLiveHistory] = useState<ApiLiveRoomHistoryItem[]>([]);
   const [activeQuizId, setActiveQuizIdState] = useState<string>('');
   const [activeAttemptId, setActiveAttemptId] = useState<string>('');
   const [settings, setSettings] = useState<UserSettings>(DEFAULT_SETTINGS);
@@ -419,12 +440,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, [closeLiveSocket]);
 
+  const refreshHistory = useCallback(async () => {
+    const lang = uiLangRef.current;
+    const [attemptsRes, liveHistoryRes] = await Promise.allSettled([
+      api.listAttempts(lang),
+      api.listLiveHistory(lang)
+    ]);
+
+    if (attemptsRes.status === 'fulfilled') {
+      const mappedAttempts = mapAttemptSummariesToRecords(
+        attemptsRes.value,
+        translate(lang, 'common.today')
+      );
+      setHistory(mappedAttempts);
+      setActiveAttemptId((prev) => prev || mappedAttempts[0]?.id || '');
+    }
+
+    if (liveHistoryRes.status === 'fulfilled') {
+      setLiveHistory(liveHistoryRes.value);
+    }
+  }, []);
+
   const hydrateFromBackend = useCallback(async (profile: UserProfile) => {
     const lang = uiLangRef.current;
-    const [quizzesRes, attemptsRes, settingsRes] = await Promise.allSettled([
+    const [quizzesRes, attemptsRes, settingsRes, liveHistoryRes] = await Promise.allSettled([
       api.listQuizzes(lang),
       api.listAttempts(lang),
-      api.getSettings(lang)
+      api.getSettings(lang),
+      api.listLiveHistory(lang)
     ]);
 
     if (quizzesRes.status === 'fulfilled') {
@@ -445,12 +488,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setActiveAttemptId(mappedAttempts[0]?.id ?? '');
     }
 
+    if (liveHistoryRes.status === 'fulfilled') {
+      setLiveHistory(liveHistoryRes.value);
+    }
+
     if (settingsRes.status === 'fulfilled') {
       const s = settingsRes.value;
       setSettings((prev) => ({
         ...prev,
         displayName: s.display_name || profile.display_name,
         email: s.email || profile.email,
+        avatarUrl: s.avatar_url ?? profile.avatar_url ?? null,
         defaultQuestions: s.default_questions ?? prev.defaultQuestions,
         difficulty: s.difficulty || prev.difficulty,
         language: s.quiz_language || prev.language,
@@ -469,7 +517,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setSettings((prev) => ({
         ...prev,
         displayName: profile.display_name,
-        email: profile.email
+        email: profile.email,
+        avatarUrl: profile.avatar_url ?? null
       }));
     }
   }, []);
@@ -521,12 +570,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return profile;
   };
 
-  const loginWithGoogle = async (credential: string): Promise<UserProfile> => {
-    const profile = await api.googleAuth({ credential, language: uiLanguage });
+  const startGoogleOAuth = (nextPath = '/dashboard'): void => {
+    window.location.assign(api.getGoogleOAuthLoginUrl(nextPath));
+  };
+
+  const unlinkGoogleOAuth = async (): Promise<void> => {
+    await api.unlinkGoogleOAuth(uiLanguage);
+    const profile = await api.getMe(uiLanguage);
     setUser(profile);
-    await hydrateFromBackend(profile);
-    showToast(t('toasts.signedIn', { name: profile.display_name || profile.email }));
-    return profile;
+    showToast(t('toasts.googleUnlinked'));
   };
 
   const register = async (
@@ -554,6 +606,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setUser(null);
     setQuizzes([]);
     setHistory([]);
+    setLiveHistory([]);
     setActiveQuizIdState('');
     setActiveAttemptId('');
     setPractice(EMPTY_PRACTICE);
@@ -607,18 +660,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     [user, showToast]
   );
 
-  const setTheme = (next: ThemeMode) => {
+  const setTheme = (next: ThemeMode, opts?: { persist?: boolean }) => {
     setThemeState(next);
-    syncSettingsPatch({ theme: next });
+    if (opts?.persist !== false) {
+      syncSettingsPatch({ theme: next });
+    }
   };
 
   const toggleTheme = () => {
     setTheme(resolvedTheme === 'light' ? 'dark' : 'light');
   };
 
-  const setUiLanguage = (next: AppLanguage) => {
+  const setUiLanguage = (next: AppLanguage, opts?: { persist?: boolean }) => {
     setUiLanguageState(next);
-    syncSettingsPatch({ ui_language: next });
+    if (opts?.persist !== false) {
+      syncSettingsPatch({ ui_language: next });
+    }
   };
 
   const toggleUiLanguage = () => {
@@ -709,6 +766,45 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     [history, showToast]
   );
 
+  const deleteAttempt = async (attemptId: string): Promise<void> => {
+    const target = history.find((h) => h.id === attemptId);
+    if (!target) return;
+    try {
+      if (target.backendId) {
+        await api.deleteAttempt(target.backendId, uiLanguage);
+      }
+      const remaining = history.filter((h) => h.id !== attemptId);
+      setHistory(remaining);
+      if (activeAttemptId === attemptId) {
+        setActiveAttemptId(remaining[0]?.id ?? '');
+      }
+      showToast(t('toasts.attemptDeleted'));
+    } catch (err) {
+      showToast(getErrorMessage(err), 'error');
+    }
+  };
+
+  const clearAllAttempts = async (): Promise<void> => {
+    try {
+      await api.clearAllAttempts(uiLanguage);
+      setHistory([]);
+      setActiveAttemptId('');
+      showToast(t('toasts.historyCleared'));
+    } catch (err) {
+      showToast(getErrorMessage(err), 'error');
+    }
+  };
+
+  const deleteLiveHistoryRoom = async (roomId: string): Promise<void> => {
+    try {
+      await api.deleteLiveHistoryRoom(roomId, uiLanguage);
+      setLiveHistory((prev) => prev.filter((item) => item.id !== roomId));
+      showToast(t('toasts.attemptDeleted'));
+    } catch (err) {
+      showToast(getErrorMessage(err), 'error');
+    }
+  };
+
   const updateQuizQuestion = (
     quizId: string,
     qIndex: number,
@@ -751,6 +847,78 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       showToast(t('toasts.quizSaved'));
     } catch (err) {
       showToast(getErrorMessage(err), 'error');
+    }
+  };
+
+  const deleteQuizQuestion = async (quizId: string, qIndex: number): Promise<void> => {
+    const target = quizzes.find((q) => q.id === quizId);
+    if (!target || target.questions.length <= 1) return;
+
+    const nextQuestions = target.questions.filter((_, idx) => idx !== qIndex);
+    setQuizzes((prev) =>
+      prev.map((q) =>
+        q.id === quizId
+          ? {
+              ...q,
+              questions: nextQuestions,
+              questionCount: nextQuestions.length,
+              updated: t('common.today')
+            }
+          : q
+      )
+    );
+
+    if (!target.backendId) {
+      showToast(t('toasts.questionDeleted'));
+      return;
+    }
+
+    try {
+      await api.updateQuiz(
+        target.backendId,
+        {
+          title: target.title,
+          category: target.category || undefined,
+          questions: nextQuestions.map((q, idx) => ({
+            prompt: q.prompt,
+            position: idx,
+            explanation: q.explanation ?? null,
+            choices: q.choices.map((cText, cIdx) => ({
+              text: cText,
+              position: cIdx,
+              is_correct: q.answer === cIdx
+            }))
+          }))
+        },
+        uiLanguage
+      );
+      showToast(t('toasts.questionDeleted'));
+    } catch (err) {
+      showToast(getErrorMessage(err), 'error');
+    }
+  };
+
+  const deleteQuiz = async (quizId: string): Promise<boolean> => {
+    const target = quizzes.find((q) => q.id === quizId);
+    if (!target) return false;
+
+    try {
+      if (target.backendId) {
+        await api.deleteQuiz(target.backendId, uiLanguage);
+      }
+      const remaining = quizzes.filter((q) => q.id !== quizId);
+      setQuizzes(remaining);
+      if (activeQuizId === quizId) {
+        setActiveQuizIdState(remaining[0]?.id ?? '');
+      }
+      if (live.quizId === quizId) {
+        setLive((prev) => ({ ...prev, quizId: remaining[0]?.id ?? '' }));
+      }
+      showToast(t('toasts.quizDeleted', { title: target.title }));
+      return true;
+    } catch (err) {
+      showToast(getErrorMessage(err), 'error');
+      return false;
     }
   };
 
@@ -822,6 +990,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       answers: {},
       startedAt: Date.now()
     });
+  };
+
+  const resetPractice = () => {
+    setPractice(EMPTY_PRACTICE);
   };
 
   const selectPracticeAnswer = (questionIndex: number, choiceIndex: number) => {
@@ -956,6 +1128,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         players: state.players.map((p) => ({
           id: p.id,
           name: p.name,
+          avatar_url: p.avatar_url ?? null,
           status: p.status,
           correct: p.correct,
           total: p.total,
@@ -998,6 +1171,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               applyBackendLiveState(msg.state, { playerId: msg.player_id });
               break;
             case 'player_joined':
+            case 'player_left':
+            case 'player_ready':
               applyBackendLiveState(msg.state);
               break;
             case 'question':
@@ -1042,6 +1217,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 currentQuestion: null
               });
               showToast(translate(uiLangRef.current, 'toasts.liveGameFinished'), 'info');
+              void refreshHistory();
               break;
             case 'error':
               showToast(
@@ -1065,10 +1241,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       };
     },
-    [applyBackendLiveState, closeLiveSocket, showToast]
+    [applyBackendLiveState, closeLiveSocket, refreshHistory, showToast]
   );
 
-  const createLiveRoom = async (quizId?: string, timerSeconds?: number) => {
+  const createLiveRoom = async (
+    quizId?: string,
+    timerSeconds?: number,
+    options?: { participateAsHost?: boolean }
+  ) => {
     const targetQuizId = quizId || live.quizId || activeQuiz?.id || '';
     const targetTimer = timerSeconds || live.timerSeconds || 20;
     const targetQuiz = quizzes.find((q) => q.id === targetQuizId) ?? activeQuiz;
@@ -1084,6 +1264,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         timerSeconds: targetTimer,
         language: uiLanguage
       });
+
+      const hostParticipates = options?.participateAsHost ?? true;
+      if (hostParticipates) {
+        const hostName =
+          settings.displayName?.trim() ||
+          user?.display_name?.trim() ||
+          user?.email?.split('@')[0] ||
+          'Host';
+        try {
+          const cleanPin = room.pin.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+          const joined = await api.joinLiveRoom(cleanPin, hostName, uiLanguage);
+          applyBackendLiveState(joined, {
+            status: 'hosting',
+            joinedPlayerName: hostName,
+            playerId: joined.player_id,
+            currentQuestion: null,
+            selectedChoiceId: null,
+            lastAnswerResult: null,
+            lastRoundCorrectChoiceId: null
+          });
+          connectLiveSocket(joined.pin, { playerId: joined.player_id });
+          showToast(t('toasts.roomCreated', { pin: room.pin }));
+          return;
+        } catch {
+          // Fall back to spectator-host mode if auto-join fails
+        }
+      }
+
       applyBackendLiveState(room, {
         status: 'hosting',
         joinedPlayerName: undefined,
@@ -1100,12 +1308,62 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const joinAsHostPlayer = async () => {
+    if (!live.pin || live.playerId) return;
+    const cleanPin = live.pin.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+    const hostName =
+      settings.displayName?.trim() ||
+      user?.display_name?.trim() ||
+      user?.email?.split('@')[0] ||
+      'Host';
+    try {
+      const joined = await api.joinLiveRoom(cleanPin, hostName, uiLanguage);
+      applyBackendLiveState(joined, {
+        status: 'hosting',
+        joinedPlayerName: hostName,
+        playerId: joined.player_id
+      });
+      connectLiveSocket(joined.pin, { playerId: joined.player_id });
+      showToast(t('toasts.joinedRoom', { pin: joined.pin, name: hostName }));
+    } catch (err) {
+      showToast(getErrorMessage(err), 'error');
+    }
+  };
+
+  const leaveAsHostPlayer = async () => {
+    if (!live.pin || !live.playerId) return;
+    const cleanPin = live.pin.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+    try {
+      const updated = await api.leaveLiveRoomPlayer(cleanPin, live.playerId, uiLanguage);
+      applyBackendLiveState(updated, {
+        status: 'hosting',
+        joinedPlayerName: undefined,
+        playerId: undefined
+      });
+      connectLiveSocket(updated.pin);
+      showToast(t('toasts.leftAsPlayer'), 'info');
+    } catch (err) {
+      showToast(getErrorMessage(err), 'error');
+    }
+  };
+
+  const markLivePlayerReady = async () => {
+    if (!live.pin || !live.playerId) return;
+    const cleanPin = live.pin.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+    try {
+      const updated = await api.markLivePlayerReady(cleanPin, live.playerId, uiLanguage);
+      applyBackendLiveState(updated);
+    } catch {
+      /* Non-blocking ready notification */
+    }
+  };
+
   const joinLiveRoom = async (
     pin: string,
     name: string
   ): Promise<{ ok: boolean; error?: string }> => {
-    const cleanPin = pin.replace(/\D+/g, '');
-    if (!cleanPin || cleanPin.length !== 6) {
+    const cleanPin = pin.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+    if (!cleanPin || cleanPin.length < 6 || cleanPin.length > 12) {
       return {
         ok: false,
         error: getErrorByCode('INVALID_ROOM_PIN', uiLanguage)
@@ -1133,7 +1391,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const closeLiveRoom = () => {
+    const pinToClose = live.status === 'hosting' ? live.pin : '';
     closeLiveSocket();
+    if (pinToClose) {
+      void api.closeLiveRoom(pinToClose, uiLanguage).catch(() => {});
+    }
     setLive((prev) => ({
       ...EMPTY_LIVE,
       quizId: prev.quizId || activeQuiz?.id || '',
@@ -1154,6 +1416,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
       if (next.status === 'finished') {
         showToast(t('toasts.liveGameFinished'), 'info');
+        if (user) {
+          void refreshHistory();
+        }
       } else {
         showToast(
           t('toasts.proceededRound', {
@@ -1181,12 +1446,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const updateSettings = (partial: Partial<UserSettings>) => {
+  const updateSettings = (
+    partial: Partial<UserSettings>,
+    opts?: { persist?: boolean }
+  ) => {
     setSettings((prev) => ({ ...prev, ...partial }));
+    if (partial.avatarUrl !== undefined) {
+      setUser((prev) => (prev ? { ...prev, avatar_url: partial.avatarUrl } : prev));
+    }
 
-    if (user) {
+    if (user && opts?.persist !== false) {
       const apiPatch: Partial<ApiUserSettings> = {};
       if (partial.displayName !== undefined) apiPatch.display_name = partial.displayName;
+      if (partial.avatarUrl !== undefined) apiPatch.avatar_url = partial.avatarUrl;
       if (partial.defaultQuestions !== undefined) {
         apiPatch.default_questions = partial.defaultQuestions;
       }
@@ -1207,6 +1479,54 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (Object.keys(apiPatch).length > 0) {
         syncSettingsPatch(apiPatch);
       }
+    }
+  };
+
+  const saveSettingsToBackend = async (
+    payload: Partial<UserSettings> & { theme?: ThemeMode; uiLanguage?: AppLanguage }
+  ): Promise<void> => {
+    const { theme: nextTheme, uiLanguage: nextLang, ...rest } = payload;
+    if (nextTheme !== undefined) setThemeState(nextTheme);
+    if (nextLang !== undefined) setUiLanguageState(nextLang);
+    if (Object.keys(rest).length > 0) {
+      setSettings((prev) => ({ ...prev, ...rest }));
+    }
+    if (rest.avatarUrl !== undefined) {
+      setUser((prev) => (prev ? { ...prev, avatar_url: rest.avatarUrl } : prev));
+    }
+    if (rest.displayName !== undefined) {
+      setUser((prev) =>
+        prev ? { ...prev, display_name: rest.displayName || prev.display_name } : prev
+      );
+    }
+
+    if (!user) return;
+
+    const apiPatch: Partial<ApiUserSettings> = {};
+    if (rest.displayName !== undefined) apiPatch.display_name = rest.displayName;
+    if (rest.avatarUrl !== undefined) apiPatch.avatar_url = rest.avatarUrl;
+    if (nextTheme !== undefined) apiPatch.theme = nextTheme;
+    if (nextLang !== undefined) apiPatch.ui_language = nextLang;
+    if (rest.defaultQuestions !== undefined) {
+      apiPatch.default_questions = rest.defaultQuestions;
+    }
+    if (rest.difficulty !== undefined) apiPatch.difficulty = rest.difficulty;
+    if (rest.language !== undefined) apiPatch.quiz_language = rest.language;
+    if (rest.shuffleQuestions !== undefined) {
+      apiPatch.shuffle_questions = rest.shuffleQuestions;
+    }
+    if (rest.showExplanations !== undefined) {
+      apiPatch.show_explanations = rest.showExplanations;
+    }
+    if (rest.studyReminders !== undefined) {
+      apiPatch.study_reminders = rest.studyReminders;
+    }
+    if (rest.weeklySummary !== undefined) {
+      apiPatch.weekly_summary = rest.weeklySummary;
+    }
+
+    if (Object.keys(apiPatch).length > 0) {
+      await api.updateSettings(apiPatch, nextLang ?? uiLangRef.current);
     }
   };
 
@@ -1234,6 +1554,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       closeLiveSocket();
       setQuizzes([]);
       setHistory([]);
+      setLiveHistory([]);
       setActiveQuizIdState('');
       setActiveAttemptId('');
       setPractice(EMPTY_PRACTICE);
@@ -1282,7 +1603,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         user,
         authLoading,
         login,
-        loginWithGoogle,
+        startGoogleOAuth,
+        unlinkGoogleOAuth,
         register,
         logout,
         refreshUser,
@@ -1301,13 +1623,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setActiveQuizId,
         loadQuizDetails,
         updateQuizQuestion,
+        deleteQuizQuestion,
+        deleteQuiz,
         saveQuizChanges,
         history,
+        liveHistory,
         activeAttemptId,
         setActiveAttemptId,
         loadAttemptDetails,
+        deleteAttempt,
+        clearAllAttempts,
+        deleteLiveHistoryRoom,
+        refreshHistory,
         practice,
         startPractice,
+        resetPractice,
         selectPracticeAnswer,
         setPracticeQuestionIndex,
         finishPractice,
@@ -1320,11 +1650,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setLiveTimer,
         createLiveRoom,
         joinLiveRoom,
+        joinAsHostPlayer,
+        leaveAsHostPlayer,
+        markLivePlayerReady,
         closeLiveRoom,
         advanceLiveRound,
         submitLiveAnswer,
         settings,
         updateSettings,
+        saveSettingsToBackend,
         exportAccountData,
         resetAllData,
         toastMessage,

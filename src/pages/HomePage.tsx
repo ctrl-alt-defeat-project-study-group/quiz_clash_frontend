@@ -1,379 +1,807 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { useApp } from '../context/AppContext';
-import { LanguageSwitch } from '../components/common';
-import { Progress } from '@/components/ui/progress';
+import { Link, useNavigate } from 'react-router-dom';
 import {
-  Drawer,
-  DrawerClose,
-  DrawerContent,
-  DrawerDescription,
-  DrawerHeader,
-  DrawerTitle,
-  DrawerTrigger
-} from '../components/ui/drawer';
-
-type HomeNavTab = 'overview' | 'features' | 'how-it-works';
-
-const HOME_SECTIONS: { id: HomeNavTab; elementId: string }[] = [
-  { id: 'overview', elementId: 'home-overview' },
-  { id: 'features', elementId: 'home-features' },
-  { id: 'how-it-works', elementId: 'home-how-it-works' }
-];
+  ArrowUp,
+  CheckSquare,
+  FileText,
+  User,
+  Users,
+  X
+} from 'lucide-react';
+import { useApp } from '../context/AppContext';
+import { ThemeSwitch } from '../components/common';
+import { Progress } from '@/components/ui/progress';
 
 export const HomePage: React.FC = () => {
   const { user, t } = useApp();
-  const frameRef = useRef<HTMLDivElement | null>(null);
-  const [activeTab, setActiveTab] = useState<HomeNavTab>('overview');
+  const navigate = useNavigate();
+
+  const sampleChoices = [
+    { letter: 'A', text: t('home.sampleChoiceA'), correct: false },
+    { letter: 'B', text: t('home.sampleChoiceB'), correct: true },
+    { letter: 'C', text: t('home.sampleChoiceC'), correct: false },
+    { letter: 'D', text: t('home.sampleChoiceD'), correct: false }
+  ];
+
+  const workflowSteps = [
+    {
+      title: t('home.workflowStep1Title'),
+      subtitle: t('home.workflowStep1Desc'),
+      stageTitle: t('home.workflowStep1Stage'),
+      items: [
+        {
+          icon: 'file' as const,
+          heading: t('home.workflowStep1DetailTitle'),
+          body: t('home.workflowStep1DetailBody')
+        }
+      ]
+    },
+    {
+      title: t('home.workflowStep2Title'),
+      subtitle: t('home.workflowStep2Desc'),
+      stageTitle: t('home.workflowStep2Stage'),
+      items: [
+        {
+          icon: 'check' as const,
+          heading: t('home.sampleQuestion'),
+          body: t('home.workflowStep2DetailBody')
+        }
+      ]
+    },
+    {
+      title: t('home.workflowStep3Title'),
+      subtitle: t('home.workflowStep3Desc'),
+      stageTitle: t('home.workflowStep3Stage'),
+      items: [
+        {
+          icon: 'user' as const,
+          heading: t('home.workflowStep3SoloTitle'),
+          body: t('home.workflowStep3SoloBody')
+        },
+        {
+          icon: 'users' as const,
+          heading: t('home.workflowStep3LiveTitle'),
+          body: t('home.workflowStep3LiveBody')
+        }
+      ]
+    }
+  ];
+
   const [scrollProgress, setScrollProgress] = useState<number>(0);
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [activeNav, setActiveNav] = useState<'overview' | 'features' | 'how-it-works'>(
+    'overview'
+  );
+  const [navIndicator, setNavIndicator] = useState<{ left: number; width: number }>({
+    left: 0,
+    width: 0
+  });
+  const [selectedSample, setSelectedSample] = useState<number | null>(null);
+  const [activeStep, setActiveStep] = useState<number>(0);
+  const [revealedFeatures, setRevealedFeatures] = useState<boolean[]>([
+    false,
+    false,
+    false
+  ]);
+  const [revealedSteps, setRevealedSteps] = useState<boolean[]>([false, false, false]);
+  const [trackHeight, setTrackHeight] = useState<number>(0);
+  const [trackProgress, setTrackProgress] = useState<number>(0);
+  const [joinOpen, setJoinOpen] = useState<boolean>(false);
+  const [joinPin, setJoinPin] = useState<string>('');
+  const [joinError, setJoinError] = useState<string>('');
+
+  const navBtnRefs = useRef<
+    Record<'overview' | 'features' | 'how-it-works', HTMLButtonElement | null>
+  >({
+    overview: null,
+    features: null,
+    'how-it-works': null
+  });
+  const featureRefs = useRef<(HTMLElement | null)[]>([]);
+  const workflowRef = useRef<HTMLDivElement | null>(null);
+  const stepLiRefs = useRef<(HTMLLIElement | null)[]>([]);
+  const manualStepUntilRef = useRef<number>(0);
+  const manualNavUntilRef = useRef<number>(0);
+  const activeNavRef = useRef<'overview' | 'features' | 'how-it-works'>('overview');
 
   useEffect(() => {
-    const frameEl = frameRef.current;
-
-    const handleScroll = () => {
-      const isFrameScrolling =
-        frameEl &&
-        frameEl.scrollHeight > frameEl.clientHeight + 2 &&
-        window.getComputedStyle(frameEl).overflowY !== 'visible';
-
-      const scrollTop = isFrameScrolling ? frameEl.scrollTop : window.scrollY;
-      const maxScroll = isFrameScrolling
-        ? frameEl.scrollHeight - frameEl.clientHeight
-        : document.documentElement.scrollHeight - window.innerHeight;
-
-      const pct = maxScroll > 0 ? Math.min(100, Math.max(0, (scrollTop / maxScroll) * 100)) : 0;
-      setScrollProgress(pct);
-
-      if (pct >= 98) {
-        setActiveTab('how-it-works');
-        return;
+    document.title = 'QuizClash · Turn notes into quizzes';
+    const initialHash = window.location.hash.replace(/^#/, '');
+    if (initialHash) {
+      const target = document.getElementById(initialHash);
+      if (target) {
+        window.requestAnimationFrame(() => {
+          const top = Math.max(0, target.getBoundingClientRect().top + window.scrollY - 82);
+          window.scrollTo({ top, behavior: 'smooth' });
+        });
       }
+    }
+  }, []);
 
-      const threshold = 140;
-      let current: HomeNavTab = 'overview';
-      for (const sec of HOME_SECTIONS) {
-        const el = document.getElementById(sec.elementId);
-        if (!el) continue;
-        const rect = el.getBoundingClientRect();
-        if (rect.top <= threshold) {
-          current = sec.id;
-        }
-      }
-      setActiveTab(current);
+  // Sync sliding nav underline indicator to the active section button
+  useEffect(() => {
+    const syncIndicator = () => {
+      const btn = navBtnRefs.current[activeNav];
+      if (!btn) return;
+      setNavIndicator({ left: btn.offsetLeft, width: btn.offsetWidth });
+    };
+    syncIndicator();
+    window.addEventListener('resize', syncIndicator);
+    return () => window.removeEventListener('resize', syncIndicator);
+  }, [activeNav, t]);
+
+  // Measure vertical workflow track line & progress ratio
+  useEffect(() => {
+    const updateTrack = () => {
+      const first = stepLiRefs.current[0];
+      const last = stepLiRefs.current[workflowSteps.length - 1];
+      const active = stepLiRefs.current[activeStep];
+      if (!first || !last || !active) return;
+      const start = first.offsetTop;
+      const height = Math.max(0, last.offsetTop - start);
+      setTrackHeight(height);
+      setTrackProgress(height > 0 ? (active.offsetTop - start) / height : 0);
     };
 
-    handleScroll();
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    window.addEventListener('resize', handleScroll, { passive: true });
-    frameEl?.addEventListener('scroll', handleScroll, { passive: true });
-
+    updateTrack();
+    window.addEventListener('resize', updateTrack);
+    let ro: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined') {
+      ro = new ResizeObserver(updateTrack);
+      stepLiRefs.current.forEach((el) => {
+        if (el) ro?.observe(el);
+      });
+    }
     return () => {
-      window.removeEventListener('scroll', handleScroll);
-      window.removeEventListener('resize', handleScroll);
-      frameEl?.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('resize', updateTrack);
+      ro?.disconnect();
+    };
+  }, [activeStep, workflowSteps.length]);
+
+  // Scroll-reveal for feature cards & workflow steps + scroll-linked active step
+  useEffect(() => {
+    if (typeof IntersectionObserver === 'undefined') {
+      return;
+    }
+
+    const featureObserver = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          const idx = featureRefs.current.indexOf(entry.target as HTMLElement);
+          if (idx >= 0) {
+            setRevealedFeatures((prev) =>
+              prev[idx] ? prev : prev.map((v, i) => (i === idx ? true : v))
+            );
+            featureObserver.unobserve(entry.target);
+          }
+        });
+      },
+      { threshold: 0.14 }
+    );
+
+    featureRefs.current.forEach((el) => {
+      if (el) featureObserver.observe(el);
+    });
+
+    const stepObserver = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          const idx = stepLiRefs.current.indexOf(entry.target as HTMLLIElement);
+          if (idx >= 0) {
+            setRevealedSteps((prev) =>
+              prev[idx] ? prev : prev.map((v, i) => (i === idx ? true : v))
+            );
+            stepObserver.unobserve(entry.target);
+          }
+        });
+      },
+      { rootMargin: '0px 0px -12% 0px', threshold: 0.12 }
+    );
+
+    stepLiRefs.current.forEach((el) => {
+      if (el) stepObserver.observe(el);
+    });
+
+    let rafId = 0;
+    const onWorkflowScroll = () => {
+      if (rafId || Date.now() < manualStepUntilRef.current) return;
+      rafId = window.requestAnimationFrame(() => {
+        rafId = 0;
+        const wf = workflowRef.current;
+        if (!wf) return;
+        const bounds = wf.getBoundingClientRect();
+        const anchor = window.innerHeight * 0.68;
+        if (bounds.top > anchor || bounds.bottom < 0) return;
+        let nextIdx = 0;
+        stepLiRefs.current.forEach((el, i) => {
+          if (el && el.getBoundingClientRect().top <= anchor) {
+            nextIdx = i;
+          }
+        });
+        setActiveStep(nextIdx);
+      });
+    };
+
+    window.addEventListener('scroll', onWorkflowScroll, { passive: true });
+    return () => {
+      featureObserver.disconnect();
+      stepObserver.disconnect();
+      window.removeEventListener('scroll', onWorkflowScroll);
+      if (rafId) window.cancelAnimationFrame(rafId);
     };
   }, []);
 
-  const scrollToSection = (tab: HomeNavTab, sectionId: string) => {
-    setActiveTab(tab);
-    setMenuOpen(false);
-    const el = document.getElementById(sectionId);
+  useEffect(() => {
+    let rafId = 0;
+
+    const measure = () => {
+      rafId = 0;
+      const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+      const pct =
+        maxScroll > 0 ? Math.min(100, Math.max(0, (window.scrollY / maxScroll) * 100)) : 0;
+      setScrollProgress(pct);
+
+      // Avoid fighting the nav pill while a clicked smooth-scroll is in flight
+      if (Date.now() < manualNavUntilRef.current) return;
+
+      let current: 'overview' | 'features' | 'how-it-works' = 'overview';
+      if (pct >= 96) {
+        current = 'how-it-works';
+      } else {
+        const sectionIds: ('overview' | 'features' | 'how-it-works')[] = [
+          'overview',
+          'features',
+          'how-it-works'
+        ];
+        for (const secId of sectionIds) {
+          const el = document.getElementById(secId);
+          if (el && el.getBoundingClientRect().top <= 160) {
+            current = secId;
+          }
+        }
+      }
+
+      if (activeNavRef.current !== current) {
+        activeNavRef.current = current;
+        setActiveNav(current);
+        const nextHash = `#${current}`;
+        if (window.location.hash !== nextHash) {
+          window.history.replaceState(null, '', nextHash);
+        }
+      }
+    };
+
+    const onScroll = () => {
+      if (!rafId) {
+        rafId = window.requestAnimationFrame(measure);
+      }
+    };
+
+    measure();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onScroll);
+      if (rafId) window.cancelAnimationFrame(rafId);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!joinOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setJoinOpen(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [joinOpen]);
+
+  const scrollToSection = (id: string) => {
+    if (id === 'overview' || id === 'features' || id === 'how-it-works') {
+      manualNavUntilRef.current = Date.now() + 850;
+      activeNavRef.current = id;
+      setActiveNav(id);
+    }
+    window.history.pushState(null, '', `#${id}`);
+    const el = document.getElementById(id);
     if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      const top = Math.max(0, el.getBoundingClientRect().top + window.scrollY - 82);
+      window.scrollTo({ top, behavior: 'smooth' });
     }
   };
 
+  const handleGuestJoinSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanPin = joinPin.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+    if (!/^[A-Z0-9]{6,12}$/.test(cleanPin)) {
+      setJoinError(t('home.guestJoinError'));
+      return;
+    }
+    setJoinError('');
+    setJoinOpen(false);
+    navigate(`/rooms/${cleanPin}`);
+  };
+
+  const currentWorkflow = workflowSteps[activeStep] ?? workflowSteps[0];
+
   return (
-    <div ref={frameRef} className="home-frame">
-      {/* Top Navigation Bar + Page Scroll Progress */}
-      <div className="home-sticky-nav">
-        <header className="home-header" data-name="Home top navigation">
-        <Link className="brand home-mobile-brand" to="/" data-name="QuizClash">
-          <span className="brand-mark" aria-hidden="true"></span>
-          <span>QuizClash</span>
-        </Link>
+    <div className="qh-page">
+      {/* Sticky Site Header */}
+      <header className="qh-sticky-header" data-name="Home top navigation">
+        <div className="qh-container qh-header-inner">
+          <a
+            className="qh-brand"
+            href="#overview"
+            onClick={(e) => {
+              e.preventDefault();
+              scrollToSection('overview');
+            }}
+          >
+            <span className="qh-brand-mark" aria-hidden="true" />
+            <span>QuizClash</span>
+          </a>
 
-        <nav className="home-top-tabs" aria-label={t('home.primaryNavAria')}>
-          <button
-            type="button"
-            className={`home-top-tab ${activeTab === 'overview' ? 'active' : ''}`}
-            onClick={() => scrollToSection('overview', 'home-overview')}
-          >
-            {t('home.tabOverview')}
-          </button>
-          <button
-            type="button"
-            className={`home-top-tab ${activeTab === 'features' ? 'active' : ''}`}
-            onClick={() => scrollToSection('features', 'home-features')}
-          >
-            {t('home.tabFeatures')}
-          </button>
-          <button
-            type="button"
-            className={`home-top-tab ${activeTab === 'how-it-works' ? 'active' : ''}`}
-            onClick={() => scrollToSection('how-it-works', 'home-how-it-works')}
-          >
-            {t('home.tabHowItWorks')}
-          </button>
-        </nav>
+          <nav className="qh-nav" aria-label={t('home.primaryNavAria')}>
+            <button
+              ref={(el) => {
+                navBtnRefs.current.overview = el;
+              }}
+              type="button"
+              className={activeNav === 'overview' ? 'active' : ''}
+              aria-current={activeNav === 'overview' ? 'true' : undefined}
+              onClick={() => scrollToSection('overview')}
+            >
+              {t('home.tabOverview')}
+            </button>
+            <button
+              ref={(el) => {
+                navBtnRefs.current.features = el;
+              }}
+              type="button"
+              className={activeNav === 'features' ? 'active' : ''}
+              aria-current={activeNav === 'features' ? 'true' : undefined}
+              onClick={() => scrollToSection('features')}
+            >
+              {t('home.tabFeatures')}
+            </button>
+            <button
+              ref={(el) => {
+                navBtnRefs.current['how-it-works'] = el;
+              }}
+              type="button"
+              className={activeNav === 'how-it-works' ? 'active' : ''}
+              aria-current={activeNav === 'how-it-works' ? 'true' : undefined}
+              onClick={() => scrollToSection('how-it-works')}
+            >
+              {t('home.tabHowItWorks')}
+            </button>
+            <span
+              className="qh-nav-indicator"
+              aria-hidden="true"
+              style={{
+                width: navIndicator.width,
+                transform: `translate3d(${navIndicator.left}px, 0, 0)`,
+                opacity: navIndicator.width > 0 ? 1 : 0
+              }}
+            />
+          </nav>
 
-        <div className="home-header-actions">
-          <LanguageSwitch />
-          {user ? (
-            <Link to="/dashboard" className="btn btn-sm btn-primary home-desktop-cta">
-              {t('nav.dashboard')}
-            </Link>
-          ) : (
-            <>
-              <Link to="/login" className="btn btn-sm home-desktop-cta">
+          <div className="qh-header-actions">
+            <ThemeSwitch />
+            {user ? (
+              <Link to="/dashboard" className="qh-btn sm primary">
+                {t('nav.dashboard')}
+              </Link>
+            ) : (
+              <Link to="/login" className="qh-btn sm primary">
                 {t('auth.signIn')}
               </Link>
-              <Link to="/register" className="btn btn-sm btn-primary home-desktop-cta">
-                {t('auth.signUp')}
-              </Link>
-            </>
-          )}
-          <Drawer direction="right" open={menuOpen} onOpenChange={setMenuOpen}>
-            <DrawerTrigger asChild>
-              <button
-                type="button"
-                className="btn btn-sm home-hamburger-btn"
-                aria-label={t('nav.openMenuAria')}
-                title={t('nav.openMenuTitle')}
-              >
-                <svg
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden="true"
-                >
-                  <line x1="3" y1="6" x2="21" y2="6" />
-                  <line x1="3" y1="12" x2="21" y2="12" />
-                  <line x1="3" y1="18" x2="21" y2="18" />
-                </svg>
-              </button>
-            </DrawerTrigger>
-
-            <DrawerContent className="mobile-drawer-content">
-              <DrawerHeader className="mobile-drawer-header">
-                <div className="mobile-drawer-brand-row">
-                  <Link className="brand" to="/" onClick={() => setMenuOpen(false)}>
-                    <span className="brand-mark" aria-hidden="true"></span>
-                    <span>QuizClash</span>
-                  </Link>
-                  <DrawerClose asChild>
-                    <button
-                      type="button"
-                      className="btn btn-sm mobile-drawer-close-btn"
-                      aria-label={t('nav.closeMenuAria')}
-                    >
-                      ✕
-                    </button>
-                  </DrawerClose>
-                </div>
-                <DrawerTitle className="visually-hidden">
-                  {t('nav.navigationMenu')}
-                </DrawerTitle>
-                <DrawerDescription className="mobile-drawer-tagline">
-                  {t('nav.tagline')}
-                </DrawerDescription>
-              </DrawerHeader>
-
-              <div className="mobile-drawer-body">
-                <nav className="nav-list" aria-label={t('home.mobileNavAria')}>
-                  <button
-                    type="button"
-                    className={`nav-link home-drawer-btn ${
-                      activeTab === 'overview' ? 'active' : ''
-                    }`}
-                    onClick={() => scrollToSection('overview', 'home-overview')}
-                  >
-                    {t('home.tabOverview')}
-                  </button>
-                  <button
-                    type="button"
-                    className={`nav-link home-drawer-btn ${
-                      activeTab === 'features' ? 'active' : ''
-                    }`}
-                    onClick={() => scrollToSection('features', 'home-features')}
-                  >
-                    {t('home.tabFeatures')}
-                  </button>
-                  <button
-                    type="button"
-                    className={`nav-link home-drawer-btn ${
-                      activeTab === 'how-it-works' ? 'active' : ''
-                    }`}
-                    onClick={() => scrollToSection('how-it-works', 'home-how-it-works')}
-                  >
-                    {t('home.tabHowItWorks')}
-                  </button>
-                </nav>
-
-                <div className="sidebar-footer" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {user ? (
-                    <Link
-                      to="/dashboard"
-                      className="btn btn-primary w-full"
-                      onClick={() => setMenuOpen(false)}
-                    >
-                      {t('nav.dashboard')}
-                    </Link>
-                  ) : (
-                    <>
-                      <Link
-                        to="/login"
-                        className="btn btn-primary w-full"
-                        onClick={() => setMenuOpen(false)}
-                      >
-                        {t('auth.signIn')}
-                      </Link>
-                      <Link
-                        to="/register"
-                        className="btn w-full"
-                        onClick={() => setMenuOpen(false)}
-                      >
-                        {t('auth.signUp')}
-                      </Link>
-                    </>
-                  )}
-                </div>
-              </div>
-            </DrawerContent>
-          </Drawer>
-        </div>
-        </header>
-        <Progress
-          value={scrollProgress}
-          className="home-scroll-progress !h-[3px] !rounded-none bg-transparent"
-          aria-label={t('home.scrollProgressAria')}
-        />
-      </div>
-
-      {/* Main Landing Content */}
-      <main className="home-main">
-        {/* Hero */}
-        <section id="home-overview" className="home-hero box-card">
-          <div className="eyebrow">{t('home.heroEyebrow')}</div>
-          <h1 className="home-hero-title">
-            {t('home.heroTitle')}
-          </h1>
-          <p className="home-hero-subtitle">
-            {t('home.heroSubtitle')}
-          </p>
-          <div className="btn-row">
-            {user ? (
-              <>
-                <Link to="/dashboard" className="btn btn-primary">
-                  {t('home.openWorkspaceBtn')}
-                </Link>
-                <Link to="/generate" className="btn">
-                  {t('home.createQuizBtn')}
-                </Link>
-                <Link to="/lobby" className="btn">
-                  {t('home.joinLiveGameBtn')}
-                </Link>
-              </>
-            ) : (
-              <>
-                <Link to="/register" className="btn btn-primary">
-                  {t('auth.signUp')}
-                </Link>
-                <Link to="/login" className="btn">
-                  {t('auth.signIn')}
-                </Link>
-              </>
             )}
           </div>
+        </div>
+
+        <Progress
+          value={scrollProgress}
+          className="h-[3px] w-full rounded-none bg-transparent [&>div]:bg-primary"
+          aria-label={t('home.scrollProgressAria')}
+        />
+      </header>
+
+      <main className="qh-container">
+        {/* Hero Section + Interactive Sample Quiz */}
+        <section className="qh-hero" id="overview">
+          <div className="qh-hero-copy">
+            <h1>
+              {t('home.heroHeadingLead')} <span>{t('home.heroHeadingAccent')}</span>
+            </h1>
+            <p className="qh-lead">{t('home.heroLeadShort')}</p>
+            <div className="qh-actions">
+              <Link to={user ? '/generate' : '/register'} className="qh-btn primary">
+                {t('home.createQuizBtn')}
+              </Link>
+              <button
+                type="button"
+                className="qh-btn"
+                onClick={() => {
+                  setJoinError('');
+                  setJoinOpen(true);
+                }}
+              >
+                {t('nav.joinGame')}
+              </button>
+            </div>
+          </div>
+
+          <div className="qh-demo" id="sample">
+            <section className="qh-sample" aria-labelledby="sample-title">
+              <div className="qh-sample-top">
+                <strong>{t('home.sampleTopTitle')}</strong>
+                <span>{t('home.sampleTopBadge')}</span>
+              </div>
+              <div className="qh-sample-body">
+                <h2 id="sample-title">{t('home.sampleQuestion')}</h2>
+                <div className="qh-choices" aria-label={t('home.sampleTopTitle')}>
+                  {sampleChoices.map((opt, idx) => {
+                    const answered = selectedSample !== null;
+                    const isCorrect = answered && opt.correct;
+                    const isWrong = answered && selectedSample === idx && !opt.correct;
+                    const cls = [
+                      'qh-choice',
+                      isCorrect && 'correct',
+                      isWrong && 'wrong'
+                    ]
+                      .filter(Boolean)
+                      .join(' ');
+                    return (
+                      <button
+                        key={opt.letter}
+                        type="button"
+                        className={cls}
+                        onClick={() => setSelectedSample(idx)}
+                      >
+                        <span className="qh-choice-letter" aria-hidden="true">
+                          {isCorrect ? '✓' : isWrong ? '×' : opt.letter}
+                        </span>
+                        <span>{opt.text}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </section>
+          </div>
         </section>
 
-        {/* Features */}
-        <section id="home-features" className="home-section">
-          <div className="home-section-head">
-            <div className="eyebrow">{t('home.featuresEyebrow')}</div>
-            <h2 className="section-title">{t('home.featuresTitle')}</h2>
-          </div>
-
-          <div className="home-grid-3">
-            <article className="box-card home-feature-card">
-              <div className="home-step-badge">{t('home.feature01Num')}</div>
-              <h3>{t('home.feature01Title')}</h3>
-              <p className="helper-text">
-                {t('home.feature01Desc')}
-              </p>
+        {/* Features Bento Grid */}
+        <section className="qh-features" id="features">
+          <h2 className="qh-section-title">{t('home.bentoTitle')}</h2>
+          <div className="qh-feature-grid is-animated">
+            <article
+              ref={(el) => {
+                featureRefs.current[0] = el;
+              }}
+              style={{ '--qh-delay': '0ms' } as React.CSSProperties}
+              className={`qh-feature-tile is-primary ${
+                revealedFeatures[0] ? 'is-revealed' : ''
+              }`}
+            >
+              <div>
+                <h3>{t('home.bentoGenerateTitle')}</h3>
+                <p>{t('home.bentoGenerateDesc')}</p>
+              </div>
+              <div className="qh-mock" aria-hidden="true">
+                <strong>{t('home.bentoMockNotesLabel')}</strong>
+                <p>{t('home.bentoMockNotesText')}</p>
+                <div style={{ height: 14 }} />
+                <strong>{t('home.bentoMockQuestionLabel')}</strong>
+                <p>{t('home.sampleQuestion')}</p>
+              </div>
             </article>
 
-            <article className="box-card home-feature-card">
-              <div className="home-step-badge">{t('home.feature02Num')}</div>
-              <h3>{t('home.feature02Title')}</h3>
-              <p className="helper-text">
-                {t('home.feature02Desc')}
-              </p>
+            <article
+              ref={(el) => {
+                featureRefs.current[1] = el;
+              }}
+              style={{ '--qh-delay': '150ms' } as React.CSSProperties}
+              className={`qh-feature-tile ${revealedFeatures[1] ? 'is-revealed' : ''}`}
+            >
+              <div>
+                <h3>{t('home.bentoPracticeTitle')}</h3>
+                <p>{t('home.bentoPracticeDesc')}</p>
+              </div>
+              <div className="qh-mock qh-mock-row" aria-hidden="true">
+                <span className="qh-mock-chip">A · {t('home.sampleChoiceA')}</span>
+                <span className="qh-mock-chip correct">✓ {t('home.sampleChoiceB')}</span>
+              </div>
             </article>
 
-            <article className="box-card home-feature-card">
-              <div className="home-step-badge">{t('home.feature03Num')}</div>
-              <h3>{t('home.feature03Title')}</h3>
-              <p className="helper-text">
-                {t('home.feature03Desc')}
-              </p>
+            <article
+              ref={(el) => {
+                featureRefs.current[2] = el;
+              }}
+              style={{ '--qh-delay': '300ms' } as React.CSSProperties}
+              className={`qh-feature-tile is-surface ${
+                revealedFeatures[2] ? 'is-revealed' : ''
+              }`}
+            >
+              <div>
+                <h3>{t('home.bentoLiveTitle')}</h3>
+                <p>{t('home.bentoLiveDesc')}</p>
+              </div>
+              <div className="qh-mock" aria-hidden="true">
+                <strong>{t('home.bentoSamplePinLabel')}</strong>
+                <span className="qh-mock-pin">731 409</span>
+              </div>
             </article>
           </div>
         </section>
 
-        {/* How it works */}
-        <section id="home-how-it-works" className="home-section">
-          <div className="home-section-head">
-            <div className="eyebrow">{t('home.howItWorksEyebrow')}</div>
-            <h2 className="section-title">{t('home.howItWorksTitle')}</h2>
-          </div>
+        {/* Interactive How It Works Section */}
+        <section className="qh-steps-section" id="how-it-works">
+          <h2 className="qh-section-title">{t('home.tabHowItWorks')}</h2>
+          <div ref={workflowRef} className="qh-workflow is-animated">
+            <ol
+              aria-label={t('home.tabHowItWorks')}
+              style={
+                {
+                  '--qh-track-height': `${trackHeight}px`,
+                  '--qh-progress': trackProgress
+                } as React.CSSProperties
+              }
+            >
+              {workflowSteps.map((step, idx) => {
+                const isActive = idx === activeStep;
+                const isComplete = idx < activeStep;
+                const isInView = revealedSteps[idx];
+                return (
+                  <li
+                    key={step.title}
+                    ref={(el) => {
+                      stepLiRefs.current[idx] = el;
+                    }}
+                    className={[
+                      isActive && 'active',
+                      isComplete && 'complete',
+                      isInView && 'in-view'
+                    ]
+                      .filter(Boolean)
+                      .join(' ')}
+                  >
+                    <span className="qh-step-number" aria-hidden="true">
+                      {idx + 1}
+                    </span>
+                    <button
+                      type="button"
+                      className="qh-step-button"
+                      aria-pressed={isActive}
+                      onClick={() => {
+                        manualStepUntilRef.current = Date.now() + 900;
+                        setActiveStep(idx);
+                      }}
+                    >
+                      <strong>{step.title}</strong>
+                      <span>{step.subtitle}</span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ol>
 
-          <div className="home-grid-3">
-            <article className="box-subtle home-step-card">
-              <div className="eyebrow">{t('home.step01Eyebrow')}</div>
-              <h3>{t('home.step01Title')}</h3>
-              <p className="helper-text">
-                {t('home.step01Desc')}
-              </p>
-            </article>
-
-            <article className="box-subtle home-step-card">
-              <div className="eyebrow">{t('home.step02Eyebrow')}</div>
-              <h3>{t('home.step02Title')}</h3>
-              <p className="helper-text">
-                {t('home.step02Desc')}
-              </p>
-            </article>
-
-            <article className="box-subtle home-step-card">
-              <div className="eyebrow">{t('home.step03Eyebrow')}</div>
-              <h3>{t('home.step03Title')}</h3>
-              <p className="helper-text">
-                {t('home.step03Desc')}
-              </p>
-            </article>
+            <div className="qh-workflow-stage" id="workflow-preview">
+              <div key={activeStep} className="qh-workflow-preview-body">
+                <h3 style={{ marginBottom: 16 }}>{currentWorkflow.stageTitle}</h3>
+                <div className="qh-workflow-detail">
+                  {currentWorkflow.items.map((item) => (
+                    <div key={item.heading} className="qh-workflow-detail-row">
+                      <span className="qh-workflow-detail-icon" aria-hidden="true">
+                        {item.icon === 'file' ? (
+                          <FileText size={18} />
+                        ) : item.icon === 'check' ? (
+                          <CheckSquare size={18} />
+                        ) : item.icon === 'user' ? (
+                          <User size={18} />
+                        ) : (
+                          <Users size={18} />
+                        )}
+                      </span>
+                      <div>
+                        <strong>{item.heading}</strong>
+                        <p>{item.body}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
         </section>
       </main>
 
-      <footer className="home-footer">
-        <span className="helper-text">{t('home.footerTagline')}</span>
-        {user ? (
-          <Link to="/dashboard" className="text-link">
-            {t('home.goToDashboard')}
-          </Link>
-        ) : (
-          <Link to="/login" className="text-link">
-            {t('auth.signIn')} →
-          </Link>
-        )}
+      {/* Footer */}
+      <footer className="qh-footer">
+        <div className="qh-container qh-footer-grid">
+          <div className="qh-footer-brand">
+            <a
+              className="qh-brand"
+              href="#overview"
+              onClick={(e) => {
+                e.preventDefault();
+                scrollToSection('overview');
+              }}
+            >
+              <span className="qh-brand-mark" aria-hidden="true" />
+              <span>QuizClash</span>
+            </a>
+            <p>{t('home.footerDesc')}</p>
+          </div>
+
+          <nav className="qh-footer-nav" aria-labelledby="footer-explore">
+            <h2 id="footer-explore">{t('home.footerExplore')}</h2>
+            <button type="button" onClick={() => scrollToSection('features')}>
+              {t('home.tabFeatures')}
+            </button>
+            <button type="button" onClick={() => scrollToSection('how-it-works')}>
+              {t('home.tabHowItWorks')}
+            </button>
+            <button type="button" onClick={() => scrollToSection('sample')}>
+              {t('home.footerTryQuestion')}
+            </button>
+          </nav>
+
+          <nav className="qh-footer-nav" aria-labelledby="footer-live">
+            <h2 id="footer-live">{t('home.footerLiveGames')}</h2>
+            <Link to="/lobby">{t('home.footerOpenLobby')}</Link>
+            <button
+              type="button"
+              onClick={() => {
+                setJoinError('');
+                setJoinOpen(true);
+              }}
+            >
+              {t('home.footerJoinWithPin')}
+            </button>
+            {user ? (
+              <Link to="/dashboard">{t('nav.dashboard')}</Link>
+            ) : (
+              <Link to="/login">{t('auth.signIn')}</Link>
+            )}
+          </nav>
+        </div>
+
+        <div className="qh-container qh-footer-inner">
+          <span>© 2026 QuizClash</span>
+          <button
+            type="button"
+            className="qh-back-to-top"
+            aria-label={t('home.backToTop')}
+            title={t('home.backToTop')}
+            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          >
+            <ArrowUp size={18} aria-hidden="true" />
+          </button>
+        </div>
       </footer>
+
+      {/* Guest Join Room PIN Modal */}
+      {joinOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="guest-join-title"
+          onClick={() => setJoinOpen(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 60,
+            background: 'rgba(33, 25, 71, 0.62)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 16
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: 'min(440px, 100%)',
+              background: 'var(--qh-surface)',
+              color: 'var(--qh-ink)',
+              border: '1px solid var(--qh-line)',
+              borderRadius: 16,
+              padding: 24
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: 14
+              }}
+            >
+              <h2
+                id="guest-join-title"
+                style={{ margin: 0, fontSize: 20, fontWeight: 700 }}
+              >
+                {t('nav.joinGame')}
+              </h2>
+              <button
+                type="button"
+                className="qh-btn sm"
+                aria-label={t('review.closePreview')}
+                onClick={() => setJoinOpen(false)}
+                style={{ padding: '6px 8px', minHeight: 34 }}
+              >
+                <X size={16} aria-hidden="true" />
+              </button>
+            </div>
+
+            <form onSubmit={handleGuestJoinSubmit}>
+              <label
+                htmlFor="home-join-code"
+                style={{
+                  display: 'block',
+                  fontSize: 14,
+                  fontWeight: 700,
+                  marginBottom: 8
+                }}
+              >
+                {t('home.guestJoinLabel')}
+              </label>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'minmax(0, 1fr) auto',
+                  gap: 8
+                }}
+              >
+                <input
+                  id="home-join-code"
+                  type="text"
+                  autoComplete="off"
+                  maxLength={14}
+                  placeholder={t('home.guestJoinPlaceholder')}
+                  autoFocus
+                  value={joinPin}
+                  onChange={(e) => {
+                    setJoinPin(e.target.value.toUpperCase());
+                    if (joinError) setJoinError('');
+                  }}
+                  style={{
+                    minWidth: 0,
+                    padding: '9px 12px',
+                    border: '1px solid var(--qh-line)',
+                    borderRadius: 10,
+                    color: 'var(--qh-ink)',
+                    background: 'var(--qh-canvas)',
+                    textTransform: 'uppercase'
+                  }}
+                />
+                <button type="submit" className="qh-btn primary">
+                  {t('nav.joinGame')}
+                </button>
+              </div>
+              <p style={{ margin: '8px 0 0', fontSize: 13, color: 'var(--qh-muted)' }}>
+                {t('home.guestJoinHint')}
+              </p>
+              {joinError && (
+                <p
+                  role="alert"
+                  style={{
+                    margin: '8px 0 0',
+                    fontSize: 13,
+                    color: 'var(--qh-wrong-ink)'
+                  }}
+                >
+                  {joinError}
+                </p>
+              )}
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

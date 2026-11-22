@@ -1,9 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { ChevronDown, Settings } from 'lucide-react';
-import defaultAvatar from '../../assets/avatar.svg';
 import { useApp } from '../../context/AppContext';
-import { LanguageSwitch } from '../common';
+import { ThemeSwitch, UserAvatar } from '../common';
 import { Progress } from '@/components/ui/progress';
 import {
   Drawer,
@@ -100,6 +99,7 @@ export const AppLayout: React.FC = () => {
     if (section === 's6')
       return (
         path.startsWith('/lobby') ||
+        path.startsWith('/rooms') ||
         path.startsWith('/leaderboard') ||
         path === '/s6' ||
         path === '/s7'
@@ -219,8 +219,8 @@ export const AppLayout: React.FC = () => {
                 if (isMobile) setDrawerOpen(false);
               }}
             >
-              <img
-                src={defaultAvatar}
+              <UserAvatar
+                avatarUrl={user?.avatar_url ?? settings.avatarUrl}
                 alt={user?.display_name || settings.displayName || t('auth.signIn')}
                 className="sidebar-avatar"
               />
@@ -277,7 +277,7 @@ export const AppLayout: React.FC = () => {
           </div>
 
           <div className="header-right">
-            <LanguageSwitch />
+            <ThemeSwitch variant="header" />
             {!user && (
               <Link to="/login" className="btn btn-sm btn-primary">
                 {t('auth.signIn')}
@@ -294,8 +294,8 @@ export const AppLayout: React.FC = () => {
               title={user?.display_name || settings.displayName || t('auth.signIn')}
               aria-label={user?.display_name || settings.displayName || t('auth.signIn')}
             >
-              <img
-                src={defaultAvatar}
+              <UserAvatar
+                avatarUrl={user?.avatar_url ?? settings.avatarUrl}
                 alt={user?.display_name || settings.displayName || t('auth.signIn')}
                 className="header-avatar"
               />

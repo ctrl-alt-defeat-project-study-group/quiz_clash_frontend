@@ -94,7 +94,9 @@ export function App() {
             <Route path="/rooms/:pin" element={<LiveLobbyPage />} />
             <Route path="/s6" element={<LiveLobbyPage />} />
 
-            {/* Screen 07: Live Leaderboard */}
+            {/* Screen 07: Live Game Room (Host & Player Arena) */}
+            <Route path="/rooms/:pin/play" element={<LiveLeaderboardPage />} />
+            <Route path="/rooms/play" element={<LiveLeaderboardPage />} />
             <Route path="/leaderboard" element={<LiveLeaderboardPage />} />
             <Route path="/s7" element={<LiveLeaderboardPage />} />
           </Route>

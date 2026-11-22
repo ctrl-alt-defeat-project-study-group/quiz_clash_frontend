@@ -4,7 +4,16 @@ import { useApp } from '../context/AppContext';
 import { PageHeader, SectionCard, StatCard } from '../components/common';
 
 export const DashboardPage: React.FC = () => {
-  const { quizzes, history, activeQuiz, practice, setActiveQuizId, t } = useApp();
+  const {
+    quizzes,
+    history,
+    activeQuiz,
+    practice,
+    setActiveQuizId,
+    deleteQuiz,
+    openModal,
+    t
+  } = useApp();
   const navigate = useNavigate();
 
   const avgScore = history.length
@@ -90,16 +99,35 @@ export const DashboardPage: React.FC = () => {
                     </td>
                     <td>{q.updated || t('common.today')}</td>
                     <td>
-                      <button
-                        type="button"
-                        className="text-link"
-                        onClick={() => {
-                          setActiveQuizId(q.id);
-                          navigate(`/quizzes/${encodeURIComponent(q.id)}`);
-                        }}
-                      >
-                        {t('dashboard.openQuiz')}
-                      </button>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                        <button
+                          type="button"
+                          className="text-link"
+                          onClick={() => {
+                            setActiveQuizId(q.id);
+                            navigate(`/quizzes/${encodeURIComponent(q.id)}`);
+                          }}
+                        >
+                          {t('dashboard.openQuiz')}
+                        </button>
+                        <button
+                          type="button"
+                          className="text-link"
+                          style={{ color: 'var(--danger, #dc2626)' }}
+                          onClick={() => {
+                            openModal({
+                              title: t('review.deleteQuizConfirmTitle'),
+                              message: t('review.deleteQuizConfirmMsg', { title: q.title }),
+                              confirmLabel: t('review.deleteQuiz'),
+                              onConfirm: () => {
+                                void deleteQuiz(q.id);
+                              }
+                            });
+                          }}
+                        >
+                          {t('review.deleteQuiz')}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))

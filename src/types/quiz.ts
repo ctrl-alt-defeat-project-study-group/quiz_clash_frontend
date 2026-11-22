@@ -21,9 +21,16 @@ export interface UserProfile {
   id: number;
   email: string;
   display_name: string;
+  avatar_url?: string | null;
   role: 'user' | 'admin';
   is_active: boolean;
   email_verified_at: string | null; // ISO datetime
+  has_password?: boolean;
+  oauth_providers?: string[];
+}
+
+export interface ApiOAuthProvidersResponse {
+  providers: string[];
 }
 
 export type ChoiceLetter = 'a' | 'b' | 'c' | 'd';
@@ -131,6 +138,7 @@ export interface ApiUserSettings {
   default_questions: 5 | 10 | 15 | 20 | number;
   difficulty: 'Mixed' | 'Foundational' | 'Advanced' | string;
   quiz_language: string;
+  avatar_url?: string | null;
   shuffle_questions: boolean;
   show_explanations: boolean;
   study_reminders: boolean;
@@ -148,7 +156,8 @@ export interface ApiAccountReset {
 export interface ApiLivePlayer {
   id: string;
   name: string;
-  status: 'Ready' | 'Answered' | string;
+  avatar_url?: string | null;
+  status: 'Waiting' | 'Ready' | 'Answered' | string;
   correct: number;
   total: number;
   points: number;
@@ -189,6 +198,35 @@ export interface ApiLiveAnswerResult {
   round: number;
 }
 
+export interface ApiLiveHistoryPlayer {
+  name: string;
+  correct: number;
+  total: number;
+  points: number;
+  is_me: boolean;
+}
+
+export interface ApiLiveRoomHistoryItem {
+  id: string;
+  pin: string;
+  quiz_id: string;
+  quiz_title: string;
+  timer_seconds: number;
+  total_rounds: number;
+  status: string;
+  role: 'host' | 'player' | string;
+  player_count: number;
+  winner_name: string | null;
+  winner_points: number;
+  my_points: number | null;
+  my_correct: number | null;
+  my_total: number | null;
+  my_rank: number | null;
+  players: ApiLiveHistoryPlayer[];
+  created_at: string;
+  finished_at: string | null;
+}
+
 export type ApiLiveWsEvent =
   | { type: 'pong' }
   | {
@@ -199,6 +237,8 @@ export type ApiLiveWsEvent =
     }
   | { type: 'joined'; state: ApiLiveGameState; player_id: string }
   | { type: 'player_joined'; state: ApiLiveGameState; player: ApiLivePlayer }
+  | { type: 'player_left'; state: ApiLiveGameState; player_id: string }
+  | { type: 'player_ready'; state: ApiLiveGameState; player_id: string }
   | {
       type: 'question';
       state: ApiLiveGameState;
@@ -291,6 +331,7 @@ export interface AttemptRecord {
 export interface LivePlayer {
   id?: string;
   name: string;
+  avatar_url?: string | null;
   status: string;
   correct: number;
   total: number;
@@ -321,6 +362,7 @@ export interface UserSettings {
   tab: 'Profile' | 'Quiz defaults' | 'Notifications' | 'Privacy & account';
   displayName: string;
   email: string;
+  avatarUrl?: string | null;
   defaultQuestions: number;
   difficulty: string;
   language: string;

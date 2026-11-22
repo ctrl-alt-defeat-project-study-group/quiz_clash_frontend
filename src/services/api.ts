@@ -15,7 +15,9 @@ import type {
   ApiLiveGameState,
   ApiLiveJoinResponse,
   ApiLiveNextResponse,
+  ApiLiveRoomHistoryItem,
   ApiMessage,
+  ApiOAuthProvidersResponse,
   ApiQuizPreviewResponse,
   ApiQuizResponse,
   ApiQuizSummary,
@@ -153,7 +155,7 @@ async function parseError(response: Response): Promise<ApiError> {
 const NO_REFRESH_PATHS = new Set([
   '/auth/login',
   '/auth/register',
-  '/auth/google',
+  '/auth/oauth/providers',
   '/auth/refresh',
   '/auth/logout',
   '/auth/verify-email',
@@ -297,25 +299,33 @@ export async function login(params: {
   });
 }
 
-export async function googleAuth(params: {
-  credential: string;
-  language?: AppLanguage;
-}): Promise<UserProfile> {
-  return apiJson<UserProfile>('/auth/google', {
-    method: 'POST',
-    language: params.language,
-    body: JSON.stringify({
-      credential: params.credential,
-      id_token: params.credential
-    })
+export async function getOAuthProviders(
+  language?: AppLanguage
+): Promise<ApiOAuthProvidersResponse> {
+  return apiJson<ApiOAuthProvidersResponse>('/auth/oauth/providers', {
+    method: 'GET',
+    language,
+    skipRefresh: true
   });
 }
 
+export function getGoogleOAuthLoginUrl(nextPath = '/dashboard'): string {
+  const safeNext =
+    nextPath && nextPath.startsWith('/') && !nextPath.startsWith('//')
+      ? nextPath
+      : '/dashboard';
+  return `${API_BASE_URL}/auth/oauth/google/login?next=${encodeURIComponent(safeNext)}`;
+}
+
 export function getGoogleOAuthRedirectUrl(redirectPath = '/dashboard'): string {
-  const origin =
-    typeof window !== 'undefined' ? window.location.origin : '';
-  const redirectUri = `${origin}${redirectPath}`;
-  return `${API_BASE_URL}/auth/google/login?redirect_uri=${encodeURIComponent(redirectUri)}`;
+  return getGoogleOAuthLoginUrl(redirectPath);
+}
+
+export async function unlinkGoogleOAuth(language?: AppLanguage): Promise<ApiMessage> {
+  return apiJson<ApiMessage>('/auth/oauth/google', {
+    method: 'DELETE',
+    language
+  });
 }
 
 export async function refreshSession(language?: AppLanguage): Promise<UserProfile> {
@@ -425,6 +435,16 @@ export async function updateQuiz(
   });
 }
 
+export async function deleteQuiz(
+  quizId: string,
+  language?: AppLanguage
+): Promise<ApiMessage> {
+  return apiJson<ApiMessage>(`/quizzes/${encodeURIComponent(quizId)}`, {
+    method: 'DELETE',
+    language
+  });
+}
+
 export function getQuizExportUrl(
   quizId: string,
   kind: ExportKind,
@@ -516,6 +536,23 @@ export async function getAttempt(
   });
 }
 
+export async function deleteAttempt(
+  attemptId: string,
+  language?: AppLanguage
+): Promise<ApiMessage> {
+  return apiJson<ApiMessage>(`/attempts/${encodeURIComponent(attemptId)}`, {
+    method: 'DELETE',
+    language
+  });
+}
+
+export async function clearAllAttempts(language?: AppLanguage): Promise<ApiMessage> {
+  return apiJson<ApiMessage>('/attempts', {
+    method: 'DELETE',
+    language
+  });
+}
+
 /* --------------------------------------------------------------------------
    Live Game Rooms
    -------------------------------------------------------------------------- */
@@ -573,6 +610,63 @@ export async function advanceLiveRoom(
       language
     }
   );
+}
+
+export async function leaveLiveRoomPlayer(
+  pin: string,
+  playerId: string,
+  language?: AppLanguage
+): Promise<ApiLiveGameState> {
+  const cleanPin = pin.replace(/\s+/g, '');
+  return apiJson<ApiLiveGameState>(
+    `/live/rooms/${encodeURIComponent(cleanPin)}/players/${encodeURIComponent(playerId)}`,
+    {
+      method: 'DELETE',
+      language
+    }
+  );
+}
+
+export async function markLivePlayerReady(
+  pin: string,
+  playerId: string,
+  language?: AppLanguage
+): Promise<ApiLiveGameState> {
+  const cleanPin = pin.replace(/\s+/g, '');
+  return apiJson<ApiLiveGameState>(
+    `/live/rooms/${encodeURIComponent(cleanPin)}/players/${encodeURIComponent(playerId)}/ready`,
+    {
+      method: 'POST',
+      language
+    }
+  );
+}
+
+export async function closeLiveRoom(
+  pin: string,
+  language?: AppLanguage
+): Promise<ApiMessage> {
+  const cleanPin = pin.replace(/\s+/g, '');
+  return apiJson<ApiMessage>(`/live/rooms/${encodeURIComponent(cleanPin)}`, {
+    method: 'DELETE',
+    language
+  });
+}
+
+export async function listLiveHistory(
+  language?: AppLanguage
+): Promise<ApiLiveRoomHistoryItem[]> {
+  return apiJson<ApiLiveRoomHistoryItem[]>('/live/history', { language });
+}
+
+export async function deleteLiveHistoryRoom(
+  roomId: string,
+  language?: AppLanguage
+): Promise<ApiMessage> {
+  return apiJson<ApiMessage>(`/live/history/${encodeURIComponent(roomId)}`, {
+    method: 'DELETE',
+    language
+  });
 }
 
 export function getLiveRoomWsUrl(

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useApp } from '@/context/AppContext';
 
 interface ThemeSwitchProps {
@@ -12,8 +12,10 @@ export const ThemeSwitch: React.FC<ThemeSwitchProps> = ({
 }) => {
   const { resolvedTheme, toggleTheme } = useApp();
   const dark = resolvedTheme === 'dark';
+  const [hasToggled, setHasToggled] = useState(false);
 
   const isHeader = variant === 'header';
+  const shiftPx = isHeader ? 32 : 36;
 
   return (
     <button
@@ -22,31 +24,39 @@ export const ThemeSwitch: React.FC<ThemeSwitchProps> = ({
       aria-checked={dark}
       aria-label="Dark mode"
       title={dark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-      onClick={toggleTheme}
+      onClick={() => {
+        setHasToggled(true);
+        toggleTheme();
+      }}
       className={`relative ${
-        isHeader ? 'h-9 w-[68px] sm:h-10 sm:w-[76px]' : 'h-10 w-[76px]'
-      } shrink-0 rounded-full p-1 transition-colors duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 motion-reduce:transition-none ${
+        isHeader ? 'h-9 w-[68px]' : 'h-9 w-[72px]'
+      } shrink-0 rounded-[10px] border p-1 transition-colors duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 motion-reduce:transition-none ${
         dark
-          ? 'bg-indigo-950 ring-offset-slate-900 focus-visible:ring-indigo-300'
-          : 'bg-sky-200 ring-offset-white focus-visible:ring-sky-600'
+          ? 'border-indigo-400/30 bg-indigo-950/90 ring-offset-slate-900 focus-visible:ring-indigo-300'
+          : 'border-slate-300 bg-slate-100 ring-offset-white focus-visible:ring-indigo-500'
       } ${className}`.trim()}
     >
       <span
-        className={`absolute inset-y-1 left-1 grid ${
-          isHeader ? 'w-7 sm:w-8' : 'w-8'
-        } place-items-center rounded-full shadow transition-transform duration-300 ease-[cubic-bezier(.3,1.4,.5,1)] motion-reduce:transition-none ${
+        key={hasToggled ? (dark ? 'to-dark' : 'to-light') : 'initial'}
+        style={
+          {
+            '--ts-shift': `${shiftPx}px`,
+            transform: dark ? `translateX(${shiftPx}px)` : 'translateX(0px)'
+          } as React.CSSProperties
+        }
+        className={`absolute inset-y-1 left-1 grid w-7 place-items-center rounded-[7px] shadow-sm ${
+          hasToggled ? (dark ? 'ts-shake-dark' : 'ts-shake-light') : ''
+        } ${
           dark
-            ? `${
-                isHeader ? 'translate-x-8 sm:translate-x-9' : 'translate-x-9'
-              } bg-slate-200 text-indigo-950`
-            : 'translate-x-0 bg-amber-300 text-amber-700'
+            ? 'bg-indigo-500 text-white'
+            : 'bg-white text-amber-500 border border-slate-200'
         }`}
       >
         {dark ? (
           <svg
             viewBox="0 0 20 20"
-            width="16"
-            height="16"
+            width="15"
+            height="15"
             aria-hidden="true"
             className="fill-current"
           >
@@ -55,8 +65,8 @@ export const ThemeSwitch: React.FC<ThemeSwitchProps> = ({
         ) : (
           <svg
             viewBox="0 0 20 20"
-            width="18"
-            height="18"
+            width="16"
+            height="16"
             aria-hidden="true"
             className="fill-current"
           >

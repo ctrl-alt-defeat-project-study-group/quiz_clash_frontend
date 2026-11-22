@@ -6,6 +6,7 @@ import { CheckIcon, CircleIcon, PlayIcon } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import type { QuizItem } from '../types/quiz';
 import { PageHeader, SectionCard, SettingToggleRow } from '../components/common';
+import { QuizReviewWorkspace } from '../components/quiz/QuizReviewWorkspace';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -35,7 +36,16 @@ import {
 } from '../components/reui/timeline';
 
 export const GenerateQuizPage: React.FC = () => {
-  const { generateQuiz, startPractice, settings, getErrorMessage, t } = useApp();
+  const {
+    quizzes,
+    generateQuiz,
+    saveQuizChanges,
+    setLiveQuizId,
+    startPractice,
+    settings,
+    getErrorMessage,
+    t
+  } = useApp();
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -64,6 +74,10 @@ export const GenerateQuizPage: React.FC = () => {
   const [error, setError] = useState<string>('');
   const [generating, setGenerating] = useState<boolean>(false);
   const [createdQuiz, setCreatedQuiz] = useState<QuizItem | null>(null);
+
+  const liveCreatedQuiz = createdQuiz
+    ? quizzes.find((q) => q.id === createdQuiz.id) ?? createdQuiz
+    : null;
 
   const formatLabel =
     questionFormat === 'Term & definition'
@@ -484,116 +498,103 @@ export const GenerateQuizPage: React.FC = () => {
         </SectionCard>
       )}
 
-      {/* Step 03: Review questions */}
-      {currentStep === 3 && createdQuiz && (
-        <SectionCard dataName="Generated quiz review">
-          <h2 className="panel-heading">{t('generate.panel03Heading')}</h2>
-          <p className="helper-text" style={{ marginBottom: 16 }}>
-            {t('generate.step03Summary', {
-              title: createdQuiz.title,
-              count: createdQuiz.questions.length,
-              fileName,
-            })}
-          </p>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {createdQuiz.questions.slice(0, 3).map((q, idx) => (
-              <div key={idx} className="text-preview-box">
-                <div className="eyebrow" style={{ marginBottom: 4 }}>
-                  {t('generate.questionNumberEyebrow', {
-                    num: String(idx + 1).padStart(2, '0'),
-                  })}
-                </div>
-                <h4 style={{ marginBottom: 6 }}>{q.prompt}</h4>
-                <p className="helper-text">
-                  {t('generate.correctAnswerLabel')}{' '}
-                  <strong>{q.choices[q.answer]}</strong>
-                </p>
+      {/* Step 03: Review & Edit + Download (same workspace as Review & Export) */}
+      {currentStep === 3 && liveCreatedQuiz && (
+        <QuizReviewWorkspace
+          key={liveCreatedQuiz.id}
+          quiz={liveCreatedQuiz}
+          leftFooter={
+            <div
+              data-name="Generation actions"
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 10
+              }}
+            >
+              <span className="helper-text">{t('generate.footerStep3')}</span>
+              <div className="btn-row">
+                <button type="button" className="btn" onClick={handleResetWizard}>
+                  {t('generate.createAnotherBtn')}
+                </button>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => void saveQuizChanges(liveCreatedQuiz.id)}
+                >
+                  {t('common.saveChanges')}
+                </button>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => {
+                    setLiveQuizId(liveCreatedQuiz.id);
+                    navigate('/lobby');
+                  }}
+                >
+                  {t('review.hostLiveGame')}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={() => {
+                    startPractice(liveCreatedQuiz.id);
+                    navigate(`/quizzes/${encodeURIComponent(liveCreatedQuiz.id)}/play`);
+                  }}
+                >
+                  {t('generate.startSoloBtn')}
+                </button>
               </div>
-            ))}
-            {createdQuiz.questions.length > 3 && (
-              <p className="helper-text">
-                {t('generate.moreQuestionsReady', {
-                  count: createdQuiz.questions.length - 3,
-                })}
-              </p>
-            )}
-          </div>
-        </SectionCard>
+            </div>
+          }
+        />
       )}
 
-      <div className="action-footer-bar" data-name="Generation actions">
-        <span className="helper-text">
-          {currentStep === 1
-            ? t('generate.footerStep1')
-            : currentStep === 2
-              ? t('generate.footerStep2')
-              : t('generate.footerStep3')}
-        </span>
+      {currentStep !== 3 && (
+        <div className="action-footer-bar" data-name="Generation actions">
+          <span className="helper-text">
+            {currentStep === 1 ? t('generate.footerStep1') : t('generate.footerStep2')}
+          </span>
 
-        <div className="btn-row">
-          {currentStep === 1 && (
-            <>
-              <Link to="/dashboard" className="btn">
-                {t('common.cancel')}
-              </Link>
-              <button
-                type="button"
-                className="btn btn-primary"
-                onClick={handleNextToConfigure}
-              >
-                {t('generate.continueToSettings')}
-              </button>
-            </>
-          )}
+          <div className="btn-row">
+            {currentStep === 1 && (
+              <>
+                <Link to="/dashboard" className="btn">
+                  {t('common.cancel')}
+                </Link>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={handleNextToConfigure}
+                >
+                  {t('generate.continueToSettings')}
+                </button>
+              </>
+            )}
 
-          {currentStep === 2 && (
-            <>
-              <button
-                type="button"
-                className="btn"
-                onClick={() => setCurrentStep(1)}
-                disabled={generating}
-              >
-                {t('common.back')}
-              </button>
-              <button
-                type="button"
-                className="btn btn-primary"
-                onClick={handleGenerate}
-                disabled={generating}
-              >
-                {generating ? t('generate.generatingBtn') : t('generate.generateBtn')}
-              </button>
-            </>
-          )}
-
-          {currentStep === 3 && createdQuiz && (
-            <>
-              <button type="button" className="btn" onClick={handleResetWizard}>
-                {t('generate.createAnotherBtn')}
-              </button>
-              <button
-                type="button"
-                className="btn"
-                onClick={() => {
-                  startPractice(createdQuiz.id);
-                  navigate(`/quizzes/${encodeURIComponent(createdQuiz.id)}/play`);
-                }}
-              >
-                {t('generate.startSoloBtn')}
-              </button>
-              <button
-                type="button"
-                className="btn btn-primary"
-                onClick={() => navigate(`/quizzes/${encodeURIComponent(createdQuiz.id)}`)}
-              >
-                {t('generate.reviewEditBtn')}
-              </button>
-            </>
-          )}
+            {currentStep === 2 && (
+              <>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => setCurrentStep(1)}
+                  disabled={generating}
+                >
+                  {t('common.back')}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={handleGenerate}
+                  disabled={generating}
+                >
+                  {generating ? t('generate.generatingBtn') : t('generate.generateBtn')}
+                </button>
+              </>
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </>
   );
 };

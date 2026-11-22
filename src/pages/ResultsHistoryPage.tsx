@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Download, Loader2 } from 'lucide-react';
+import { ArrowRight, BarChart3, History, Trash2 } from 'lucide-react';
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts';
 import { useApp } from '../context/AppContext';
 import { PageHeader, SectionCard, StatCard } from '../components/common';
@@ -13,12 +13,16 @@ import {
 
 export const ResultsHistoryPage: React.FC = () => {
   const {
+    user,
     history,
+    liveHistory,
     activeAttemptId,
     setActiveAttemptId,
+    deleteAttempt,
+    clearAllAttempts,
+    deleteLiveHistoryRoom,
     startPractice,
-    exportStudySheet,
-    exportingKind,
+    openModal,
     t
   } = useApp();
 
@@ -26,6 +30,96 @@ export const ResultsHistoryPage: React.FC = () => {
 
   const latest =
     history.find((h) => h.id === activeAttemptId) ?? history[0] ?? null;
+
+  const formatLiveDate = (iso: string | null | undefined) => {
+    if (!iso) return t('common.today');
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return t('common.today');
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  };
+
+  const renderLiveHistoryCard = () => {
+    if (!user || liveHistory.length === 0) return null;
+    return (
+      <SectionCard dataName="Live games history">
+        <h2 className="section-title" style={{ marginBottom: 4 }}>
+          {t('results.liveHistoryTitle')}
+        </h2>
+        <p className="helper-text" style={{ marginBottom: 16 }}>
+          {t('results.liveHistorySubtitle')}
+        </p>
+
+        <div className="table-wrap">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>{t('results.colDate')}</th>
+                <th>{t('results.colPin')}</th>
+                <th>{t('results.colQuiz')}</th>
+                <th>{t('results.colRole')}</th>
+                <th>{t('results.colPlayers')}</th>
+                <th>{t('results.colWinner')}</th>
+                <th>{t('results.colYourResult')}</th>
+                <th>{t('dashboard.colAction')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {liveHistory.map((item) => (
+                <tr key={item.id}>
+                  <td>{formatLiveDate(item.finished_at || item.created_at)}</td>
+                  <td>
+                    <span className="score-badge" style={{ fontFamily: 'var(--font-mono, monospace)' }}>
+                      {item.pin}
+                    </span>
+                  </td>
+                  <td style={{ fontWeight: 600 }}>{item.quiz_title}</td>
+                  <td>
+                    {item.role === 'host'
+                      ? t('results.roleHost')
+                      : t('results.rolePlayer')}
+                  </td>
+                  <td>{item.player_count}</td>
+                  <td>
+                    {item.winner_name
+                      ? `${item.winner_name} (${item.winner_points.toLocaleString()} pts)`
+                      : t('results.noWinner')}
+                  </td>
+                  <td>
+                    {item.my_points !== null
+                      ? `#${item.my_rank ?? '—'} · ${item.my_points.toLocaleString()} pts (${item.my_correct ?? 0}/${item.total_rounds || item.my_total || 0})`
+                      : t('results.noWinner')}
+                  </td>
+                  <td>
+                    {item.role === 'host' ? (
+                      <button
+                        type="button"
+                        className="text-link"
+                        style={{ color: 'var(--danger, #dc2626)' }}
+                        onClick={() => {
+                          openModal({
+                            title: t('results.deleteAttemptConfirmTitle'),
+                            message: t('results.deleteAttemptConfirmMsg'),
+                            confirmLabel: t('results.deleteAttempt'),
+                            onConfirm: () => {
+                              void deleteLiveHistoryRoom(item.id);
+                            }
+                          });
+                        }}
+                      >
+                        {t('results.deleteAttempt')}
+                      </button>
+                    ) : (
+                      <span className="helper-text">—</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </SectionCard>
+    );
+  };
 
   const chartData = useMemo(
     () =>
@@ -57,17 +151,72 @@ export const ResultsHistoryPage: React.FC = () => {
             { label: 'QuizClash', to: '/' },
             { label: t('nav.attemptHistory') }
           ]}
-          title={t('results.title')}
-          subtitle={t('results.scoreTrendSubtitle')}
+          title={t('nav.attemptHistory')}
+          subtitle={t('results.emptySubtitle')}
         />
-        <SectionCard>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'flex-start' }}>
-            <p className="helper-text">{t('dashboard.bannerBody')}</p>
-            <Link to="/dashboard" className="btn btn-primary">
-              {t('results.backToDashboard')}
-            </Link>
+
+        <section
+          className="ah-empty-state"
+          aria-labelledby="empty-history-heading"
+          data-name="Empty attempt history"
+        >
+          <div className="ah-empty-content">
+            <div className="ah-empty-icon" aria-hidden="true">
+              <History size={24} />
+            </div>
+            <h2 id="empty-history-heading">{t('results.emptyTitle')}</h2>
+            <p className="ah-empty-description">{t('results.emptyDesc')}</p>
+            <div className="ah-empty-actions">
+              <Link className="ah-primary-action" to="/generate">
+                <span>{t('results.emptyGenerateBtn')}</span>
+                <ArrowRight size={17} aria-hidden="true" />
+              </Link>
+              <Link className="ah-secondary-action" to="/quizzes">
+                {t('results.emptyMyQuizzesBtn')}
+              </Link>
+            </div>
           </div>
-        </SectionCard>
+
+          <div
+            className="ah-chart-scene"
+            role="img"
+            aria-label={t('results.emptyChartTitle')}
+          >
+            <div className="ah-chart" aria-hidden="true">
+              <div className="ah-chart-heading">
+                <span>{t('results.emptyChartTitle')}</span>
+                <span className="ah-chart-unit">%</span>
+              </div>
+              <div className="ah-plot">
+                <svg
+                  className="ah-plot-grid"
+                  viewBox="0 0 320 148"
+                  preserveAspectRatio="none"
+                >
+                  <path
+                    d="M0 1H320M0 38H320M0 74H320M0 111H320"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeDasharray="4 5"
+                    vectorEffect="non-scaling-stroke"
+                  />
+                  <path
+                    d="M0 1V147H320"
+                    fill="none"
+                    stroke="currentColor"
+                    vectorEffect="non-scaling-stroke"
+                  />
+                </svg>
+                <div className="ah-plot-marker">
+                  <BarChart3 size={25} />
+                </div>
+              </div>
+              <div className="ah-plot-axis">{t('results.emptyChartAxis')}</div>
+            </div>
+          </div>
+        </section>
+
+        {renderLiveHistoryCard()}
       </>
     );
   }
@@ -153,15 +302,45 @@ export const ResultsHistoryPage: React.FC = () => {
       </SectionCard>
 
       <SectionCard dataName="Attempt history">
-        <h2 className="section-title" style={{ marginBottom: 4 }}>
-          {t('results.attemptHistoryTitle')}
-        </h2>
-        <p className="helper-text" style={{ marginBottom: 16 }}>
-          {t('results.attemptHistorySubtitle', {
-            quizTitle: latest.quizTitle,
-            count: history.length
-          })}
-        </p>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            justifyContent: 'space-between',
+            gap: 12,
+            flexWrap: 'wrap',
+            marginBottom: 16
+          }}
+        >
+          <div>
+            <h2 className="section-title" style={{ marginBottom: 4 }}>
+              {t('results.attemptHistoryTitle')}
+            </h2>
+            <p className="helper-text" style={{ margin: 0 }}>
+              {t('results.attemptHistorySubtitle', {
+                quizTitle: latest.quizTitle,
+                count: history.length
+              })}
+            </p>
+          </div>
+          <button
+            type="button"
+            className="btn btn-sm btn-danger"
+            onClick={() => {
+              openModal({
+                title: t('results.clearHistoryConfirmTitle'),
+                message: t('results.clearHistoryConfirmMsg'),
+                confirmLabel: t('results.clearHistory'),
+                onConfirm: () => {
+                  void clearAllAttempts();
+                }
+              });
+            }}
+          >
+            <Trash2 size={14} aria-hidden="true" />
+            <span>{t('results.clearHistory')}</span>
+          </button>
+        </div>
 
         <div className="table-wrap">
           <table className="data-table">
@@ -186,16 +365,35 @@ export const ResultsHistoryPage: React.FC = () => {
                   </td>
                   <td>{h.duration}</td>
                   <td>
-                    <button
-                      type="button"
-                      className="text-link"
-                      onClick={() => {
-                        setActiveAttemptId(h.id);
-                        navigate(`/attempts/${encodeURIComponent(h.id)}`);
-                      }}
-                    >
-                      {t('results.viewAttempt')}
-                    </button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                      <button
+                        type="button"
+                        className="text-link"
+                        onClick={() => {
+                          setActiveAttemptId(h.id);
+                          navigate(`/attempts/${encodeURIComponent(h.id)}`);
+                        }}
+                      >
+                        {t('results.viewAttempt')}
+                      </button>
+                      <button
+                        type="button"
+                        className="text-link"
+                        style={{ color: 'var(--danger, #dc2626)' }}
+                        onClick={() => {
+                          openModal({
+                            title: t('results.deleteAttemptConfirmTitle'),
+                            message: t('results.deleteAttemptConfirmMsg'),
+                            confirmLabel: t('results.deleteAttempt'),
+                            onConfirm: () => {
+                              void deleteAttempt(h.id);
+                            }
+                          });
+                        }}
+                      >
+                        {t('results.deleteAttempt')}
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -203,6 +401,8 @@ export const ResultsHistoryPage: React.FC = () => {
           </table>
         </div>
       </SectionCard>
+
+      {renderLiveHistoryCard()}
 
       <div className="btn-row" data-name="Results actions">
         <button
@@ -214,25 +414,6 @@ export const ResultsHistoryPage: React.FC = () => {
           }}
         >
           {t('results.retakeQuiz')}
-        </button>
-        <button
-          type="button"
-          className="btn"
-          onClick={() => void exportStudySheet('answers')}
-          disabled={exportingKind !== null}
-          aria-busy={exportingKind === 'answers'}
-          style={{ gap: 8 }}
-        >
-          {exportingKind === 'answers' ? (
-            <Loader2 size={16} className="animate-spin" aria-hidden="true" />
-          ) : (
-            <Download size={16} aria-hidden="true" />
-          )}
-          <span>
-            {exportingKind === 'answers'
-              ? t('review.downloadingAnswerKey')
-              : t('results.downloadAnswerKey')}
-          </span>
         </button>
         <Link to="/lobby" className="btn">
           {t('results.challengeFriends')}

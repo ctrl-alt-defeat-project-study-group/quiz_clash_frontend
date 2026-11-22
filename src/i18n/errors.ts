@@ -27,8 +27,8 @@ export type ErrorCode =
 
 export const ERROR_MESSAGES: Record<ErrorCode, LocalizedText> = {
   INVALID_ROOM_PIN: {
-    en: 'Please enter a valid 6-digit Room PIN (e.g. 482 619).',
-    mm: 'မှန်ကန်သော ဂဏန်း ၆ လုံးပါ Room PIN ကို ထည့်သွင်းပါ (ဥပမာ 482 619)။'
+    en: 'Please enter a valid Room code (e.g. ADBI 482).',
+    mm: 'မှန်ကန်သော အခန်းကုဒ်ကို ထည့်သွင်းပါ (ဥပမာ ADBI 482)။'
   },
   ROOM_NOT_FOUND: {
     en: 'No active live room was found for that PIN.',

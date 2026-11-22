@@ -1,14 +1,16 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Monitor, Moon, Sun } from 'lucide-react';
+import { LogOut, Monitor, Moon, Sun, X } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import type { AppLanguage, ThemeMode, UserSettings } from '../types/quiz';
 import {
   MyanmarFlagIcon,
+  PRESET_AVATARS,
   PageHeader,
   SectionCard,
   SettingToggleRow,
-  UkFlagIcon
+  UkFlagIcon,
+  UserAvatar
 } from '../components/common';
 import {
   Select,
@@ -22,12 +24,16 @@ export const SettingsPage: React.FC = () => {
   const {
     user,
     logout,
+    startGoogleOAuth,
+    unlinkGoogleOAuth,
+    getErrorMessage,
     theme,
     setTheme,
     uiLanguage,
     setUiLanguage,
     settings,
     updateSettings,
+    saveSettingsToBackend,
     exportAccountData,
     resetAllData,
     openModal,
@@ -36,6 +42,62 @@ export const SettingsPage: React.FC = () => {
   } = useApp();
 
   const navigate = useNavigate();
+
+  const [unlinkingGoogle, setUnlinkingGoogle] = useState<boolean>(false);
+  const [saving, setSaving] = useState<boolean>(false);
+  const [avatarModalOpen, setAvatarModalOpen] = useState<boolean>(false);
+
+  // Snapshot of the last backend-persisted settings so Cancel can revert live previews
+  const hasLocalEditsRef = useRef<boolean>(false);
+  const savedSnapshotRef = useRef<{
+    theme: ThemeMode;
+    uiLanguage: AppLanguage;
+    avatarUrl: string | null | undefined;
+    shuffleQuestions: boolean;
+    showExplanations: boolean;
+    studyReminders: boolean;
+    weeklySummary: boolean;
+  }>({
+    theme,
+    uiLanguage,
+    avatarUrl: user?.avatar_url ?? settings.avatarUrl,
+    shuffleQuestions: settings.shuffleQuestions,
+    showExplanations: settings.showExplanations,
+    studyReminders: settings.studyReminders,
+    weeklySummary: settings.weeklySummary
+  });
+
+  useEffect(() => {
+    if (!hasLocalEditsRef.current) {
+      savedSnapshotRef.current = {
+        theme,
+        uiLanguage,
+        avatarUrl: user?.avatar_url ?? settings.avatarUrl,
+        shuffleQuestions: settings.shuffleQuestions,
+        showExplanations: settings.showExplanations,
+        studyReminders: settings.studyReminders,
+        weeklySummary: settings.weeklySummary
+      };
+    }
+  }, [
+    theme,
+    uiLanguage,
+    user?.avatar_url,
+    settings.avatarUrl,
+    settings.shuffleQuestions,
+    settings.showExplanations,
+    settings.studyReminders,
+    settings.weeklySummary
+  ]);
+
+  useEffect(() => {
+    if (!avatarModalOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setAvatarModalOpen(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [avatarModalOpen]);
 
   const [displayNameDraft, setDisplayNameDraft] = useState<string | null>(null);
   const [emailDraft, setEmailDraft] = useState<string | null>(null);
@@ -66,19 +128,84 @@ export const SettingsPage: React.FC = () => {
   const activeTab = activeTabObj.id;
   const activeTabLabel = activeTabObj.label;
 
-  const handleSave = () => {
-    updateSettings({
-      displayName: displayName.trim(),
-      defaultQuestions,
-      difficulty,
-      language
-    });
+  const handlePreviewTheme = (next: ThemeMode) => {
+    hasLocalEditsRef.current = true;
+    setTheme(next, { persist: false });
+  };
+
+  const handlePreviewLanguage = (next: AppLanguage) => {
+    hasLocalEditsRef.current = true;
+    setUiLanguage(next, { persist: false });
+  };
+
+  const handlePreviewSettings = (partial: Partial<UserSettings>) => {
+    hasLocalEditsRef.current = true;
+    updateSettings(partial, { persist: false });
+  };
+
+  const handleCancel = () => {
+    if (hasLocalEditsRef.current) {
+      const snap = savedSnapshotRef.current;
+      setTheme(snap.theme, { persist: false });
+      setUiLanguage(snap.uiLanguage, { persist: false });
+      updateSettings(
+        {
+          avatarUrl: snap.avatarUrl,
+          shuffleQuestions: snap.shuffleQuestions,
+          showExplanations: snap.showExplanations,
+          studyReminders: snap.studyReminders,
+          weeklySummary: snap.weeklySummary
+        },
+        { persist: false }
+      );
+      hasLocalEditsRef.current = false;
+    }
     setDisplayNameDraft(null);
     setEmailDraft(null);
     setDefaultQuestionsDraft(null);
     setDifficultyDraft(null);
     setLanguageDraft(null);
-    showToast(t('toasts.preferencesSaved'));
+    navigate('/dashboard');
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const currentAvatar = user?.avatar_url ?? settings.avatarUrl;
+      await saveSettingsToBackend({
+        displayName: displayName.trim(),
+        avatarUrl: currentAvatar,
+        theme,
+        uiLanguage,
+        defaultQuestions,
+        difficulty,
+        language,
+        shuffleQuestions: settings.shuffleQuestions,
+        showExplanations: settings.showExplanations,
+        studyReminders: settings.studyReminders,
+        weeklySummary: settings.weeklySummary
+      });
+      hasLocalEditsRef.current = false;
+      savedSnapshotRef.current = {
+        theme,
+        uiLanguage,
+        avatarUrl: currentAvatar,
+        shuffleQuestions: settings.shuffleQuestions,
+        showExplanations: settings.showExplanations,
+        studyReminders: settings.studyReminders,
+        weeklySummary: settings.weeklySummary
+      };
+      setDisplayNameDraft(null);
+      setEmailDraft(null);
+      setDefaultQuestionsDraft(null);
+      setDifficultyDraft(null);
+      setLanguageDraft(null);
+      showToast(t('toasts.preferencesSaved'));
+    } catch (err) {
+      showToast(getErrorMessage(err), 'error');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleExportData = () => {
@@ -95,6 +222,19 @@ export const SettingsPage: React.FC = () => {
       }
     });
   };
+
+  const handleUnlinkGoogle = async () => {
+    setUnlinkingGoogle(true);
+    try {
+      await unlinkGoogleOAuth();
+    } catch (err) {
+      showToast(getErrorMessage(err), 'error');
+    } finally {
+      setUnlinkingGoogle(false);
+    }
+  };
+
+  const isGoogleLinked = Boolean(user?.oauth_providers?.includes('google'));
 
   return (
     <div className="settings-page-layout">
@@ -117,6 +257,19 @@ export const SettingsPage: React.FC = () => {
           ]}
           title={t('settings.title')}
           subtitle={t('settings.subtitle')}
+          actions={
+            user ? (
+              <button
+                type="button"
+                className="btn"
+                onClick={() => void logout().then(() => navigate('/login'))}
+                data-name="Sign out"
+              >
+                <LogOut size={15} aria-hidden="true" />
+                <span>{t('auth.signOut')}</span>
+              </button>
+            ) : undefined
+          }
           dataName="Settings heading"
         />
 
@@ -183,6 +336,33 @@ export const SettingsPage: React.FC = () => {
               <p className="helper-text">{t('settings.profileHelper')}</p>
             </SectionCard>
 
+            <SectionCard dataName="Avatar">
+              <div className="banner-row">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                  <UserAvatar
+                    avatarUrl={user?.avatar_url ?? settings.avatarUrl}
+                    alt={displayName || 'Avatar'}
+                    className="h-12 w-12 shrink-0 rounded-full border border-[var(--border-subtle)]"
+                  />
+                  <div>
+                    <h2 className="section-title" style={{ marginBottom: 2 }}>
+                      {t('settings.avatarTitle')}
+                    </h2>
+                    <p className="helper-text" style={{ margin: 0 }}>
+                      {t('settings.avatarSubtitle')}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-sm"
+                  onClick={() => setAvatarModalOpen(true)}
+                >
+                  {t('settings.avatarTitle')}
+                </button>
+              </div>
+            </SectionCard>
+
             <SectionCard dataName="Appearance">
               <h2 className="section-title" style={{ marginBottom: 4 }}>
                 {t('settings.appearanceTitle')}
@@ -217,7 +397,7 @@ export const SettingsPage: React.FC = () => {
                         role="radio"
                         aria-checked={isSelected}
                         className={`theme-choice-btn ${isSelected ? 'active' : ''}`}
-                        onClick={() => setTheme(value)}
+                        onClick={() => handlePreviewTheme(value)}
                       >
                         <Icon size={15} aria-hidden="true" />
                         <span>{label}</span>
@@ -267,7 +447,7 @@ export const SettingsPage: React.FC = () => {
                         role="radio"
                         aria-checked={isSelected}
                         className={`theme-choice-btn ${isSelected ? 'active' : ''}`}
-                        onClick={() => setUiLanguage(value)}
+                        onClick={() => handlePreviewLanguage(value)}
                       >
                         <Flag width={18} height={13} />
                         <span>{label}</span>
@@ -361,7 +541,7 @@ export const SettingsPage: React.FC = () => {
               description={t('settings.shuffleDesc')}
               checked={settings.shuffleQuestions}
               onToggle={() =>
-                updateSettings({ shuffleQuestions: !settings.shuffleQuestions })
+                handlePreviewSettings({ shuffleQuestions: !settings.shuffleQuestions })
               }
             />
 
@@ -370,7 +550,7 @@ export const SettingsPage: React.FC = () => {
               description={t('settings.explanationsDesc')}
               checked={settings.showExplanations}
               onToggle={() =>
-                updateSettings({ showExplanations: !settings.showExplanations })
+                handlePreviewSettings({ showExplanations: !settings.showExplanations })
               }
             />
           </SectionCard>
@@ -391,7 +571,7 @@ export const SettingsPage: React.FC = () => {
               description={t('settings.studyRemindersDesc')}
               checked={settings.studyReminders}
               onToggle={() =>
-                updateSettings({ studyReminders: !settings.studyReminders })
+                handlePreviewSettings({ studyReminders: !settings.studyReminders })
               }
             />
 
@@ -400,7 +580,7 @@ export const SettingsPage: React.FC = () => {
               description={t('settings.weeklySummaryDesc')}
               checked={settings.weeklySummary}
               onToggle={() =>
-                updateSettings({ weeklySummary: !settings.weeklySummary })
+                handlePreviewSettings({ weeklySummary: !settings.weeklySummary })
               }
             />
           </SectionCard>
@@ -420,13 +600,38 @@ export const SettingsPage: React.FC = () => {
               </p>
               <div className="btn-row">
                 {user ? (
-                  <button
-                    type="button"
-                    className="btn btn-sm"
-                    onClick={() => void logout().then(() => navigate('/login'))}
-                  >
-                    {t('auth.signOut')}
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      className="btn btn-sm"
+                      onClick={() => void logout().then(() => navigate('/login'))}
+                    >
+                      {t('auth.signOut')}
+                    </button>
+                    {isGoogleLinked ? (
+                      <button
+                        type="button"
+                        className="btn btn-sm"
+                        disabled={unlinkingGoogle || user.has_password === false}
+                        title={
+                          user.has_password === false
+                            ? t('auth.unlinkGoogleNeedsPassword')
+                            : undefined
+                        }
+                        onClick={() => void handleUnlinkGoogle()}
+                      >
+                        {t('auth.unlinkGoogleBtn')}
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="btn btn-sm"
+                        onClick={() => startGoogleOAuth('/settings')}
+                      >
+                        {t('auth.connectGoogleBtn')}
+                      </button>
+                    )}
+                  </>
                 ) : (
                   <>
                     <Link to="/login" className="btn btn-sm btn-primary">
@@ -438,6 +643,15 @@ export const SettingsPage: React.FC = () => {
                   </>
                 )}
               </div>
+              {user && (
+                <p className="helper-text" style={{ marginTop: 10 }}>
+                  {isGoogleLinked
+                    ? user.has_password === false
+                      ? `${t('auth.googleLinkedStatus')} · ${t('auth.unlinkGoogleNeedsPassword')}`
+                      : t('auth.googleLinkedStatus')
+                    : t('auth.googleNotLinkedStatus')}
+                </p>
+              )}
             </SectionCard>
 
             <SectionCard dataName="Privacy and account">
@@ -475,14 +689,145 @@ export const SettingsPage: React.FC = () => {
       <div className="action-footer-bar" data-name="Save preferences">
         <span className="helper-text">{t('settings.footerNote')}</span>
         <div className="btn-row">
-          <Link to="/dashboard" className="btn">
+          <button type="button" className="btn" onClick={handleCancel}>
             {t('common.cancel')}
-          </Link>
-          <button type="button" className="btn btn-primary" onClick={handleSave}>
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={saving}
+            onClick={() => void handleSave()}
+          >
             {t('common.saveChanges')}
           </button>
         </div>
       </div>
+
+      {/* Avatar Picker Popup Modal */}
+      {avatarModalOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="avatar-picker-title"
+          onClick={() => setAvatarModalOpen(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 60,
+            background: 'rgba(15, 15, 25, 0.65)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 16
+          }}
+        >
+          <div
+            className="box-card"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: 'min(500px, 100%)',
+              padding: 0,
+              overflow: 'hidden'
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 12,
+                padding: '16px 20px',
+                borderBottom: '1px solid var(--border-subtle)'
+              }}
+            >
+              <div>
+                <h2
+                  id="avatar-picker-title"
+                  style={{ fontSize: 17, fontWeight: 700, margin: 0 }}
+                >
+                  {t('settings.avatarTitle')}
+                </h2>
+                <p className="helper-text" style={{ margin: '2px 0 0', fontSize: 12.5 }}>
+                  {t('settings.avatarSubtitle')}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="btn btn-sm"
+                aria-label={t('review.closePreview')}
+                onClick={() => setAvatarModalOpen(false)}
+                style={{ padding: '6px 8px' }}
+              >
+                <X size={16} aria-hidden="true" />
+              </button>
+            </div>
+
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+                gap: 12,
+                padding: 20
+              }}
+              role="radiogroup"
+              aria-label={t('settings.avatarTitle')}
+            >
+              {PRESET_AVATARS.map((item) => {
+                const selectedAvatar = user?.avatar_url ?? settings.avatarUrl;
+                const isSelected = selectedAvatar === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={isSelected}
+                    onClick={() => {
+                      handlePreviewSettings({ avatarUrl: item.id });
+                      setAvatarModalOpen(false);
+                    }}
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: 7,
+                      padding: '12px 8px',
+                      borderRadius: 12,
+                      border: isSelected
+                        ? '2px solid var(--primary)'
+                        : '1px solid var(--border-subtle)',
+                      background: isSelected ? 'var(--bg-subtle)' : 'var(--bg-elevated)',
+                      cursor: 'pointer',
+                      transition: 'border-color 0.15s, background 0.15s'
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: 52,
+                        height: 52,
+                        borderRadius: '999px',
+                        overflow: 'hidden',
+                        display: 'inline-flex'
+                      }}
+                    >
+                      {item.svg}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: 12,
+                        fontWeight: isSelected ? 700 : 500,
+                        color: 'var(--text-main)'
+                      }}
+                    >
+                      {item.label}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

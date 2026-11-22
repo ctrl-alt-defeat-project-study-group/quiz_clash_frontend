@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { LanguageSwitch, ThemeSwitch } from '../components/common';
+import { ThemeSwitch } from '../components/common';
 import * as api from '../services/api';
 
 export type AuthMode = 'login' | 'register' | 'verify' | 'forgot' | 'reset';
@@ -32,28 +32,12 @@ const GoogleIcon: React.FC = () => (
   </svg>
 );
 
-declare global {
-  interface Window {
-    google?: {
-      accounts?: {
-        id?: {
-          initialize: (config: {
-            client_id: string;
-            callback: (response: { credential?: string }) => void;
-          }) => void;
-          prompt: () => void;
-        };
-      };
-    };
-  }
-}
-
 export const AuthPage: React.FC<AuthPageProps> = ({ mode }) => {
-  const { login, loginWithGoogle, register, uiLanguage, getErrorMessage, showToast, t } =
+  const { login, startGoogleOAuth, register, uiLanguage, getErrorMessage, showToast, t } =
     useApp();
   const navigate = useNavigate();
   const location = useLocation();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const redirectTo =
     (location.state as { from?: { pathname?: string } } | null)?.from?.pathname ||
     '/dashboard';
@@ -69,8 +53,25 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode }) => {
   const [token, setToken] = useState<string>(searchParams.get('token') || '');
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [googleSubmitting, setGoogleSubmitting] = useState<boolean>(false);
-  const [error, setError] = useState<string>('');
-  const [errorCode, setErrorCode] = useState<string | undefined>(undefined);
+  const getOAuthErrorMessage = (code: string): string => {
+    const messageMap: Record<string, string> = {
+      OAUTH_PROVIDER_DISABLED: t('auth.googleBackendPending'),
+      OAUTH_CANCELLED: t('auth.oauthCancelled'),
+      OAUTH_INVALID_STATE: t('auth.oauthInvalidState'),
+      OAUTH_EMAIL_NOT_VERIFIED: t('auth.oauthEmailNotVerified'),
+      ACCOUNT_DISABLED: t('auth.oauthAccountDisabled'),
+    };
+    return messageMap[code] || t('auth.oauthFailed');
+  };
+
+  const initialOAuthError = searchParams.get('oauth_error');
+  const [oauthProviders, setOauthProviders] = useState<string[] | null>(null);
+  const [error, setError] = useState<string>(() =>
+    initialOAuthError ? getOAuthErrorMessage(initialOAuthError) : ''
+  );
+  const [errorCode, setErrorCode] = useState<string | undefined>(
+    initialOAuthError || undefined
+  );
   const [infoMessage, setInfoMessage] = useState<string>('');
 
   // Field-level validation errors matching QuizClash-Login-Register.html
@@ -94,6 +95,34 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode }) => {
         : 'Sign in · QuizClash';
   }, [mode]);
 
+  useEffect(() => {
+    if (mode !== 'login' && mode !== 'register') return;
+    let active = true;
+    void api
+      .getOAuthProviders(uiLanguage)
+      .then((res) => {
+        if (active) setOauthProviders(res.providers || []);
+      })
+      .catch(() => {
+        if (active) setOauthProviders(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [mode, uiLanguage]);
+
+  useEffect(() => {
+    const oauthErr = searchParams.get('oauth_error');
+    if (!oauthErr) return;
+
+    showToast(getOAuthErrorMessage(oauthErr), 'error');
+
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete('oauth_error');
+    setSearchParams(nextParams, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, setSearchParams, showToast]);
+
   const handleModeSwitchClick = () => {
     setMotionEnabled(true);
     setError('');
@@ -108,65 +137,29 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode }) => {
     setInfoMessage('');
     setGoogleSubmitting(true);
 
-    const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
-
     try {
-      if (googleClientId) {
-        if (!window.google?.accounts?.id) {
-          await new Promise<void>((resolve, reject) => {
-            const existing = document.getElementById('google-gsi-client');
-            if (existing) {
-              resolve();
-              return;
-            }
-            const script = document.createElement('script');
-            script.id = 'google-gsi-client';
-            script.src = 'https://accounts.google.com/gsi/client';
-            script.async = true;
-            script.defer = true;
-            script.onload = () => resolve();
-            script.onerror = () => reject(new Error('Failed to load Google Sign-In SDK'));
-            document.head.appendChild(script);
-          });
-        }
-
-        if (window.google?.accounts?.id) {
-          window.google.accounts.id.initialize({
-            client_id: googleClientId,
-            callback: async (response) => {
-              if (!response.credential) {
-                setGoogleSubmitting(false);
-                return;
-              }
-              try {
-                await loginWithGoogle(response.credential);
-                navigate(redirectTo, { replace: true });
-              } catch (err) {
-                if (err instanceof api.ApiError && err.status === 404) {
-                  setInfoMessage(t('auth.googleBackendPending'));
-                } else {
-                  setError(getErrorMessage(err));
-                }
-              } finally {
-                setGoogleSubmitting(false);
-              }
-            }
-          });
-          window.google.accounts.id.prompt();
-          return;
+      let providers = oauthProviders;
+      if (providers === null) {
+        try {
+          const res = await api.getOAuthProviders(uiLanguage);
+          providers = res.providers || [];
+          setOauthProviders(providers);
+        } catch {
+          // Proceed with direct redirect if provider check fails
         }
       }
 
-      await loginWithGoogle('');
-      navigate(redirectTo, { replace: true });
+      if (providers !== null && !providers.includes('google')) {
+        const msg = t('auth.googleBackendPending');
+        setInfoMessage(msg);
+        showToast(msg, 'info');
+        setGoogleSubmitting(false);
+        return;
+      }
+
+      startGoogleOAuth(redirectTo);
     } catch (err) {
-      if (err instanceof api.ApiError && err.status === 404) {
-        setInfoMessage(t('auth.googleBackendPending'));
-        showToast(t('auth.googleBackendPending'), 'info');
-      } else {
-        setError(getErrorMessage(err));
-      }
-    } finally {
+      setError(getErrorMessage(err));
       setGoogleSubmitting(false);
     }
   };
@@ -318,7 +311,6 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode }) => {
 
           <div className="header-right-actions">
             <ThemeSwitch variant="header" />
-            <LanguageSwitch />
             <nav className="account-switch" aria-label={t('auth.eyebrow')}>
               <Link
                 to="/login"

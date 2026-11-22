@@ -6,8 +6,8 @@ interface LanguageSwitchProps {
 }
 
 export const UkFlagIcon: React.FC<{ width?: number; height?: number }> = ({
-  width = 20,
-  height = 15
+  width = 18,
+  height = 13
 }) => {
   const clipId = useId();
   return (
@@ -33,8 +33,8 @@ export const UkFlagIcon: React.FC<{ width?: number; height?: number }> = ({
 };
 
 export const MyanmarFlagIcon: React.FC<{ width?: number; height?: number }> = ({
-  width = 20,
-  height = 15
+  width = 18,
+  height = 13
 }) => {
   const clipId = useId();
   return (
@@ -64,37 +64,37 @@ export const MyanmarFlagIcon: React.FC<{ width?: number; height?: number }> = ({
 export const LanguageSwitch: React.FC<LanguageSwitchProps> = ({
   className = ''
 }) => {
-  const { uiLanguage, setUiLanguage, t } = useApp();
+  const { uiLanguage, toggleUiLanguage, resolvedTheme, t } = useApp();
   const isMyanmar = uiLanguage === 'mm';
+  const dark = resolvedTheme === 'dark';
 
   return (
-    <div
-      className={`lang-toggle ${isMyanmar ? 'is-mm' : 'is-en'} ${className}`.trim()}
-      role="group"
+    <button
+      type="button"
+      role="switch"
+      aria-checked={isMyanmar}
       aria-label={t('nav.languageSwitchAria')}
+      title={isMyanmar ? t('nav.switchToEnglish') : t('nav.switchToMyanmar')}
       data-name="Language toggle"
+      onClick={toggleUiLanguage}
+      className={`relative h-9 w-[72px] shrink-0 rounded-[10px] border p-1 transition-colors duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 motion-reduce:transition-none ${
+        dark
+          ? 'border-indigo-400/30 bg-indigo-950/90 ring-offset-slate-900 focus-visible:ring-indigo-300'
+          : 'border-slate-300 bg-slate-100 ring-offset-white focus-visible:ring-indigo-500'
+      } ${className}`.trim()}
     >
-      <span className="lang-toggle-thumb" aria-hidden="true" />
-      <button
-        type="button"
-        className={`lang-toggle-btn ${!isMyanmar ? 'active' : ''}`}
-        aria-pressed={!isMyanmar}
-        aria-label="English"
-        title={t('nav.switchToEnglish')}
-        onClick={() => setUiLanguage('en')}
+      <span
+        aria-hidden="true"
+        className={`absolute inset-y-1 left-1 grid w-7 place-items-center rounded-[7px] shadow-sm transition-transform duration-300 ease-[cubic-bezier(.3,1.4,.5,1)] motion-reduce:transition-none ${
+          isMyanmar
+            ? 'translate-x-9 bg-indigo-500 text-white'
+            : dark
+            ? 'translate-x-0 bg-indigo-500 text-white'
+            : 'translate-x-0 bg-white border border-slate-200'
+        }`}
       >
-        <UkFlagIcon />
-      </button>
-      <button
-        type="button"
-        className={`lang-toggle-btn ${isMyanmar ? 'active' : ''}`}
-        aria-pressed={isMyanmar}
-        aria-label="Myanmar"
-        title={t('nav.switchToMyanmar')}
-        onClick={() => setUiLanguage('mm')}
-      >
-        <MyanmarFlagIcon />
-      </button>
-    </div>
+        {isMyanmar ? <MyanmarFlagIcon /> : <UkFlagIcon />}
+      </span>
+    </button>
   );
 };
