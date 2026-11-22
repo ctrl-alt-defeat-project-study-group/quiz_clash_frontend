@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { ThemeSwitch } from '../components/common';
+import { LanguageSwitch, ThemeSwitch } from '../components/common';
 import * as api from '../services/api';
 
 export type AuthMode = 'login' | 'register' | 'verify' | 'forgot' | 'reset';
@@ -175,12 +175,12 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode }) => {
 
     const nextErrors: { email?: string; password?: string } = {};
     if (!email.trim()) {
-      nextErrors.email = 'Enter your email address.';
+      nextErrors.email = t('auth.errEmailRequired');
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-      nextErrors.email = 'Enter a valid email address.';
+      nextErrors.email = t('auth.errEmailInvalid');
     }
     if (!password) {
-      nextErrors.password = 'Enter your password.';
+      nextErrors.password = t('auth.errPasswordRequired');
     }
 
     setFieldErrors(nextErrors);
@@ -214,22 +214,22 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode }) => {
     } = {};
 
     if (!displayName.trim()) {
-      nextErrors.name = 'Enter your name.';
+      nextErrors.name = t('auth.errNameRequired');
     }
     if (!email.trim()) {
-      nextErrors.email = 'Enter your email address.';
+      nextErrors.email = t('auth.errEmailRequired');
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-      nextErrors.email = 'Enter a valid email address.';
+      nextErrors.email = t('auth.errEmailInvalid');
     }
     if (!password) {
-      nextErrors.password = 'Enter your password.';
+      nextErrors.password = t('auth.errPasswordRequired');
     } else if (password.length < 8) {
-      nextErrors.password = 'Use at least 8 characters.';
+      nextErrors.password = t('auth.errPasswordTooShort');
     }
     if (!confirmPassword) {
-      nextErrors.confirm = 'Confirm your password.';
+      nextErrors.confirm = t('auth.errConfirmRequired');
     } else if (confirmPassword !== password) {
-      nextErrors.confirm = 'Passwords must match.';
+      nextErrors.confirm = t('auth.errPasswordsMismatch');
     }
 
     setFieldErrors(nextErrors);
@@ -258,7 +258,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode }) => {
 
     try {
       if (mode === 'verify') {
-        await api.verifyEmail(token.trim(), uiLanguage);
+        await api.verifyEmail(token.trim(), uiLanguage, email.trim() || undefined);
         showToast(t('toasts.emailVerified'));
         navigate('/login');
       } else if (mode === 'forgot') {
@@ -280,7 +280,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode }) => {
 
   const handleResendVerification = async () => {
     if (!email.trim()) {
-      setError('Enter your email address.');
+      setError(t('auth.errEmailRequired'));
       return;
     }
     setError('');
@@ -313,6 +313,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode }) => {
           </Link>
 
           <div className="header-right-actions">
+            <LanguageSwitch />
             <ThemeSwitch variant="header" />
             <nav className="account-switch" aria-label={t('auth.eyebrow')}>
               <Link
@@ -436,7 +437,9 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode }) => {
                           type="button"
                           className="password-toggle"
                           aria-controls="login-password"
-                          aria-label={showLoginPassword ? 'Hide password' : 'Show password'}
+                          aria-label={
+                            showLoginPassword ? t('common.hidePassword') : t('common.showPassword')
+                          }
                           onClick={() => setShowLoginPassword((prev) => !prev)}
                         >
                           {showLoginPassword ? (
@@ -602,7 +605,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode }) => {
                             type={showRegisterPassword ? 'text' : 'password'}
                             autoComplete="new-password"
                             minLength={8}
-                            placeholder="8+ characters"
+                            placeholder={t('auth.passwordMinPlaceholder')}
                             required
                             value={password}
                             aria-invalid={fieldErrors.password ? 'true' : undefined}
@@ -619,7 +622,9 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode }) => {
                             className="password-toggle"
                             aria-controls="register-password"
                             aria-label={
-                              showRegisterPassword ? 'Hide password' : 'Show password'
+                              showRegisterPassword
+                                ? t('common.hidePassword')
+                                : t('common.showPassword')
                             }
                             onClick={() => setShowRegisterPassword((prev) => !prev)}
                           >
@@ -638,14 +643,14 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode }) => {
                       </div>
 
                       <div className="field">
-                        <label htmlFor="register-confirm">Confirm password</label>
+                        <label htmlFor="register-confirm">{t('auth.confirmPasswordLabel')}</label>
                         <div className="password-field">
                           <input
                             id="register-confirm"
                             name="passwordConfirmation"
                             type={showConfirmPassword ? 'text' : 'password'}
                             autoComplete="new-password"
-                            placeholder="Repeat password"
+                            placeholder={t('auth.confirmPasswordPlaceholder')}
                             required
                             value={confirmPassword}
                             aria-invalid={fieldErrors.confirm ? 'true' : undefined}
@@ -663,8 +668,8 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode }) => {
                             aria-controls="register-confirm"
                             aria-label={
                               showConfirmPassword
-                                ? 'Hide password confirmation'
-                                : 'Show password confirmation'
+                                ? t('common.hidePassword')
+                                : t('common.showPassword')
                             }
                             onClick={() => setShowConfirmPassword((prev) => !prev)}
                           >
@@ -765,15 +770,32 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode }) => {
 
                   {(mode === 'verify' || mode === 'reset') && (
                     <div className="field">
-                      <label htmlFor="aux-token">{t('auth.tokenLabel')}</label>
+                      <label htmlFor="aux-token">
+                        {mode === 'verify' ? t('auth.otpLabel') : t('auth.tokenLabel')}
+                      </label>
                       <input
                         id="aux-token"
                         name="token"
                         type="text"
-                        placeholder={t('auth.tokenPlaceholder')}
+                        inputMode={mode === 'verify' ? 'numeric' : undefined}
+                        autoComplete={mode === 'verify' ? 'one-time-code' : undefined}
+                        maxLength={mode === 'verify' ? 6 : undefined}
+                        placeholder={
+                          mode === 'verify'
+                            ? t('auth.otpPlaceholder')
+                            : t('auth.tokenPlaceholder')
+                        }
                         required
                         value={token}
-                        onChange={(e) => setToken(e.target.value)}
+                        style={
+                          mode === 'verify'
+                            ? { letterSpacing: '0.22em', fontWeight: 650 }
+                            : undefined
+                        }
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setToken(mode === 'verify' ? val.replace(/\D/g, '').slice(0, 6) : val);
+                        }}
                       />
                     </div>
                   )}
@@ -797,7 +819,9 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode }) => {
                           type="button"
                           className="password-toggle"
                           aria-controls="aux-password"
-                          aria-label={showLoginPassword ? 'Hide password' : 'Show password'}
+                          aria-label={
+                            showLoginPassword ? t('common.hidePassword') : t('common.showPassword')
+                          }
                           onClick={() => setShowLoginPassword((prev) => !prev)}
                         >
                           {showLoginPassword ? (

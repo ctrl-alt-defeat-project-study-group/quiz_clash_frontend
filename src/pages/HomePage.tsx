@@ -9,7 +9,7 @@ import {
   X
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { ThemeSwitch } from '../components/common';
+import { LanguageSwitch, ThemeSwitch } from '../components/common';
 import { Progress } from '@/components/ui/progress';
 
 export const HomePage: React.FC = () => {
@@ -388,6 +388,7 @@ export const HomePage: React.FC = () => {
           </nav>
 
           <div className="qh-header-actions">
+            <LanguageSwitch />
             <ThemeSwitch />
             {user ? (
               <Link to="/dashboard" className="qh-btn sm primary">
@@ -420,16 +421,22 @@ export const HomePage: React.FC = () => {
               <Link to={user ? '/generate' : '/register'} className="qh-btn primary">
                 {t('home.createQuizBtn')}
               </Link>
-              <button
-                type="button"
-                className="qh-btn"
-                onClick={() => {
-                  setJoinError('');
-                  setJoinOpen(true);
-                }}
-              >
-                {t('nav.joinGame')}
-              </button>
+              {user ? (
+                <Link to="/lobby" className="qh-btn">
+                  {t('nav.joinGame')}
+                </Link>
+              ) : (
+                <button
+                  type="button"
+                  className="qh-btn"
+                  onClick={() => {
+                    setJoinError('');
+                    setJoinOpen(true);
+                  }}
+                >
+                  {t('nav.joinGame')}
+                </button>
+              )}
             </div>
           </div>
 

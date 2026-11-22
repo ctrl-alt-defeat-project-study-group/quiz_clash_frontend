@@ -21,7 +21,8 @@ export const DashboardPage: React.FC = () => {
     : 0;
   const savedCount = quizzes.length;
   const completedCount = history.length;
-  const answeredCount = Object.keys(practice.answers).length;
+  const isResumingActiveQuiz = Boolean(activeQuiz && practice.quizId === activeQuiz.id);
+  const answeredCount = isResumingActiveQuiz ? Object.keys(practice.answers).length : 0;
 
   return (
     <>
@@ -84,7 +85,7 @@ export const DashboardPage: React.FC = () => {
                   </td>
                 </tr>
               ) : (
-                quizzes.map((q) => (
+                quizzes.slice(0, 5).map((q) => (
                   <tr key={q.id}>
                     <td>
                       <strong>{q.title}</strong>
@@ -146,10 +147,12 @@ export const DashboardPage: React.FC = () => {
                 <h3>{activeQuiz.title}</h3>
                 <p className="page-subtitle">
                   {t('dashboard.resumeProgress', {
-                    current: Math.min(
-                      practice.questionIndex + 1,
-                      Math.max(1, activeQuiz.questionCount ?? activeQuiz.questions.length)
-                    ),
+                    current: isResumingActiveQuiz
+                      ? Math.min(
+                          practice.questionIndex + 1,
+                          Math.max(1, activeQuiz.questionCount ?? activeQuiz.questions.length)
+                        )
+                      : 1,
                     total: activeQuiz.questionCount ?? activeQuiz.questions.length,
                     status: answeredCount
                       ? t('dashboard.statusInProgress')

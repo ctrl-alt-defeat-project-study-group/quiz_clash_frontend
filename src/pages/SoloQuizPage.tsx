@@ -29,6 +29,7 @@ export const SoloQuizPage: React.FC = () => {
     selectPracticeAnswer,
     setPracticeQuestionIndex,
     finishPractice,
+    openModal,
     showToast,
     t
   } = useApp();
@@ -36,6 +37,7 @@ export const SoloQuizPage: React.FC = () => {
   const navigate = useNavigate();
   const [bookmarksByQuiz, setBookmarksByQuiz] = useState<Record<string, number[]>>({});
   const [exitModalOpen, setExitModalOpen] = useState<boolean>(false);
+  const [submitting, setSubmitting] = useState<boolean>(false);
 
   useEffect(() => {
     if (!exitModalOpen) return;
@@ -62,6 +64,11 @@ export const SoloQuizPage: React.FC = () => {
 
   const total = quiz?.questions.length ?? 0;
   const idx = Math.min(Math.max(0, practice.questionIndex), Math.max(0, total - 1));
+  const questionOrder =
+    practice.quizId === quiz?.id && practice.questionOrder.length === total
+      ? practice.questionOrder
+      : Array.from({ length: total }, (_, i) => i);
+  const origIdx = questionOrder[idx] ?? idx;
   const quizId = quiz?.id ?? '';
   const bookmarks = bookmarksByQuiz[quizId] ?? [];
   const isBookmarked = bookmarks.includes(idx);
@@ -97,9 +104,9 @@ export const SoloQuizPage: React.FC = () => {
 
       const key = e.key.toUpperCase();
       const letterIdx = LETTERS.indexOf(key);
-      if (letterIdx >= 0 && letterIdx < (quiz.questions[idx]?.choices.length ?? 0)) {
+      if (letterIdx >= 0 && letterIdx < (quiz.questions[origIdx]?.choices.length ?? 0)) {
         e.preventDefault();
-        selectPracticeAnswer(idx, letterIdx);
+        selectPracticeAnswer(origIdx, letterIdx);
         return;
       }
       if (key === 'M') {
@@ -118,7 +125,7 @@ export const SoloQuizPage: React.FC = () => {
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [idx, quiz, selectPracticeAnswer, setPracticeQuestionIndex, toggleBookmark, total]);
+  }, [idx, origIdx, quiz, selectPracticeAnswer, setPracticeQuestionIndex, toggleBookmark, total]);
 
   if (!quiz) {
     return (
@@ -150,23 +157,46 @@ export const SoloQuizPage: React.FC = () => {
     );
   }
 
-  const currentQ = quiz.questions[idx] ||
+  const currentQ = quiz.questions[origIdx] ||
     quiz.questions[0] || {
       prompt: 'Loading question…',
       choices: ['—', '—', '—', '—'],
       answer: 0
     };
-  const selectedChoice = practice.answers[idx];
+  const selectedChoice = practice.answers[origIdx];
   const answeredCount = Object.keys(practice.answers).filter(
     (k) => Number(k) < total
   ).length;
   const pct = total > 0 ? Math.round((answeredCount / total) * 100) : 0;
 
-  const handleFinish = async () => {
-    const attempt = await finishPractice();
-    if (attempt) {
-      navigate(`/attempts/${encodeURIComponent(attempt.id)}`);
+  const submitAttemptNow = async () => {
+    if (submitting) return;
+    setSubmitting(true);
+    try {
+      const attempt = await finishPractice();
+      if (attempt) {
+        navigate(`/attempts/${encodeURIComponent(attempt.id)}`);
+      }
+    } finally {
+      setSubmitting(false);
     }
+  };
+
+  const handleFinish = () => {
+    if (submitting) return;
+    const remaining = Math.max(0, total - answeredCount);
+    if (remaining > 0) {
+      openModal({
+        title: t('solo.unansweredConfirmTitle'),
+        message: t('solo.unansweredConfirmMsg', { count: remaining }),
+        confirmLabel: t('solo.submitAnywayBtn'),
+        onConfirm: () => {
+          void submitAttemptNow();
+        }
+      });
+      return;
+    }
+    void submitAttemptNow();
   };
 
   return (
@@ -266,7 +296,7 @@ export const SoloQuizPage: React.FC = () => {
                     role="radio"
                     aria-checked={isSelected}
                     className={`qp-choice ${isSelected ? 'is-selected' : ''}`}
-                    onClick={() => selectPracticeAnswer(idx, cIdx)}
+                    onClick={() => selectPracticeAnswer(origIdx, cIdx)}
                   >
                     <span className="qp-letter" aria-hidden="true">
                       {LETTERS[cIdx] ?? String(cIdx + 1)}
@@ -291,15 +321,20 @@ export const SoloQuizPage: React.FC = () => {
             <button
               type="button"
               className="qp-btn primary"
+              disabled={submitting && idx >= total - 1}
               onClick={() => {
                 if (idx >= total - 1) {
-                  void handleFinish();
+                  handleFinish();
                 } else {
                   setPracticeQuestionIndex(idx + 1);
                 }
               }}
             >
-              {idx >= total - 1 ? t('solo.finishQuizBtn') : t('solo.nextQuestionBtn')}
+              {idx >= total - 1
+                ? submitting
+                  ? t('solo.submittingBtn')
+                  : t('solo.finishQuizBtn')
+                : t('solo.nextQuestionBtn')}
             </button>
           </footer>
         </article>
@@ -330,9 +365,9 @@ export const SoloQuizPage: React.FC = () => {
 
             <h3 className="qp-map-title">{t('solo.questionMap')}</h3>
             <div className="qp-map-grid">
-              {quiz.questions.map((_, i) => {
+              {questionOrder.map((mappedOrigIdx, i) => {
                 const isCurrent = i === idx;
-                const isDone = practice.answers[i] !== undefined;
+                const isDone = practice.answers[mappedOrigIdx] !== undefined;
                 const isMarked = bookmarks.includes(i);
                 const cls = [
                   'qp-map-button',
@@ -381,10 +416,11 @@ export const SoloQuizPage: React.FC = () => {
               <button
                 type="button"
                 className="qp-btn"
-                onClick={() => void handleFinish()}
+                disabled={submitting}
+                onClick={handleFinish}
               >
                 <Flag size={16} aria-hidden="true" />
-                <span>{t('solo.finishQuizBtn')}</span>
+                <span>{submitting ? t('solo.submittingBtn') : t('solo.finishQuizBtn')}</span>
               </button>
             </div>
           </aside>

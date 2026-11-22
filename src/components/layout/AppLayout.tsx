@@ -145,14 +145,6 @@ export const AppLayout: React.FC = () => {
             >
               {t('nav.attemptHistory')}
             </Link>
-            <Link
-              to="/lobby"
-              className={`nav-link ${isNavActive('s6') ? 'active' : ''}`}
-              aria-current={isNavActive('s6') ? 'page' : undefined}
-              onClick={isMobile ? () => setDrawerOpen(false) : undefined}
-            >
-              {t('nav.liveGames')}
-            </Link>
             {user?.role === 'admin' && (
               <Link
                 to="/admin"
@@ -193,7 +185,7 @@ export const AppLayout: React.FC = () => {
                       className={`library-item ${isSelected ? 'active-quiz' : ''}`}
                       onClick={() => {
                         setActiveQuizId(q.id);
-                        navigate('/quizzes');
+                        navigate(`/quizzes/${encodeURIComponent(q.id)}`);
                         if (isMobile) setDrawerOpen(false);
                       }}
                     >
@@ -283,7 +275,7 @@ export const AppLayout: React.FC = () => {
                 {t('auth.signIn')}
               </Link>
             )}
-            <Link to="/lobby" className="btn btn-sm header-join-btn" data-name="Join game">
+            <Link to="/lobby" className="btn btn-sm header-join-btn" data-name="Quiz game">
               <span className="join-full-text">{t('nav.joinGame')}</span>
               <span className="join-short-text">{t('nav.joinShort')}</span>
             </Link>

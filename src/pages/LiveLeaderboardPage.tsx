@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import Swal from 'sweetalert2';
 import {
+  ArrowLeft,
   Check,
   Clock,
   Eye,
@@ -15,10 +17,18 @@ import {
   X
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { ThemeSwitch, UserAvatar } from '../components/common';
 import { Progress } from '@/components/ui/progress';
 
 const LETTERS = ['A', 'B', 'C', 'D'];
 const pad2 = (n: number) => String(n).padStart(2, '0');
+const getInitials = (name: string) =>
+  name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() || '')
+    .join('') || '?';
 
 interface RecordedRound {
   round: number;
@@ -31,8 +41,10 @@ interface RecordedRound {
 export const LiveLeaderboardPage: React.FC = () => {
   const navigate = useNavigate();
   const {
+    user,
     quizzes,
     activeQuiz,
+    loadQuizDetails,
     live,
     settings,
     closeLiveRoom,
@@ -83,6 +95,12 @@ export const LiveLeaderboardPage: React.FC = () => {
   }, [activeQuestionKey, isPaused, live.currentQuestion?.id, live.status]);
 
   const liveQuiz = quizzes.find((q) => q.id === live.quizId) ?? activeQuiz;
+
+  useEffect(() => {
+    if (!isPlayer && liveQuiz?.backendId && !liveQuiz.questionsLoaded) {
+      void loadQuizDetails(liveQuiz.id, 'preview');
+    }
+  }, [isPlayer, liveQuiz, loadQuizDetails]);
   const liveQuizTitle = liveQuiz?.title || t('nav.liveGames');
   const liveQuestions = liveQuiz?.questions ?? [];
   const totalRounds = Math.max(1, live.totalRounds || liveQuestions.length || 1);
@@ -204,6 +222,69 @@ export const LiveLeaderboardPage: React.FC = () => {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [activeChoices, answerLocked, canParticipate, submitLiveAnswer]);
 
+  const handleHeaderNavigate = async (targetPath: string) => {
+    const isActiveGame = live.status !== 'idle' && live.backendStatus !== 'finished';
+    if (isActiveGame) {
+      const result = await Swal.fire({
+        icon: 'warning',
+        title: t('leaderboard.leaveGameConfirmTitle'),
+        text: t('leaderboard.leaveGameConfirmMsg'),
+        showCancelButton: true,
+        confirmButtonText: isPlayer ? t('lobby.leaveRoom') : t('leaderboard.endGame'),
+        cancelButtonText: t('leaderboard.stayInGameBtn'),
+        reverseButtons: true
+      });
+      if (!result.isConfirmed) return;
+      closeLiveRoom();
+      navigate(targetPath);
+      return;
+    }
+    if (live.status !== 'idle') {
+      closeLiveRoom();
+    }
+    navigate(targetPath);
+  };
+
+  const renderStandaloneHeader = () => (
+    <header className="qlg-header">
+      <div className="qlg-wrap qlg-header-inner">
+        <button
+          type="button"
+          className="brand"
+          style={{ background: 'none', border: 0, padding: 0, cursor: 'pointer' }}
+          onClick={() => void handleHeaderNavigate('/')}
+        >
+          <span className="brand-mark" aria-hidden="true"></span>
+          <span>QuizClash</span>
+        </button>
+        <div className="qlg-header-actions">
+          {user ? (
+            <button
+              type="button"
+              className="qlg-dashboard-link"
+              style={{ background: 'none', border: 0, cursor: 'pointer' }}
+              onClick={() => void handleHeaderNavigate('/dashboard')}
+            >
+              <ArrowLeft size={16} aria-hidden="true" />
+              <span>{t('nav.dashboard')}</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="qlg-dashboard-link"
+              style={{ background: 'none', border: 0, cursor: 'pointer' }}
+              onClick={() => void handleHeaderNavigate('/')}
+            >
+              <ArrowLeft size={16} aria-hidden="true" />
+              <span>{t('nav.home')}</span>
+            </button>
+          )}
+          <ThemeSwitch variant="header" />
+        </div>
+      </div>
+    </header>
+  );
+
   // All participants (joined players + participating hosts) see the QuizClash-Live-Player view.
   // Only a non-participating spectator host sees the 2-column Host Arena below.
   if (canParticipate) {
@@ -241,7 +322,11 @@ export const LiveLeaderboardPage: React.FC = () => {
       : '';
 
     return (
-      <div className="qlp-shell" data-name="Live quiz player">
+      <div className="qlg-page">
+        {renderStandaloneHeader()}
+        <main className="qlg-main is-arena">
+          <div className="qlg-wrap">
+            <div className="qlp-shell" data-name="Live quiz player">
         <section className="qlp-banner" aria-labelledby="live-player-title">
           <div>
             <h1 id="live-player-title">{liveQuizTitle}</h1>
@@ -279,10 +364,23 @@ export const LiveLeaderboardPage: React.FC = () => {
                   return (
                     <li key={p.id || p.name || idx} className={isSelf ? 'is-you' : undefined}>
                       <span>{rank}</span>
-                      <strong>
-                        {p.name}
-                        {isSelf ? ' (YOU)' : ''}
-                      </strong>
+                      <span className="qlp-lb-player">
+                        {p.avatar_url ? (
+                          <UserAvatar
+                            avatarUrl={p.avatar_url}
+                            alt={p.name}
+                            className="qg-player-avatar-img qlp-lb-avatar"
+                          />
+                        ) : (
+                          <span className={`qg-player-avatar av-${idx % 5} qlp-lb-avatar`}>
+                            {getInitials(p.name)}
+                          </span>
+                        )}
+                        <strong>
+                          {p.name}
+                          {isSelf ? ' (YOU)' : ''}
+                        </strong>
+                      </span>
                       <span>{p.points.toLocaleString()} pts</span>
                     </li>
                   );
@@ -471,12 +569,19 @@ export const LiveLeaderboardPage: React.FC = () => {
             </>
           )}
         </section>
+            </div>
+          </div>
+        </main>
       </div>
     );
   }
 
   return (
-    <div className="qp-workspace" data-name="Live quiz arena">
+    <div className="qlg-page">
+      {renderStandaloneHeader()}
+      <main className="qlg-main is-arena">
+        <div className="qlg-wrap">
+          <div className="qp-workspace" data-name="Live quiz arena">
       {/* Live Game Arena Hero */}
       <section className="qp-hero qg-arena-hero" aria-labelledby="live-quiz-title">
         <div className="qp-hero-text">
@@ -598,7 +703,7 @@ export const LiveLeaderboardPage: React.FC = () => {
                           : '';
                       return (
                         <div
-                          key={p.name}
+                          key={p.id || p.name || idx}
                           className={`qg-rank-row ${isSelf ? 'is-self' : ''}`}
                         >
                           <div
@@ -607,6 +712,17 @@ export const LiveLeaderboardPage: React.FC = () => {
                             aria-hidden="true"
                           />
                           <span className={`qg-rank-medal ${medalCls}`}>{idx + 1}</span>
+                          {p.avatar_url ? (
+                            <UserAvatar
+                              avatarUrl={p.avatar_url}
+                              alt={p.name}
+                              className="qg-player-avatar-img qlp-lb-avatar"
+                            />
+                          ) : (
+                            <span className={`qg-player-avatar av-${idx % 5} qlp-lb-avatar`}>
+                              {getInitials(p.name)}
+                            </span>
+                          )}
                           <div className="qg-rank-info">
                             <span className="qg-rank-name">
                               <span>{p.name}</span>
@@ -925,7 +1041,7 @@ export const LiveLeaderboardPage: React.FC = () => {
                   <div className="qp-stat-value">
                     {answeredCount} / {live.players.length}
                   </div>
-                  <div className="qp-stat-label">{t('leaderboard.answeredCorrectly')}</div>
+                  <div className="qp-stat-label">{t('leaderboard.responsesCountLabel')}</div>
                 </div>
                 <div className="qp-stat-tile">
                   <div className="qp-stat-value">{remainingSeconds}s</div>
@@ -972,7 +1088,7 @@ export const LiveLeaderboardPage: React.FC = () => {
                       : '';
                   return (
                     <div
-                      key={p.name}
+                      key={p.id || p.name || idx}
                       className={`qg-rank-row ${isSelf ? 'is-self' : ''}`}
                     >
                       <div
@@ -983,6 +1099,17 @@ export const LiveLeaderboardPage: React.FC = () => {
                       <span className={`qg-rank-medal ${medalCls}`}>
                         {idx + 1}
                       </span>
+                      {p.avatar_url ? (
+                        <UserAvatar
+                          avatarUrl={p.avatar_url}
+                          alt={p.name}
+                          className="qg-player-avatar-img qlp-lb-avatar"
+                        />
+                      ) : (
+                        <span className={`qg-player-avatar av-${idx % 5} qlp-lb-avatar`}>
+                          {getInitials(p.name)}
+                        </span>
+                      )}
                       <div className="qg-rank-info">
                         <span className="qg-rank-name">
                           <span>{p.name}</span>
@@ -1020,6 +1147,9 @@ export const LiveLeaderboardPage: React.FC = () => {
           )}
         </div>
       </div>
+          </div>
+        </div>
+      </main>
     </div>
   );
 };

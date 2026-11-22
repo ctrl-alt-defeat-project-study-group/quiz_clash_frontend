@@ -69,7 +69,6 @@ export const GenerateQuizPage: React.FC = () => {
   const [quizCategory, setQuizCategory] = useState<string>('');
   const [useLlm, setUseLlm] = useState<boolean>(false);
   const [questionCount, setQuestionCount] = useState<number>(settings.defaultQuestions || 10);
-  const [questionFormat, setQuestionFormat] = useState<string>('Multiple choice');
   const [dragging, setDragging] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
   const [generating, setGenerating] = useState<boolean>(false);
@@ -79,10 +78,7 @@ export const GenerateQuizPage: React.FC = () => {
     ? quizzes.find((q) => q.id === createdQuiz.id) ?? createdQuiz
     : null;
 
-  const formatLabel =
-    questionFormat === 'Term & definition'
-      ? t('generate.formatTermDefinition')
-      : t('generate.formatMultipleChoice');
+  const formatLabel = t('generate.formatMultipleChoice');
 
   const handleFileSelection = (file: File | undefined) => {
     if (!file) return;
@@ -450,25 +446,6 @@ export const GenerateQuizPage: React.FC = () => {
                     {t('common.questionsCount', { count: n })}
                   </SelectItem>
                 ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="field-group">
-            <label className="field-label" htmlFor="gen-question-format">
-              {t('generate.questionFormatLabel')}
-            </label>
-            <Select value={questionFormat} onValueChange={setQuestionFormat}>
-              <SelectTrigger id="gen-question-format" className="w-full">
-                <SelectValue placeholder={t('generate.selectFormat')} />
-              </SelectTrigger>
-              <SelectContent position="popper">
-                <SelectItem value="Multiple choice">
-                  {t('generate.formatMultipleChoice')}
-                </SelectItem>
-                <SelectItem value="Term & definition">
-                  {t('generate.formatTermDefinition')}
-                </SelectItem>
               </SelectContent>
             </Select>
           </div>

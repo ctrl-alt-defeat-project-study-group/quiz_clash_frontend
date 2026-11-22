@@ -51,9 +51,22 @@ const DEFAULT_SETTINGS: UserSettings = {
 const EMPTY_PRACTICE: PracticeState = {
   quizId: '',
   questionIndex: 0,
+  questionOrder: [],
   answers: {},
   startedAt: 0
 };
+
+function buildQuestionOrder(count: number, shuffle: boolean): number[] {
+  const order = Array.from({ length: count }, (_, i) => i);
+  if (!shuffle || count <= 1) return order;
+  for (let i = order.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const tmp = order[i];
+    order[i] = order[j];
+    order[j] = tmp;
+  }
+  return order;
+}
 
 const EMPTY_LIVE: LiveGameState = {
   status: 'idle',
@@ -68,6 +81,7 @@ const EMPTY_LIVE: LiveGameState = {
 interface PracticeState {
   quizId: string;
   questionIndex: number;
+  questionOrder: number[];
   answers: Record<number, number>;
   startedAt: number;
 }
@@ -137,7 +151,11 @@ interface AppContextValue {
     useLlm?: boolean;
   }) => Promise<QuizItem>;
 
-  exportStudySheet: (kind: ExportKind, format?: ExportFormat) => Promise<void>;
+  exportStudySheet: (
+    kind: ExportKind,
+    format?: ExportFormat,
+    quizId?: string
+  ) => Promise<void>;
   exportingKind: ExportKind | null;
   printKind: ExportKind;
 
@@ -730,11 +748,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               : q
           )
         );
+        setPractice((prev) =>
+          prev.quizId === quizId && prev.questionOrder.length !== mappedQuestions.length
+            ? {
+                ...prev,
+                questionOrder: buildQuestionOrder(
+                  mappedQuestions.length,
+                  settings.shuffleQuestions
+                )
+              }
+            : prev
+        );
       } catch (err) {
         showToast(getLocalizedErrorMessage(err, uiLangRef.current), 'error');
       }
     },
-    [quizzes, showToast]
+    [quizzes, settings.shuffleQuestions, showToast]
   );
 
   const loadAttemptDetails = useCallback(
@@ -986,10 +1015,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const startPractice = (quizId?: string) => {
     const targetId = quizId || activeQuiz?.id || '';
     if (!targetId) return;
+    const targetQuiz = quizzes.find((q) => q.id === targetId);
+    const questionOrder =
+      targetQuiz && targetQuiz.questions.length > 0
+        ? buildQuestionOrder(targetQuiz.questions.length, settings.shuffleQuestions)
+        : [];
     setActiveQuizIdState(targetId);
     setPractice({
       quizId: targetId,
       questionIndex: 0,
+      questionOrder,
       answers: {},
       startedAt: Date.now()
     });
@@ -1071,9 +1106,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const exportStudySheet = async (
     kind: ExportKind,
-    format: ExportFormat = 'pdf'
+    format: ExportFormat = 'pdf',
+    quizId?: string
   ) => {
-    if (!activeQuiz?.backendId || exportingKind) return;
+    const targetQuiz = (quizId ? quizzes.find((q) => q.id === quizId) : null) ?? activeQuiz;
+    if (!targetQuiz?.backendId || exportingKind) return;
     setPrintKind(kind);
     setExportingKind(kind);
 
@@ -1081,10 +1118,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const minDelay = new Promise((resolve) => window.setTimeout(resolve, 550));
       await Promise.all([
         api.downloadQuizExport(
-          activeQuiz.backendId,
+          targetQuiz.backendId,
           kind,
           format,
-          activeQuiz.title,
+          targetQuiz.title,
           uiLanguage
         ),
         minDelay

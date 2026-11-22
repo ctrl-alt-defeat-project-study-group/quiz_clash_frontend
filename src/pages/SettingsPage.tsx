@@ -111,19 +111,17 @@ export const SettingsPage: React.FC = () => {
   }, [avatarModalOpen]);
 
   const [displayNameDraft, setDisplayNameDraft] = useState<string | null>(null);
-  const [emailDraft, setEmailDraft] = useState<string | null>(null);
   const [defaultQuestionsDraft, setDefaultQuestionsDraft] = useState<number | null>(null);
   const [difficultyDraft, setDifficultyDraft] = useState<string | null>(null);
   const [languageDraft, setLanguageDraft] = useState<string | null>(null);
 
   const displayName = displayNameDraft ?? settings.displayName;
-  const email = emailDraft ?? settings.email;
+  const email = user?.email || settings.email;
   const defaultQuestions = defaultQuestionsDraft ?? settings.defaultQuestions;
   const difficulty = difficultyDraft ?? settings.difficulty;
   const language = languageDraft ?? settings.language;
 
   const setDisplayName = (v: string) => setDisplayNameDraft(v);
-  const setEmail = (v: string) => setEmailDraft(v);
   const setDefaultQuestions = (v: number) => setDefaultQuestionsDraft(v);
   const setDifficulty = (v: string) => setDifficultyDraft(v);
   const setLanguage = (v: string) => setLanguageDraft(v);
@@ -172,7 +170,6 @@ export const SettingsPage: React.FC = () => {
       hasLocalEditsRef.current = false;
     }
     setDisplayNameDraft(null);
-    setEmailDraft(null);
     setDefaultQuestionsDraft(null);
     setDifficultyDraft(null);
     setLanguageDraft(null);
@@ -207,7 +204,6 @@ export const SettingsPage: React.FC = () => {
         weeklySummary: settings.weeklySummary
       };
       setDisplayNameDraft(null);
-      setEmailDraft(null);
       setDefaultQuestionsDraft(null);
       setDifficultyDraft(null);
       setLanguageDraft(null);
@@ -249,9 +245,10 @@ export const SettingsPage: React.FC = () => {
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!hasPassword) return;
     setPasswordError('');
 
-    if (hasPassword && !currentPassword) {
+    if (!currentPassword) {
       setPasswordError(t('settings.currentPasswordRequired'));
       return;
     }
@@ -271,7 +268,7 @@ export const SettingsPage: React.FC = () => {
     setChangingPassword(true);
     try {
       await api.changePassword({
-        ...(hasPassword ? { currentPassword } : {}),
+        currentPassword,
         newPassword,
         language: uiLanguage
       });
@@ -387,7 +384,9 @@ export const SettingsPage: React.FC = () => {
                     className="input"
                     type="email"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    readOnly
+                    disabled
+                    style={{ opacity: 0.72, cursor: 'not-allowed' }}
                   />
                 </div>
               </div>
@@ -717,19 +716,26 @@ export const SettingsPage: React.FC = () => {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                   <KeyRound size={17} aria-hidden="true" />
                   <h2 className="section-title" style={{ margin: 0 }}>
-                    {hasPassword
-                      ? t('settings.changePasswordTitle')
-                      : t('settings.setPasswordTitle')}
+                    {t('settings.changePasswordTitle')}
                   </h2>
                 </div>
                 <p className="helper-text" style={{ marginBottom: 16 }}>
                   {hasPassword
                     ? t('settings.changePasswordSubtitle')
-                    : t('settings.setPasswordSubtitle')}
+                    : t('settings.oauthPasswordDisabledNotice')}
                 </p>
 
                 <form noValidate onSubmit={handleChangePassword}>
-                  {hasPassword && (
+                  <fieldset
+                    disabled={!hasPassword || changingPassword}
+                    style={{
+                      border: 0,
+                      padding: 0,
+                      margin: 0,
+                      opacity: !hasPassword ? 0.55 : 1,
+                      cursor: !hasPassword ? 'not-allowed' : undefined
+                    }}
+                  >
                     <div className="field-group">
                       <label className="field-label" htmlFor="settings-current-password">
                         {t('settings.currentPasswordLabel')}
@@ -742,7 +748,6 @@ export const SettingsPage: React.FC = () => {
                           autoComplete="current-password"
                           placeholder={t('settings.currentPasswordPlaceholder')}
                           value={currentPassword}
-                          disabled={changingPassword}
                           style={{ paddingRight: 40 }}
                           onChange={(e) => {
                             setCurrentPassword(e.target.value);
@@ -751,7 +756,11 @@ export const SettingsPage: React.FC = () => {
                         />
                         <button
                           type="button"
-                          aria-label={showCurrentPassword ? 'Hide password' : 'Show password'}
+                          aria-label={
+                            showCurrentPassword
+                              ? t('common.hidePassword')
+                              : t('common.showPassword')
+                          }
                           onClick={() => setShowCurrentPassword((prev) => !prev)}
                           style={{
                             position: 'absolute',
@@ -761,7 +770,7 @@ export const SettingsPage: React.FC = () => {
                             background: 'none',
                             border: 'none',
                             padding: 4,
-                            cursor: 'pointer',
+                            cursor: !hasPassword ? 'not-allowed' : 'pointer',
                             color: 'var(--text-muted)',
                             display: 'inline-flex',
                             alignItems: 'center'
@@ -775,127 +784,131 @@ export const SettingsPage: React.FC = () => {
                         </button>
                       </div>
                     </div>
-                  )}
 
-                  <div className="grid-2" style={{ gap: 14 }}>
-                    <div className="field-group" style={{ marginBottom: 0 }}>
-                      <label className="field-label" htmlFor="settings-new-password">
-                        {t('settings.newPasswordLabel')}
-                      </label>
-                      <div style={{ position: 'relative' }}>
-                        <input
-                          id="settings-new-password"
-                          className="input"
-                          type={showNewPassword ? 'text' : 'password'}
-                          autoComplete="new-password"
-                          minLength={8}
-                          placeholder={t('settings.newPasswordPlaceholder')}
-                          value={newPassword}
-                          disabled={changingPassword}
-                          style={{ paddingRight: 40 }}
-                          onChange={(e) => {
-                            setNewPassword(e.target.value);
-                            if (passwordError) setPasswordError('');
-                          }}
-                        />
-                        <button
-                          type="button"
-                          aria-label={showNewPassword ? 'Hide password' : 'Show password'}
-                          onClick={() => setShowNewPassword((prev) => !prev)}
-                          style={{
-                            position: 'absolute',
-                            right: 10,
-                            top: '50%',
-                            transform: 'translateY(-50%)',
-                            background: 'none',
-                            border: 'none',
-                            padding: 4,
-                            cursor: 'pointer',
-                            color: 'var(--text-muted)',
-                            display: 'inline-flex',
-                            alignItems: 'center'
-                          }}
-                        >
-                          {showNewPassword ? (
-                            <EyeOff size={16} aria-hidden="true" />
-                          ) : (
-                            <Eye size={16} aria-hidden="true" />
-                          )}
-                        </button>
+                    <div className="grid-2" style={{ gap: 14 }}>
+                      <div className="field-group" style={{ marginBottom: 0 }}>
+                        <label className="field-label" htmlFor="settings-new-password">
+                          {t('settings.newPasswordLabel')}
+                        </label>
+                        <div style={{ position: 'relative' }}>
+                          <input
+                            id="settings-new-password"
+                            className="input"
+                            type={showNewPassword ? 'text' : 'password'}
+                            autoComplete="new-password"
+                            minLength={8}
+                            placeholder={t('settings.newPasswordPlaceholder')}
+                            value={newPassword}
+                            style={{ paddingRight: 40 }}
+                            onChange={(e) => {
+                              setNewPassword(e.target.value);
+                              if (passwordError) setPasswordError('');
+                            }}
+                          />
+                          <button
+                            type="button"
+                            aria-label={
+                              showNewPassword
+                                ? t('common.hidePassword')
+                                : t('common.showPassword')
+                            }
+                            onClick={() => setShowNewPassword((prev) => !prev)}
+                            style={{
+                              position: 'absolute',
+                              right: 10,
+                              top: '50%',
+                              transform: 'translateY(-50%)',
+                              background: 'none',
+                              border: 'none',
+                              padding: 4,
+                              cursor: !hasPassword ? 'not-allowed' : 'pointer',
+                              color: 'var(--text-muted)',
+                              display: 'inline-flex',
+                              alignItems: 'center'
+                            }}
+                          >
+                            {showNewPassword ? (
+                              <EyeOff size={16} aria-hidden="true" />
+                            ) : (
+                              <Eye size={16} aria-hidden="true" />
+                            )}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="field-group" style={{ marginBottom: 0 }}>
+                        <label className="field-label" htmlFor="settings-confirm-password">
+                          {t('settings.confirmNewPasswordLabel')}
+                        </label>
+                        <div style={{ position: 'relative' }}>
+                          <input
+                            id="settings-confirm-password"
+                            className="input"
+                            type={showConfirmNewPassword ? 'text' : 'password'}
+                            autoComplete="new-password"
+                            minLength={8}
+                            placeholder={t('settings.confirmNewPasswordPlaceholder')}
+                            value={confirmNewPassword}
+                            style={{ paddingRight: 40 }}
+                            onChange={(e) => {
+                              setConfirmNewPassword(e.target.value);
+                              if (passwordError) setPasswordError('');
+                            }}
+                          />
+                          <button
+                            type="button"
+                            aria-label={
+                              showConfirmNewPassword
+                                ? t('common.hidePassword')
+                                : t('common.showPassword')
+                            }
+                            onClick={() => setShowConfirmNewPassword((prev) => !prev)}
+                            style={{
+                              position: 'absolute',
+                              right: 10,
+                              top: '50%',
+                              transform: 'translateY(-50%)',
+                              background: 'none',
+                              border: 'none',
+                              padding: 4,
+                              cursor: !hasPassword ? 'not-allowed' : 'pointer',
+                              color: 'var(--text-muted)',
+                              display: 'inline-flex',
+                              alignItems: 'center'
+                            }}
+                          >
+                            {showConfirmNewPassword ? (
+                              <EyeOff size={16} aria-hidden="true" />
+                            ) : (
+                              <Eye size={16} aria-hidden="true" />
+                            )}
+                          </button>
+                        </div>
                       </div>
                     </div>
 
-                    <div className="field-group" style={{ marginBottom: 0 }}>
-                      <label className="field-label" htmlFor="settings-confirm-password">
-                        {t('settings.confirmNewPasswordLabel')}
-                      </label>
-                      <div style={{ position: 'relative' }}>
-                        <input
-                          id="settings-confirm-password"
-                          className="input"
-                          type={showConfirmNewPassword ? 'text' : 'password'}
-                          autoComplete="new-password"
-                          minLength={8}
-                          placeholder={t('settings.confirmNewPasswordPlaceholder')}
-                          value={confirmNewPassword}
-                          disabled={changingPassword}
-                          style={{ paddingRight: 40 }}
-                          onChange={(e) => {
-                            setConfirmNewPassword(e.target.value);
-                            if (passwordError) setPasswordError('');
-                          }}
-                        />
-                        <button
-                          type="button"
-                          aria-label={showConfirmNewPassword ? 'Hide password' : 'Show password'}
-                          onClick={() => setShowConfirmNewPassword((prev) => !prev)}
-                          style={{
-                            position: 'absolute',
-                            right: 10,
-                            top: '50%',
-                            transform: 'translateY(-50%)',
-                            background: 'none',
-                            border: 'none',
-                            padding: 4,
-                            cursor: 'pointer',
-                            color: 'var(--text-muted)',
-                            display: 'inline-flex',
-                            alignItems: 'center'
-                          }}
-                        >
-                          {showConfirmNewPassword ? (
-                            <EyeOff size={16} aria-hidden="true" />
-                          ) : (
-                            <Eye size={16} aria-hidden="true" />
-                          )}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  <p className="helper-text" style={{ marginTop: 10, marginBottom: 14 }}>
-                    {t('settings.passwordHint')}
-                  </p>
-
-                  {passwordError && (
-                    <p className="error-text" role="alert" style={{ marginBottom: 12 }}>
-                      {passwordError}
+                    <p className="helper-text" style={{ marginTop: 10, marginBottom: 14 }}>
+                      {t('settings.passwordHint')}
                     </p>
-                  )}
 
-                  <div className="btn-row">
-                    <button
-                      type="submit"
-                      className="btn btn-sm btn-primary"
-                      disabled={changingPassword}
-                    >
-                      {changingPassword
-                        ? t('auth.submitting')
-                        : hasPassword
-                        ? t('settings.updatePasswordBtn')
-                        : t('settings.setPasswordBtn')}
-                    </button>
-                  </div>
+                    {passwordError && (
+                      <p className="error-text" role="alert" style={{ marginBottom: 12 }}>
+                        {passwordError}
+                      </p>
+                    )}
+
+                    <div className="btn-row">
+                      <button
+                        type="submit"
+                        className="btn btn-sm btn-primary"
+                        disabled={!hasPassword || changingPassword}
+                      >
+                        {changingPassword
+                          ? t('auth.submitting')
+                          : t('settings.updatePasswordBtn')}
+                      </button>
+                    </div>
+                  </fieldset>
                 </form>
               </SectionCard>
             )}

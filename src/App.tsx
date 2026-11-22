@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import {
   BrowserRouter,
   Navigate,
@@ -9,18 +9,59 @@ import {
 } from 'react-router-dom';
 import { AppProvider, useApp } from './context/AppContext';
 import { AppLayout } from './components/layout/AppLayout';
-import { HomePage } from './pages/HomePage';
-import { DashboardPage } from './pages/DashboardPage';
-import { GenerateQuizPage } from './pages/GenerateQuizPage';
-import { ReviewExportPage } from './pages/ReviewExportPage';
-import { SoloQuizPage } from './pages/SoloQuizPage';
-import { ResultsHistoryPage } from './pages/ResultsHistoryPage';
-import { AttemptDetailPage } from './pages/AttemptDetailPage';
-import { LiveLobbyPage } from './pages/LiveLobbyPage';
-import { LiveLeaderboardPage } from './pages/LiveLeaderboardPage';
-import { SettingsPage } from './pages/SettingsPage';
-import { AuthPage } from './pages/AuthPage';
-import { AdminPage } from './pages/AdminPage';
+
+const HomePage = lazy(() =>
+  import('./pages/HomePage').then((m) => ({ default: m.HomePage }))
+);
+const DashboardPage = lazy(() =>
+  import('./pages/DashboardPage').then((m) => ({ default: m.DashboardPage }))
+);
+const GenerateQuizPage = lazy(() =>
+  import('./pages/GenerateQuizPage').then((m) => ({ default: m.GenerateQuizPage }))
+);
+const ReviewExportPage = lazy(() =>
+  import('./pages/ReviewExportPage').then((m) => ({ default: m.ReviewExportPage }))
+);
+const SoloQuizPage = lazy(() =>
+  import('./pages/SoloQuizPage').then((m) => ({ default: m.SoloQuizPage }))
+);
+const ResultsHistoryPage = lazy(() =>
+  import('./pages/ResultsHistoryPage').then((m) => ({ default: m.ResultsHistoryPage }))
+);
+const AttemptDetailPage = lazy(() =>
+  import('./pages/AttemptDetailPage').then((m) => ({ default: m.AttemptDetailPage }))
+);
+const LiveLobbyPage = lazy(() =>
+  import('./pages/LiveLobbyPage').then((m) => ({ default: m.LiveLobbyPage }))
+);
+const LiveLeaderboardPage = lazy(() =>
+  import('./pages/LiveLeaderboardPage').then((m) => ({ default: m.LiveLeaderboardPage }))
+);
+const SettingsPage = lazy(() =>
+  import('./pages/SettingsPage').then((m) => ({ default: m.SettingsPage }))
+);
+const AuthPage = lazy(() =>
+  import('./pages/AuthPage').then((m) => ({ default: m.AuthPage }))
+);
+const AdminPage = lazy(() =>
+  import('./pages/AdminPage').then((m) => ({ default: m.AdminPage }))
+);
+
+const RouteFallback: React.FC = () => {
+  const { t } = useApp();
+  return (
+    <div
+      style={{
+        minHeight: '50vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center'
+      }}
+    >
+      <p className="helper-text">{t('common.loading')}</p>
+    </div>
+  );
+};
 
 const RequireAuth: React.FC = () => {
   const { user, authLoading, t } = useApp();
@@ -58,11 +99,21 @@ const GuestOnly: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return <>{children}</>;
 };
 
+const RequireAdmin: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { user, authLoading } = useApp();
+
+  if (authLoading) return null;
+  if (!user || user.role !== 'admin') return <Navigate to="/dashboard" replace />;
+
+  return <>{children}</>;
+};
+
 export function App() {
   return (
     <AppProvider>
       <BrowserRouter>
-        <Routes>
+        <Suspense fallback={<RouteFallback />}>
+          <Routes>
           {/* Public Landing / Home Page */}
           <Route path="/" element={<HomePage />} />
 
@@ -87,19 +138,14 @@ export function App() {
           <Route path="/forgot-password" element={<AuthPage mode="forgot" />} />
           <Route path="/reset-password" element={<AuthPage mode="reset" />} />
 
-          {/* Public & Guest-Accessible Live Game Routes inside AppLayout */}
-          <Route element={<AppLayout />}>
-            {/* Screen 06: Live Game Lobby (Guests can join via PIN; Hosts sign in to create) */}
-            <Route path="/lobby" element={<LiveLobbyPage />} />
-            <Route path="/rooms/:pin" element={<LiveLobbyPage />} />
-            <Route path="/s6" element={<LiveLobbyPage />} />
-
-            {/* Screen 07: Live Game Room (Host & Player Arena) */}
-            <Route path="/rooms/:pin/play" element={<LiveLeaderboardPage />} />
-            <Route path="/rooms/play" element={<LiveLeaderboardPage />} />
-            <Route path="/leaderboard" element={<LiveLeaderboardPage />} />
-            <Route path="/s7" element={<LiveLeaderboardPage />} />
-          </Route>
+          {/* Standalone Full-Page Live Game Routes (Public & Guest-Accessible) */}
+          <Route path="/lobby" element={<LiveLobbyPage />} />
+          <Route path="/rooms/:pin" element={<LiveLobbyPage />} />
+          <Route path="/s6" element={<LiveLobbyPage />} />
+          <Route path="/rooms/:pin/play" element={<LiveLeaderboardPage />} />
+          <Route path="/rooms/play" element={<LiveLeaderboardPage />} />
+          <Route path="/leaderboard" element={<LiveLeaderboardPage />} />
+          <Route path="/s7" element={<LiveLeaderboardPage />} />
 
           {/* Protected Workspace Routes (Authenticated Users Only) */}
           <Route element={<RequireAuth />}>
@@ -136,13 +182,21 @@ export function App() {
               <Route path="/s8" element={<SettingsPage />} />
 
               {/* Raw Admin Console */}
-              <Route path="/admin" element={<AdminPage />} />
+              <Route
+                path="/admin"
+                element={
+                  <RequireAdmin>
+                    <AdminPage />
+                  </RequireAdmin>
+                }
+              />
             </Route>
           </Route>
 
           {/* Fallback */}
           <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+          </Routes>
+        </Suspense>
       </BrowserRouter>
     </AppProvider>
   );

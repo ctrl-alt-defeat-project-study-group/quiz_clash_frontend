@@ -21,6 +21,7 @@ export type ErrorCode =
   | 'ACCOUNT_DISABLED'
   | 'INVALID_CURRENT_PASSWORD'
   | 'PASSWORD_UNCHANGED'
+  | 'OAUTH_PASSWORD_MANAGED_EXTERNALLY'
   | 'FORBIDDEN'
   | 'RATE_LIMITED'
   | 'NETWORK_ERROR'
@@ -87,6 +88,10 @@ export const ERROR_MESSAGES: Record<ErrorCode, LocalizedText> = {
   PASSWORD_UNCHANGED: {
     en: 'New password must be different from your current password.',
     mm: 'စကားဝှက်အသစ်သည် လက်ရှိစကားဝှက်နှင့် မတူညီရပါ။'
+  },
+  OAUTH_PASSWORD_MANAGED_EXTERNALLY: {
+    en: 'Password changes are disabled for Google sign-in accounts.',
+    mm: 'Google ဖြင့် ဝင်ရောက်ထားသော အကောင့်များအတွက် စကားဝှက်ပြောင်းလဲခြင်းကို ပိတ်ထားပါသည်။'
   },
   FORBIDDEN: {
     en: 'You do not have permission to perform this action.',

@@ -1,15 +1,17 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowRight, BarChart3, History, Trash2 } from 'lucide-react';
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts';
 import { useApp } from '../context/AppContext';
-import { PageHeader, SectionCard, StatCard } from '../components/common';
+import { AppPagination, PageHeader, SectionCard, StatCard } from '../components/common';
 import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
   type ChartConfig
 } from '@/components/ui/chart';
+
+const HISTORY_PAGE_SIZE = 10;
 
 export const ResultsHistoryPage: React.FC = () => {
   const {
@@ -21,12 +23,27 @@ export const ResultsHistoryPage: React.FC = () => {
     deleteAttempt,
     clearAllAttempts,
     deleteLiveHistoryRoom,
-    startPractice,
     openModal,
     t
   } = useApp();
 
   const navigate = useNavigate();
+  const [attemptPage, setAttemptPage] = useState<number>(1);
+  const [livePage, setLivePage] = useState<number>(1);
+
+  const attemptTotalPages = Math.max(1, Math.ceil(history.length / HISTORY_PAGE_SIZE));
+  const safeAttemptPage = Math.min(attemptPage, attemptTotalPages);
+  const pagedHistory = history.slice(
+    (safeAttemptPage - 1) * HISTORY_PAGE_SIZE,
+    safeAttemptPage * HISTORY_PAGE_SIZE
+  );
+
+  const liveTotalPages = Math.max(1, Math.ceil(liveHistory.length / HISTORY_PAGE_SIZE));
+  const safeLivePage = Math.min(livePage, liveTotalPages);
+  const pagedLiveHistory = liveHistory.slice(
+    (safeLivePage - 1) * HISTORY_PAGE_SIZE,
+    safeLivePage * HISTORY_PAGE_SIZE
+  );
 
   const latest =
     history.find((h) => h.id === activeAttemptId) ?? history[0] ?? null;
@@ -64,7 +81,7 @@ export const ResultsHistoryPage: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {liveHistory.map((item) => (
+              {pagedLiveHistory.map((item) => (
                 <tr key={item.id}>
                   <td>{formatLiveDate(item.finished_at || item.created_at)}</td>
                   <td>
@@ -117,6 +134,15 @@ export const ResultsHistoryPage: React.FC = () => {
             </tbody>
           </table>
         </div>
+        {liveTotalPages > 1 && (
+          <div style={{ marginTop: 14 }}>
+            <AppPagination
+              currentPage={safeLivePage}
+              totalPages={liveTotalPages}
+              onPageChange={setLivePage}
+            />
+          </div>
+        )}
       </SectionCard>
     );
   };
@@ -317,10 +343,7 @@ export const ResultsHistoryPage: React.FC = () => {
               {t('results.attemptHistoryTitle')}
             </h2>
             <p className="helper-text" style={{ margin: 0 }}>
-              {t('results.attemptHistorySubtitle', {
-                quizTitle: latest.quizTitle,
-                count: history.length
-              })}
+              {t('results.allAttemptsSubtitle', { count: history.length })}
             </p>
           </div>
           <button
@@ -346,6 +369,7 @@ export const ResultsHistoryPage: React.FC = () => {
           <table className="data-table">
             <thead>
               <tr>
+                <th>{t('results.colQuiz')}</th>
                 <th>{t('results.colDate')}</th>
                 <th>{t('results.colScore')}</th>
                 <th>{t('results.colCorrect')}</th>
@@ -354,8 +378,9 @@ export const ResultsHistoryPage: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {history.map((h) => (
+              {pagedHistory.map((h) => (
                 <tr key={h.id}>
+                  <td style={{ fontWeight: 600 }}>{h.quizTitle}</td>
                   <td>{h.dateLabel}</td>
                   <td>
                     <span className="score-badge">{h.scorePct}%</span>
@@ -400,22 +425,21 @@ export const ResultsHistoryPage: React.FC = () => {
             </tbody>
           </table>
         </div>
+        {attemptTotalPages > 1 && (
+          <div style={{ marginTop: 14 }}>
+            <AppPagination
+              currentPage={safeAttemptPage}
+              totalPages={attemptTotalPages}
+              onPageChange={setAttemptPage}
+            />
+          </div>
+        )}
       </SectionCard>
 
       {renderLiveHistoryCard()}
 
       <div className="btn-row" data-name="Results actions">
-        <button
-          type="button"
-          className="btn btn-primary"
-          onClick={() => {
-            startPractice(latest.quizId);
-            navigate(`/quizzes/${encodeURIComponent(latest.quizId)}/play`);
-          }}
-        >
-          {t('results.retakeQuiz')}
-        </button>
-        <Link to="/lobby" className="btn">
+        <Link to="/lobby" className="btn btn-primary">
           {t('results.challengeFriends')}
         </Link>
       </div>

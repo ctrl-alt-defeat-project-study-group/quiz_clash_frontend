@@ -13,6 +13,7 @@ export const AttemptDetailPage: React.FC = () => {
     setActiveAttemptId,
     loadAttemptDetails,
     activeQuiz,
+    settings,
     startPractice,
     exportStudySheet,
     exportingKind,
@@ -62,6 +63,7 @@ export const AttemptDetailPage: React.FC = () => {
 
   const quiz = quizzes.find((q) => q.id === attempt.quizId) ?? activeQuiz;
   const missedList = attempt.missed || [];
+  const isLoadingDetails = Boolean(attempt.backendId && !attempt.detailsLoaded);
 
   return (
     <>
@@ -107,7 +109,9 @@ export const AttemptDetailPage: React.FC = () => {
 
       <SectionCard
         title={
-          showAllAnswers
+          isLoadingDetails
+            ? t('results.loadingDetails')
+            : showAllAnswers
             ? t('results.allQuestionsTitle', {
                 count: attempt.questionResults?.length ?? quiz?.questions.length ?? attempt.total,
                 title: quiz?.title ?? attempt.quizTitle
@@ -119,18 +123,33 @@ export const AttemptDetailPage: React.FC = () => {
             : t('results.perfectScoreTitle')
         }
         headerRight={
-          <button
-            type="button"
-            className="text-link"
-            onClick={() => setShowAllAnswers((prev) => !prev)}
-          >
-            {showAllAnswers
-              ? t('results.showMissedOnly')
-              : t('results.viewAllAnswers')}
-          </button>
+          !isLoadingDetails ? (
+            <button
+              type="button"
+              className="text-link"
+              onClick={() => setShowAllAnswers((prev) => !prev)}
+            >
+              {showAllAnswers
+                ? t('results.showMissedOnly')
+                : t('results.viewAllAnswers')}
+            </button>
+          ) : undefined
         }
         dataName="Missed question review"
       >
+        {isLoadingDetails ? (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              padding: '12px 0'
+            }}
+          >
+            <Loader2 size={16} className="animate-spin" aria-hidden="true" />
+            <span className="helper-text">{t('results.loadingDetails')}</span>
+          </div>
+        ) : (
         <div className="missed-grid">
           {showAllAnswers
             ? attempt.questionResults && attempt.questionResults.length > 0
@@ -155,9 +174,11 @@ export const AttemptDetailPage: React.FC = () => {
                         <strong>{qr.correct_choice_text}</strong>
                       </div>
                     </div>
-                    <p className="helper-text">
-                      {qr.explanation || t('results.verifiedExplanation')}
-                    </p>
+                    {settings.showExplanations && (
+                      <p className="helper-text">
+                        {qr.explanation || t('results.verifiedExplanation')}
+                      </p>
+                    )}
                   </article>
                 ))
               : (quiz?.questions ?? []).map((q, idx) => (
@@ -171,9 +192,11 @@ export const AttemptDetailPage: React.FC = () => {
                     <p style={{ fontSize: 13 }}>
                       <strong>{t('results.correctAnswerLabel')}</strong> {q.choices[q.answer]}
                     </p>
-                    <p className="helper-text">
-                      {q.explanation || t('results.verifiedExplanation')}
-                    </p>
+                    {settings.showExplanations && (
+                      <p className="helper-text">
+                        {q.explanation || t('results.verifiedExplanation')}
+                      </p>
+                    )}
                   </article>
                 ))
             : missedList.map((m, idx) => (
@@ -192,10 +215,13 @@ export const AttemptDetailPage: React.FC = () => {
                       {t('results.correctAnswerLabel')} <strong>{m.correctAnswer}</strong>
                     </div>
                   </div>
-                  <p className="helper-text">{m.explanation}</p>
+                  {settings.showExplanations && (
+                    <p className="helper-text">{m.explanation}</p>
+                  )}
                 </article>
               ))}
         </div>
+        )}
       </SectionCard>
 
       <div className="btn-row" data-name="Results actions">
@@ -212,7 +238,7 @@ export const AttemptDetailPage: React.FC = () => {
         <button
           type="button"
           className="btn"
-          onClick={() => void exportStudySheet('answers')}
+          onClick={() => void exportStudySheet('answers', 'pdf', attempt.quizId)}
           disabled={exportingKind !== null}
           aria-busy={exportingKind === 'answers'}
           style={{ gap: 8 }}

@@ -40,7 +40,6 @@ export const QuizReviewWorkspace: React.FC<QuizReviewWorkspaceProps> = ({
     exportStudySheet,
     exportingKind,
     openModal,
-    showToast,
     t
   } = useApp();
 
@@ -132,7 +131,6 @@ export const QuizReviewWorkspace: React.FC<QuizReviewWorkspaceProps> = ({
                   setEditing(nextState);
                   if (!nextState) {
                     void saveQuizChanges(quiz.id);
-                    showToast(t('toasts.questionSaved'));
                   }
                 }}
               >

@@ -264,12 +264,16 @@ export async function register(params: {
 
 export async function verifyEmail(
   token: string,
-  language?: AppLanguage
+  language?: AppLanguage,
+  email?: string
 ): Promise<ApiMessage> {
   return apiJson<ApiMessage>('/auth/verify-email', {
     method: 'POST',
     language,
-    body: JSON.stringify({ token })
+    body: JSON.stringify({
+      token,
+      ...(email ? { email } : {})
+    })
   });
 }
 
