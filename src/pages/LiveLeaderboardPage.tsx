@@ -20,6 +20,14 @@ import { Progress } from '@/components/ui/progress';
 const LETTERS = ['A', 'B', 'C', 'D'];
 const pad2 = (n: number) => String(n).padStart(2, '0');
 
+interface RecordedRound {
+  round: number;
+  prompt: string;
+  choices: { id: string; text: string }[];
+  selectedChoiceId: string | null;
+  correctChoiceId: string | null;
+}
+
 export const LiveLeaderboardPage: React.FC = () => {
   const navigate = useNavigate();
   const {
@@ -43,12 +51,27 @@ export const LiveLeaderboardPage: React.FC = () => {
   const [hostShowAnswer, setHostShowAnswer] = useState<boolean>(false);
   const [isPaused, setIsPaused] = useState<boolean>(false);
   const [showReview, setShowReview] = useState<boolean>(false);
+  const [recordedRounds, setRecordedRounds] = useState<Record<number, RecordedRound>>({});
+  const [prevRevealKey, setPrevRevealKey] = useState<string>('');
 
   if (prevQuestionKey !== activeQuestionKey) {
     setPrevQuestionKey(activeQuestionKey);
     setRemainingSeconds(totalSeconds);
     setHostShowAnswer(false);
     setIsPaused(false);
+    if (live.currentQuestion && live.round > 0) {
+      const sorted = [...live.currentQuestion.choices].sort((a, b) => a.position - b.position);
+      setRecordedRounds((prev) => ({
+        ...prev,
+        [live.round]: {
+          round: live.round,
+          prompt: live.currentQuestion!.prompt,
+          choices: sorted.map((c) => ({ id: c.id, text: c.text })),
+          selectedChoiceId: prev[live.round]?.selectedChoiceId ?? null,
+          correctChoiceId: prev[live.round]?.correctChoiceId ?? null
+        }
+      }));
+    }
   }
 
   useEffect(() => {
@@ -118,6 +141,23 @@ export const LiveLeaderboardPage: React.FC = () => {
   const activePrompt = live.currentQuestion?.prompt || currentQ.prompt;
   const revealedCorrectId =
     live.lastAnswerResult?.correct_choice_id || live.lastRoundCorrectChoiceId;
+
+  const revealSyncKey = `${round}:${live.selectedChoiceId || ''}:${revealedCorrectId || ''}`;
+  if (revealSyncKey !== prevRevealKey && live.currentQuestion && round > 0) {
+    setPrevRevealKey(revealSyncKey);
+    const sorted = [...live.currentQuestion.choices].sort((a, b) => a.position - b.position);
+    setRecordedRounds((prev) => ({
+      ...prev,
+      [round]: {
+        round,
+        prompt: live.currentQuestion!.prompt,
+        choices: sorted.map((c) => ({ id: c.id, text: c.text })),
+        selectedChoiceId: live.selectedChoiceId ?? prev[round]?.selectedChoiceId ?? null,
+        correctChoiceId: revealedCorrectId ?? prev[round]?.correctChoiceId ?? null
+      }
+    }));
+  }
+
   const showHostCorrect = canParticipate
     ? Boolean(revealedCorrectId) || remainingSeconds === 0
     : hostShowAnswer || remainingSeconds === 0;
@@ -127,6 +167,13 @@ export const LiveLeaderboardPage: React.FC = () => {
     !live.currentQuestion ||
     Boolean(live.selectedChoiceId) ||
     remainingSeconds === 0;
+
+  // Redirect back to lobby when the live session ends or the host closes the room
+  useEffect(() => {
+    if (live.status === 'idle') {
+      navigate('/lobby', { replace: true });
+    }
+  }, [live.status, navigate]);
 
   const handleLeaveOrEnd = () => {
     closeLiveRoom();
@@ -156,6 +203,277 @@ export const LiveLeaderboardPage: React.FC = () => {
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [activeChoices, answerLocked, canParticipate, submitLiveAnswer]);
+
+  // All participants (joined players + participating hosts) see the QuizClash-Live-Player view.
+  // Only a non-participating spectator host sees the 2-column Host Arena below.
+  if (canParticipate) {
+    const reviewItems =
+      Object.keys(recordedRounds).length > 0
+        ? Object.values(recordedRounds)
+            .sort((a, b) => a.round - b.round)
+            .map((rec) => {
+              const selectedText =
+                rec.choices.find((c) => c.id === rec.selectedChoiceId)?.text ?? null;
+              const fallbackQuizQ = liveQuestions[rec.round - 1];
+              const correctText =
+                rec.choices.find((c) => c.id === rec.correctChoiceId)?.text ??
+                (fallbackQuizQ ? fallbackQuizQ.choices[fallbackQuizQ.answer] : null);
+              return {
+                num: rec.round,
+                prompt: rec.prompt,
+                yourAnswer: selectedText,
+                correctAnswer: correctText
+              };
+            })
+        : liveQuestions.map((q, qIdx) => ({
+            num: qIdx + 1,
+            prompt: q.prompt,
+            yourAnswer: null as string | null,
+            correctAnswer: q.choices[q.answer] ?? null
+          }));
+
+    const feedbackText = live.selectedChoiceId
+      ? t('leaderboard.answerLocked')
+      : remainingSeconds === 0
+      ? t('leaderboard.timesUp')
+      : !live.currentQuestion
+      ? t('leaderboard.waitingForNextQuestion')
+      : '';
+
+    return (
+      <div className="qlp-shell" data-name="Live quiz player">
+        <section className="qlp-banner" aria-labelledby="live-player-title">
+          <div>
+            <h1 id="live-player-title">{liveQuizTitle}</h1>
+            <p>
+              {t('lobby.breadcrumbRoom', { pin: live.pin || '—' })} ·{' '}
+              {t('leaderboard.yourScore', {
+                points: (selfPlayer?.points ?? 0).toLocaleString()
+              })}
+            </p>
+          </div>
+          <div className="qlp-banner-right">
+            {playerName && <span className="qlp-badge">{playerName}</span>}
+            <button type="button" className="qp-hero-btn" onClick={handleLeaveOrEnd}>
+              <LogOut size={15} aria-hidden="true" />
+              <span>{isPlayer ? t('lobby.leaveRoom') : t('leaderboard.endGame')}</span>
+            </button>
+          </div>
+        </section>
+
+        <section className="qlp-stage" aria-label={t('nav.liveGames')}>
+          {live.backendStatus === 'finished' ? (
+            <div>
+              <h2 className="qlp-question">{t('leaderboard.finalLeaderboardTitle')}</h2>
+              <p className="qlp-muted">
+                {liveQuizTitle} · {t('lobby.breadcrumbRoom', { pin: live.pin || '—' })}
+              </p>
+
+              <ol className="qlp-leaderboard">
+                {sortedPlayers.map((p, idx) => {
+                  const rank =
+                    sortedPlayers.findIndex((other) => other.points === p.points) + 1;
+                  const isSelf =
+                    Boolean(playerName) &&
+                    p.name.toLowerCase() === playerName.toLowerCase();
+                  return (
+                    <li key={p.id || p.name || idx} className={isSelf ? 'is-you' : undefined}>
+                      <span>{rank}</span>
+                      <strong>
+                        {p.name}
+                        {isSelf ? ' (YOU)' : ''}
+                      </strong>
+                      <span>{p.points.toLocaleString()} pts</span>
+                    </li>
+                  );
+                })}
+              </ol>
+
+              <div className="qlp-results-actions">
+                {reviewItems.length > 0 && (
+                  <button
+                    type="button"
+                    className="qp-btn primary"
+                    aria-expanded={showReview}
+                    aria-controls="qlp-answer-review"
+                    onClick={() => setShowReview((prev) => !prev)}
+                  >
+                    {showReview
+                      ? t('leaderboard.hideAnswerReviewBtn')
+                      : t('leaderboard.reviewAnswersBtn')}
+                  </button>
+                )}
+                <button type="button" className="qp-btn" onClick={handleLeaveOrEnd}>
+                  {isPlayer ? t('lobby.leaveRoom') : t('leaderboard.endGame')}
+                </button>
+              </div>
+
+              {showReview && reviewItems.length > 0 && (
+                <section id="qlp-answer-review" className="qlp-review">
+                  <h3>{t('leaderboard.yourAnswersHeading')}</h3>
+                  {reviewItems.map((item) => (
+                    <article key={item.num}>
+                      <h4>
+                        {item.num}. {item.prompt}
+                      </h4>
+                      <p>
+                        {t('results.yourAnswerLabel')}{' '}
+                        {item.yourAnswer || t('leaderboard.unanswered')}
+                      </p>
+                      {item.correctAnswer && (
+                        <p>
+                          {t('results.correctAnswerLabel')} {item.correctAnswer}
+                        </p>
+                      )}
+                    </article>
+                  ))}
+                </section>
+              )}
+            </div>
+          ) : (
+            <>
+              <div className="qlp-round">
+                <span>
+                  {t('leaderboard.roundOf', { round, total: totalRounds })}
+                </span>
+                <div className="qlp-round-right">
+                  {!isPlayer && (
+                    <button
+                      type="button"
+                      className="qp-btn"
+                      style={{ minHeight: 30, padding: '4px 10px', fontSize: 12.5 }}
+                      onClick={() => setIsPaused((prev) => !prev)}
+                      aria-pressed={isPaused}
+                    >
+                      {isPaused ? (
+                        <>
+                          <Play size={13} aria-hidden="true" />
+                          <span>{t('leaderboard.resumeBtn')}</span>
+                        </>
+                      ) : (
+                        <>
+                          <Pause size={13} aria-hidden="true" />
+                          <span>{t('leaderboard.pauseBtn')}</span>
+                        </>
+                      )}
+                    </button>
+                  )}
+                  <span
+                    role="timer"
+                    className={`qlp-timer ${remainingSeconds <= 5 ? 'is-urgent' : ''}`}
+                  >
+                    <Clock size={14} aria-hidden="true" />
+                    <span>
+                      {t('leaderboard.timeRemaining', { seconds: remainingSeconds })}
+                    </span>
+                  </span>
+                </div>
+              </div>
+
+              <Progress
+                value={timerPct}
+                aria-label={t('leaderboard.timeRemaining', { seconds: remainingSeconds })}
+                className={`h-2 w-full rounded-full mb-4 ${
+                  remainingSeconds <= 5
+                    ? '[&>div]:bg-red-500'
+                    : remainingSeconds <= 10
+                    ? '[&>div]:bg-amber-500'
+                    : '[&>div]:bg-primary'
+                } [&>div]:transition-[width] [&>div]:duration-700 [&>div]:ease-linear`}
+              />
+
+              <h2 className="qlp-question">{activePrompt}</h2>
+
+              <div className="qlp-answers" aria-label="Answer choices">
+                {activeChoices.map((choice, cIdx) => {
+                  const isSelected = live.selectedChoiceId === choice.id;
+                  const isRevealedCorrect =
+                    Boolean(revealedCorrectId) && revealedCorrectId === choice.id;
+                  const isWrongSelected =
+                    isSelected &&
+                    Boolean(revealedCorrectId) &&
+                    revealedCorrectId !== choice.id;
+                  const isDimmed =
+                    (Boolean(revealedCorrectId) && !isRevealedCorrect && !isSelected) ||
+                    (Boolean(live.selectedChoiceId) && !isSelected && !isRevealedCorrect);
+
+                  const cls = [
+                    'qg-answer-tile',
+                    isSelected && 'is-selected',
+                    isRevealedCorrect && 'is-correct',
+                    isWrongSelected && 'is-wrong',
+                    isDimmed && 'is-dimmed'
+                  ]
+                    .filter(Boolean)
+                    .join(' ');
+
+                  return (
+                    <button
+                      key={choice.id}
+                      type="button"
+                      className={cls}
+                      disabled={answerLocked}
+                      onClick={() => {
+                        if (!answerLocked) {
+                          submitLiveAnswer(choice.id);
+                        }
+                      }}
+                    >
+                      <span className="qg-tile-badge" aria-hidden="true">
+                        {LETTERS[cIdx] ?? String(choice.id).toUpperCase()}
+                      </span>
+                      <span className="qg-tile-label">{choice.text}</span>
+                      {isRevealedCorrect && (
+                        <span className="qg-tile-status" aria-hidden="true">
+                          <Check size={15} strokeWidth={3} />
+                        </span>
+                      )}
+                      {isWrongSelected && (
+                        <span className="qg-tile-status" aria-hidden="true">
+                          <X size={15} strokeWidth={3} />
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {feedbackText && (
+                <p className="qlp-feedback" role="status">
+                  {feedbackText}
+                </p>
+              )}
+
+              {!isPlayer && (
+                <div className="qlp-host-bar">
+                  <button type="button" className="qp-btn" onClick={handleLeaveOrEnd}>
+                    {t('leaderboard.endGame')}
+                  </button>
+                  <button
+                    type="button"
+                    className="qp-btn primary"
+                    onClick={() => void advanceLiveRound()}
+                  >
+                    {round < totalRounds ? (
+                      <>
+                        <Play size={15} aria-hidden="true" />
+                        <span>{t('leaderboard.nextQuestionBtn')}</span>
+                      </>
+                    ) : (
+                      <>
+                        <Trophy size={15} aria-hidden="true" />
+                        <span>{t('leaderboard.showLeaderboardBtn')}</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+        </section>
+      </div>
+    );
+  }
 
   return (
     <div className="qp-workspace" data-name="Live quiz arena">
@@ -551,18 +869,25 @@ export const LiveLeaderboardPage: React.FC = () => {
                 <button type="button" className="qp-btn" onClick={handleLeaveOrEnd}>
                   {t('leaderboard.endGame')}
                 </button>
-                <button
-                  type="button"
-                  className="qp-btn primary"
-                  onClick={() => void advanceLiveRound()}
-                >
-                  <Play size={15} aria-hidden="true" />
-                  <span>
-                    {round < totalRounds
-                      ? t('leaderboard.nextQuestionBtn')
-                      : t('leaderboard.restartRoundsBtn')}
-                  </span>
-                </button>
+                {live.backendStatus !== 'finished' && (
+                  <button
+                    type="button"
+                    className="qp-btn primary"
+                    onClick={() => void advanceLiveRound()}
+                  >
+                    {round < totalRounds ? (
+                      <>
+                        <Play size={15} aria-hidden="true" />
+                        <span>{t('leaderboard.nextQuestionBtn')}</span>
+                      </>
+                    ) : (
+                      <>
+                        <Trophy size={15} aria-hidden="true" />
+                        <span>{t('leaderboard.showLeaderboardBtn')}</span>
+                      </>
+                    )}
+                  </button>
+                )}
               </>
             )}
           </footer>

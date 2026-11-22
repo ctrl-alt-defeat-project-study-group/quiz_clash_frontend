@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
+  Check,
   Clock,
   Copy,
   Crown,
@@ -9,7 +10,8 @@ import {
   Link2,
   LogOut,
   Play,
-  Users
+  Users,
+  X
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { SettingToggleRow, UserAvatar } from '../components/common';
@@ -52,12 +54,32 @@ export const LiveLobbyPage: React.FC = () => {
   } = useApp();
 
   const [joinPin, setJoinPin] = useState<string | null>(null);
-  const [joinName, setJoinName] = useState<string>(settings.displayName || '');
+  const [joinName, setJoinName] = useState<string | null>(null);
   const [joinError, setJoinError] = useState<string>('');
   const [participateAsHost, setParticipateAsHost] = useState<boolean>(true);
   const [submitting, setSubmitting] = useState<boolean>(false);
+  const [dismissedInvitePin, setDismissedInvitePin] = useState<string | null>(null);
+  const inviteNameInputRef = useRef<HTMLInputElement | null>(null);
 
-  const displayedJoinPin = joinPin ?? routePin ?? '';
+  const normalizedRoutePin = routePin ? routePin.trim().toUpperCase() : '';
+  const displayedJoinPin = joinPin ?? normalizedRoutePin;
+  const displayedJoinName = joinName ?? settings.displayName ?? user?.display_name ?? '';
+  const showInvitePopup =
+    live.status === 'idle' &&
+    Boolean(normalizedRoutePin) &&
+    dismissedInvitePin !== normalizedRoutePin;
+
+  useEffect(() => {
+    if (!showInvitePopup) return;
+    inviteNameInputRef.current?.focus();
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !submitting) {
+        setDismissedInvitePin(normalizedRoutePin);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [showInvitePopup, submitting, normalizedRoutePin]);
 
   const liveQuiz = quizzes.find((q) => q.id === live.quizId) ?? activeQuiz;
   const liveQuizTitle = liveQuiz?.title || t('nav.liveGames');
@@ -90,7 +112,7 @@ export const LiveLobbyPage: React.FC = () => {
     e.preventDefault();
     setSubmitting(true);
     try {
-      const res = await joinLiveRoom(displayedJoinPin, joinName);
+      const res = await joinLiveRoom(displayedJoinPin, displayedJoinName);
       if (!res.ok) {
         setJoinError(res.error || t('lobby.invalidPinFallback'));
         return;
@@ -102,14 +124,75 @@ export const LiveLobbyPage: React.FC = () => {
     }
   };
 
+  const handleInviteJoinSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmedName = displayedJoinName.trim();
+    if (!trimmedName) {
+      setJoinError(t('lobby.enterNameRequired'));
+      inviteNameInputRef.current?.focus();
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const res = await joinLiveRoom(normalizedRoutePin, trimmedName);
+      if (!res.ok) {
+        setJoinError(res.error || t('lobby.invalidPinFallback'));
+        return;
+      }
+      setJoinError('');
+      setJoinPin('');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const [markingReady, setMarkingReady] = useState<boolean>(false);
+
   const cleanLivePin = live.pin.replace(/\s+/g, '');
   const livePlayPath = cleanLivePin
     ? `/rooms/${encodeURIComponent(cleanLivePin)}/play`
     : '/rooms/play';
 
-  const handleEnterLiveGame = async () => {
-    await markLivePlayerReady();
-    navigate(livePlayPath);
+  const prevLiveStatusRef = useRef(live.status);
+
+  // If the user leaves or the host closes the room while on /rooms/:pin, clear the URL PIN
+  useEffect(() => {
+    const prev = prevLiveStatusRef.current;
+    prevLiveStatusRef.current = live.status;
+    if (prev !== 'idle' && live.status === 'idle' && normalizedRoutePin) {
+      navigate('/lobby', { replace: true });
+    }
+  }, [live.status, normalizedRoutePin, navigate]);
+
+  // Auto-route joined participants to the live game screen as soon as the host starts the game
+  useEffect(() => {
+    if (
+      live.status === 'joined' &&
+      (live.backendStatus === 'active' ||
+        live.backendStatus === 'finished' ||
+        Boolean(live.currentQuestion))
+    ) {
+      navigate(livePlayPath, { replace: true });
+    }
+  }, [live.status, live.backendStatus, live.currentQuestion, livePlayPath, navigate]);
+
+  const selfLobbyPlayer = live.players.find(
+    (p) =>
+      (live.playerId && p.id === live.playerId) ||
+      (live.joinedPlayerName &&
+        p.name.toLowerCase() === live.joinedPlayerName.toLowerCase())
+  );
+  const isSelfReady =
+    selfLobbyPlayer?.status === 'Ready' || selfLobbyPlayer?.status === 'Answered';
+
+  const handleMarkReady = async () => {
+    if (isSelfReady || markingReady) return;
+    setMarkingReady(true);
+    try {
+      await markLivePlayerReady();
+    } finally {
+      setMarkingReady(false);
+    }
   };
 
   const handleStartLiveGame = async () => {
@@ -304,8 +387,11 @@ export const LiveLobbyPage: React.FC = () => {
                   type="text"
                   maxLength={40}
                   placeholder={t('lobby.displayNamePlaceholder')}
-                  value={joinName}
-                  onChange={(e) => setJoinName(e.target.value)}
+                  value={displayedJoinName}
+                  onChange={(e) => {
+                    setJoinName(e.target.value);
+                    if (joinError) setJoinError('');
+                  }}
                 />
               </div>
 
@@ -328,6 +414,89 @@ export const LiveLobbyPage: React.FC = () => {
             </div>
           </form>
         </div>
+
+        {showInvitePopup && (
+          <div
+            className="modal-backdrop"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="invite-join-title"
+            data-name="Invite join modal"
+            onClick={(e) => {
+              if (e.target === e.currentTarget && !submitting) {
+                setDismissedInvitePin(normalizedRoutePin);
+              }
+            }}
+          >
+            <form className="modal-box" onSubmit={handleInviteJoinSubmit}>
+              <div className="dialog-head">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <Gamepad2 size={20} style={{ color: '#10b981' }} aria-hidden="true" />
+                  <h2 id="invite-join-title" className="panel-heading" style={{ margin: 0 }}>
+                    {t('lobby.invitePopupTitle')}
+                  </h2>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-sm"
+                  aria-label={t('common.cancel')}
+                  disabled={submitting}
+                  onClick={() => setDismissedInvitePin(normalizedRoutePin)}
+                >
+                  <X size={16} aria-hidden="true" />
+                </button>
+              </div>
+
+              <div style={{ marginBottom: 14 }}>
+                <span className="qg-pin-pill">PIN {normalizedRoutePin}</span>
+              </div>
+
+              <p className="helper-text" style={{ marginBottom: 16 }}>
+                {t('lobby.invitePopupSubtitle', { pin: normalizedRoutePin })}
+              </p>
+
+              <div className="field-group">
+                <label className="field-label-caps" htmlFor="invite-join-name-input">
+                  {t('lobby.displayNameLabel')}
+                </label>
+                <input
+                  ref={inviteNameInputRef}
+                  id="invite-join-name-input"
+                  className="input"
+                  type="text"
+                  maxLength={40}
+                  autoFocus
+                  placeholder={t('lobby.displayNamePlaceholder')}
+                  value={displayedJoinName}
+                  onChange={(e) => {
+                    setJoinName(e.target.value);
+                    if (joinError) setJoinError('');
+                  }}
+                />
+              </div>
+
+              {joinError && (
+                <p className="error-text" role="alert" style={{ marginBottom: 12 }}>
+                  {joinError}
+                </p>
+              )}
+
+              <div className="btn-row" style={{ justifyContent: 'flex-end', marginTop: 16 }}>
+                <button
+                  type="button"
+                  className="qp-btn"
+                  disabled={submitting}
+                  onClick={() => setDismissedInvitePin(normalizedRoutePin)}
+                >
+                  {t('common.cancel')}
+                </button>
+                <button type="submit" className="qp-btn primary" disabled={submitting}>
+                  {t('lobby.joinRoomBtn')}
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
       </div>
     );
   }
@@ -437,10 +606,11 @@ export const LiveLobbyPage: React.FC = () => {
             <button
               type="button"
               className="qp-btn primary"
-              onClick={() => void handleEnterLiveGame()}
+              disabled={isSelfReady || markingReady}
+              onClick={() => void handleMarkReady()}
             >
-              <Play size={15} aria-hidden="true" />
-              <span>{t('lobby.enterLiveGame')}</span>
+              <Check size={15} aria-hidden="true" />
+              <span>{isSelfReady ? t('lobby.readyDoneBtn') : t('lobby.readyBtn')}</span>
             </button>
             <button type="button" className="qp-btn" onClick={closeLiveRoom}>
               {t('lobby.leaveRoom')}

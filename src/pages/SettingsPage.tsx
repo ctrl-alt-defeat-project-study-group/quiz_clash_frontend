@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { LogOut, Monitor, Moon, Sun, X } from 'lucide-react';
+import { Eye, EyeOff, KeyRound, LogOut, Monitor, Moon, Sun, X } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import * as api from '../services/api';
 import type { AppLanguage, ThemeMode, UserSettings } from '../types/quiz';
 import {
   MyanmarFlagIcon,
@@ -24,6 +25,7 @@ export const SettingsPage: React.FC = () => {
   const {
     user,
     logout,
+    refreshUser,
     startGoogleOAuth,
     unlinkGoogleOAuth,
     getErrorMessage,
@@ -46,6 +48,15 @@ export const SettingsPage: React.FC = () => {
   const [unlinkingGoogle, setUnlinkingGoogle] = useState<boolean>(false);
   const [saving, setSaving] = useState<boolean>(false);
   const [avatarModalOpen, setAvatarModalOpen] = useState<boolean>(false);
+
+  const [currentPassword, setCurrentPassword] = useState<string>('');
+  const [newPassword, setNewPassword] = useState<string>('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState<string>('');
+  const [showCurrentPassword, setShowCurrentPassword] = useState<boolean>(false);
+  const [showNewPassword, setShowNewPassword] = useState<boolean>(false);
+  const [showConfirmNewPassword, setShowConfirmNewPassword] = useState<boolean>(false);
+  const [passwordError, setPasswordError] = useState<string>('');
+  const [changingPassword, setChangingPassword] = useState<boolean>(false);
 
   // Snapshot of the last backend-persisted settings so Cancel can revert live previews
   const hasLocalEditsRef = useRef<boolean>(false);
@@ -231,6 +242,53 @@ export const SettingsPage: React.FC = () => {
       showToast(getErrorMessage(err), 'error');
     } finally {
       setUnlinkingGoogle(false);
+    }
+  };
+
+  const hasPassword = user?.has_password !== false;
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasswordError('');
+
+    if (hasPassword && !currentPassword) {
+      setPasswordError(t('settings.currentPasswordRequired'));
+      return;
+    }
+    if (newPassword.length < 8) {
+      setPasswordError(t('settings.newPasswordTooShort'));
+      return;
+    }
+    if (!/[A-Za-z]/.test(newPassword) || !/\d/.test(newPassword)) {
+      setPasswordError(t('settings.newPasswordWeak'));
+      return;
+    }
+    if (newPassword !== confirmNewPassword) {
+      setPasswordError(t('settings.passwordsMustMatch'));
+      return;
+    }
+
+    setChangingPassword(true);
+    try {
+      await api.changePassword({
+        ...(hasPassword ? { currentPassword } : {}),
+        newPassword,
+        language: uiLanguage
+      });
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmNewPassword('');
+      setShowCurrentPassword(false);
+      setShowNewPassword(false);
+      setShowConfirmNewPassword(false);
+      await refreshUser();
+      showToast(t('toasts.passwordChanged'));
+    } catch (err) {
+      const msg = getErrorMessage(err);
+      setPasswordError(msg);
+      showToast(msg, 'error');
+    } finally {
+      setChangingPassword(false);
     }
   };
 
@@ -653,6 +711,194 @@ export const SettingsPage: React.FC = () => {
                 </p>
               )}
             </SectionCard>
+
+            {user && (
+              <SectionCard dataName="Change password">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                  <KeyRound size={17} aria-hidden="true" />
+                  <h2 className="section-title" style={{ margin: 0 }}>
+                    {hasPassword
+                      ? t('settings.changePasswordTitle')
+                      : t('settings.setPasswordTitle')}
+                  </h2>
+                </div>
+                <p className="helper-text" style={{ marginBottom: 16 }}>
+                  {hasPassword
+                    ? t('settings.changePasswordSubtitle')
+                    : t('settings.setPasswordSubtitle')}
+                </p>
+
+                <form noValidate onSubmit={handleChangePassword}>
+                  {hasPassword && (
+                    <div className="field-group">
+                      <label className="field-label" htmlFor="settings-current-password">
+                        {t('settings.currentPasswordLabel')}
+                      </label>
+                      <div style={{ position: 'relative' }}>
+                        <input
+                          id="settings-current-password"
+                          className="input"
+                          type={showCurrentPassword ? 'text' : 'password'}
+                          autoComplete="current-password"
+                          placeholder={t('settings.currentPasswordPlaceholder')}
+                          value={currentPassword}
+                          disabled={changingPassword}
+                          style={{ paddingRight: 40 }}
+                          onChange={(e) => {
+                            setCurrentPassword(e.target.value);
+                            if (passwordError) setPasswordError('');
+                          }}
+                        />
+                        <button
+                          type="button"
+                          aria-label={showCurrentPassword ? 'Hide password' : 'Show password'}
+                          onClick={() => setShowCurrentPassword((prev) => !prev)}
+                          style={{
+                            position: 'absolute',
+                            right: 10,
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            background: 'none',
+                            border: 'none',
+                            padding: 4,
+                            cursor: 'pointer',
+                            color: 'var(--text-muted)',
+                            display: 'inline-flex',
+                            alignItems: 'center'
+                          }}
+                        >
+                          {showCurrentPassword ? (
+                            <EyeOff size={16} aria-hidden="true" />
+                          ) : (
+                            <Eye size={16} aria-hidden="true" />
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="grid-2" style={{ gap: 14 }}>
+                    <div className="field-group" style={{ marginBottom: 0 }}>
+                      <label className="field-label" htmlFor="settings-new-password">
+                        {t('settings.newPasswordLabel')}
+                      </label>
+                      <div style={{ position: 'relative' }}>
+                        <input
+                          id="settings-new-password"
+                          className="input"
+                          type={showNewPassword ? 'text' : 'password'}
+                          autoComplete="new-password"
+                          minLength={8}
+                          placeholder={t('settings.newPasswordPlaceholder')}
+                          value={newPassword}
+                          disabled={changingPassword}
+                          style={{ paddingRight: 40 }}
+                          onChange={(e) => {
+                            setNewPassword(e.target.value);
+                            if (passwordError) setPasswordError('');
+                          }}
+                        />
+                        <button
+                          type="button"
+                          aria-label={showNewPassword ? 'Hide password' : 'Show password'}
+                          onClick={() => setShowNewPassword((prev) => !prev)}
+                          style={{
+                            position: 'absolute',
+                            right: 10,
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            background: 'none',
+                            border: 'none',
+                            padding: 4,
+                            cursor: 'pointer',
+                            color: 'var(--text-muted)',
+                            display: 'inline-flex',
+                            alignItems: 'center'
+                          }}
+                        >
+                          {showNewPassword ? (
+                            <EyeOff size={16} aria-hidden="true" />
+                          ) : (
+                            <Eye size={16} aria-hidden="true" />
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="field-group" style={{ marginBottom: 0 }}>
+                      <label className="field-label" htmlFor="settings-confirm-password">
+                        {t('settings.confirmNewPasswordLabel')}
+                      </label>
+                      <div style={{ position: 'relative' }}>
+                        <input
+                          id="settings-confirm-password"
+                          className="input"
+                          type={showConfirmNewPassword ? 'text' : 'password'}
+                          autoComplete="new-password"
+                          minLength={8}
+                          placeholder={t('settings.confirmNewPasswordPlaceholder')}
+                          value={confirmNewPassword}
+                          disabled={changingPassword}
+                          style={{ paddingRight: 40 }}
+                          onChange={(e) => {
+                            setConfirmNewPassword(e.target.value);
+                            if (passwordError) setPasswordError('');
+                          }}
+                        />
+                        <button
+                          type="button"
+                          aria-label={showConfirmNewPassword ? 'Hide password' : 'Show password'}
+                          onClick={() => setShowConfirmNewPassword((prev) => !prev)}
+                          style={{
+                            position: 'absolute',
+                            right: 10,
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            background: 'none',
+                            border: 'none',
+                            padding: 4,
+                            cursor: 'pointer',
+                            color: 'var(--text-muted)',
+                            display: 'inline-flex',
+                            alignItems: 'center'
+                          }}
+                        >
+                          {showConfirmNewPassword ? (
+                            <EyeOff size={16} aria-hidden="true" />
+                          ) : (
+                            <Eye size={16} aria-hidden="true" />
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <p className="helper-text" style={{ marginTop: 10, marginBottom: 14 }}>
+                    {t('settings.passwordHint')}
+                  </p>
+
+                  {passwordError && (
+                    <p className="error-text" role="alert" style={{ marginBottom: 12 }}>
+                      {passwordError}
+                    </p>
+                  )}
+
+                  <div className="btn-row">
+                    <button
+                      type="submit"
+                      className="btn btn-sm btn-primary"
+                      disabled={changingPassword}
+                    >
+                      {changingPassword
+                        ? t('auth.submitting')
+                        : hasPassword
+                        ? t('settings.updatePasswordBtn')
+                        : t('settings.setPasswordBtn')}
+                    </button>
+                  </div>
+                </form>
+              </SectionCard>
+            )}
 
             <SectionCard dataName="Privacy and account">
               <h2 className="section-title" style={{ marginBottom: 4 }}>

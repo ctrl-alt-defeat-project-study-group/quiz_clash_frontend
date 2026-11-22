@@ -256,6 +256,7 @@ export type ApiLiveWsEvent =
       correct_choice_id: string;
     }
   | { type: 'game_finished'; state: ApiLiveGameState }
+  | { type: 'room_closed'; pin: string }
   | { type: 'error'; code: string; message: string };
 
 export interface ApiAdminQuizSummary {

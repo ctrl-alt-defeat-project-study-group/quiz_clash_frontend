@@ -59,6 +59,9 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode }) => {
       OAUTH_CANCELLED: t('auth.oauthCancelled'),
       OAUTH_INVALID_STATE: t('auth.oauthInvalidState'),
       OAUTH_EMAIL_NOT_VERIFIED: t('auth.oauthEmailNotVerified'),
+      OAUTH_ACCOUNT_ALREADY_EXISTS: t('auth.oauthAccountAlreadyExists'),
+      ACCOUNT_ALREADY_EXISTS: t('auth.oauthAccountAlreadyExists'),
+      EMAIL_ALREADY_REGISTERED: t('auth.oauthAccountAlreadyExists'),
       ACCOUNT_DISABLED: t('auth.oauthAccountDisabled'),
     };
     return messageMap[code] || t('auth.oauthFailed');
@@ -131,7 +134,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode }) => {
     setFieldErrors({});
   };
 
-  const handleGoogleAuth = async () => {
+  const handleGoogleAuth = async (oauthMode: api.GoogleOAuthMode) => {
     setError('');
     setErrorCode(undefined);
     setInfoMessage('');
@@ -157,7 +160,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode }) => {
         return;
       }
 
-      startGoogleOAuth(redirectTo);
+      startGoogleOAuth(redirectTo, oauthMode);
     } catch (err) {
       setError(getErrorMessage(err));
       setGoogleSubmitting(false);
@@ -353,7 +356,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode }) => {
                 <button
                   type="button"
                   className="google-button"
-                  onClick={() => void handleGoogleAuth()}
+                  onClick={() => void handleGoogleAuth('login')}
                   disabled={submitting || googleSubmitting}
                   data-name="Google login button"
                 >
@@ -513,7 +516,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode }) => {
                 <button
                   type="button"
                   className="google-button"
-                  onClick={() => void handleGoogleAuth()}
+                  onClick={() => void handleGoogleAuth('register')}
                   disabled={submitting || googleSubmitting}
                   data-name="Google signup button"
                 >
@@ -692,7 +695,20 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode }) => {
 
                   {mode === 'register' && error && (
                     <div className="form-status is-error" role="alert">
-                      {error}
+                      <div>{error}</div>
+                      {(errorCode === 'OAUTH_ACCOUNT_ALREADY_EXISTS' ||
+                        errorCode === 'ACCOUNT_ALREADY_EXISTS' ||
+                        errorCode === 'EMAIL_ALREADY_REGISTERED') && (
+                        <div style={{ marginTop: 6 }}>
+                          <Link
+                            to="/login"
+                            onClick={handleModeSwitchClick}
+                            style={{ color: 'inherit', fontWeight: 700 }}
+                          >
+                            {t('auth.signIn')}
+                          </Link>
+                        </div>
+                      )}
                     </div>
                   )}
 

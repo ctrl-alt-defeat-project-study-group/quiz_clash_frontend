@@ -19,6 +19,8 @@ export type ErrorCode =
   | 'UNAUTHORIZED'
   | 'EMAIL_NOT_VERIFIED'
   | 'ACCOUNT_DISABLED'
+  | 'INVALID_CURRENT_PASSWORD'
+  | 'PASSWORD_UNCHANGED'
   | 'FORBIDDEN'
   | 'RATE_LIMITED'
   | 'NETWORK_ERROR'
@@ -77,6 +79,14 @@ export const ERROR_MESSAGES: Record<ErrorCode, LocalizedText> = {
   ACCOUNT_DISABLED: {
     en: 'This account has been deactivated by an administrator.',
     mm: 'ဤအကောင့်ကို စီမံခန့်ခွဲသူမှ ပိတ်ထားပါသည်။'
+  },
+  INVALID_CURRENT_PASSWORD: {
+    en: 'Current password is incorrect.',
+    mm: 'လက်ရှိစကားဝှက် မမှန်ကန်ပါ။'
+  },
+  PASSWORD_UNCHANGED: {
+    en: 'New password must be different from your current password.',
+    mm: 'စကားဝှက်အသစ်သည် လက်ရှိစကားဝှက်နှင့် မတူညီရပါ။'
   },
   FORBIDDEN: {
     en: 'You do not have permission to perform this action.',

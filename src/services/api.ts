@@ -309,16 +309,28 @@ export async function getOAuthProviders(
   });
 }
 
-export function getGoogleOAuthLoginUrl(nextPath = '/dashboard'): string {
+export type GoogleOAuthMode = 'login' | 'register';
+
+export function getGoogleOAuthLoginUrl(
+  nextPath = '/dashboard',
+  mode: GoogleOAuthMode = 'login'
+): string {
   const safeNext =
     nextPath && nextPath.startsWith('/') && !nextPath.startsWith('//')
       ? nextPath
       : '/dashboard';
-  return `${API_BASE_URL}/auth/oauth/google/login?next=${encodeURIComponent(safeNext)}`;
+  const params = new URLSearchParams({
+    next: safeNext,
+    mode
+  });
+  return `${API_BASE_URL}/auth/oauth/google/login?${params.toString()}`;
 }
 
-export function getGoogleOAuthRedirectUrl(redirectPath = '/dashboard'): string {
-  return getGoogleOAuthLoginUrl(redirectPath);
+export function getGoogleOAuthRedirectUrl(
+  redirectPath = '/dashboard',
+  mode: GoogleOAuthMode = 'login'
+): string {
+  return getGoogleOAuthLoginUrl(redirectPath, mode);
 }
 
 export async function unlinkGoogleOAuth(language?: AppLanguage): Promise<ApiMessage> {
@@ -368,6 +380,23 @@ export async function resetPassword(
     method: 'POST',
     language,
     body: JSON.stringify({ token, new_password: newPassword })
+  });
+}
+
+export async function changePassword(params: {
+  currentPassword?: string;
+  newPassword: string;
+  language?: AppLanguage;
+}): Promise<ApiMessage> {
+  return apiJson<ApiMessage>('/auth/change-password', {
+    method: 'POST',
+    language: params.language,
+    body: JSON.stringify({
+      ...(params.currentPassword !== undefined
+        ? { current_password: params.currentPassword }
+        : {}),
+      new_password: params.newPassword
+    })
   });
 }
 

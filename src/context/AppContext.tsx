@@ -84,7 +84,7 @@ interface AppContextValue {
   user: UserProfile | null;
   authLoading: boolean;
   login: (email: string, password: string) => Promise<UserProfile>;
-  startGoogleOAuth: (nextPath?: string) => void;
+  startGoogleOAuth: (nextPath?: string, mode?: api.GoogleOAuthMode) => void;
   unlinkGoogleOAuth: () => Promise<void>;
   register: (email: string, password: string, displayName: string) => Promise<UserProfile>;
   logout: () => Promise<void>;
@@ -570,8 +570,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return profile;
   };
 
-  const startGoogleOAuth = (nextPath = '/dashboard'): void => {
-    window.location.assign(api.getGoogleOAuthLoginUrl(nextPath));
+  const startGoogleOAuth = (
+    nextPath = '/dashboard',
+    mode: api.GoogleOAuthMode = 'login'
+  ): void => {
+    window.location.assign(api.getGoogleOAuthLoginUrl(nextPath, mode));
   };
 
   const unlinkGoogleOAuth = async (): Promise<void> => {
@@ -1218,6 +1221,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               });
               showToast(translate(uiLangRef.current, 'toasts.liveGameFinished'), 'info');
               void refreshHistory();
+              break;
+            case 'room_closed':
+              closeLiveSocket();
+              setLive((prev) => ({
+                ...EMPTY_LIVE,
+                quizId: prev.quizId,
+                timerSeconds: prev.timerSeconds || 20
+              }));
+              showToast(translate(uiLangRef.current, 'toasts.roomClosed'), 'info');
               break;
             case 'error':
               showToast(
