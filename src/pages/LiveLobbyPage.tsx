@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
-  ArrowLeft,
   ArrowRight,
   Check,
   Clock,
@@ -207,24 +206,40 @@ export const LiveLobbyPage: React.FC = () => {
   };
 
   const renderStandaloneHeader = () => (
-    <header className="qlg-header">
-      <div className="qlg-wrap qlg-header-inner">
-        <Link className="brand" to="/">
-          <span className="brand-mark" aria-hidden="true"></span>
-          <span>QuizClash</span>
-        </Link>
-        <div className="qlg-header-actions">
-          {user ? (
-            <Link className="qlg-dashboard-link" to="/dashboard">
-              <ArrowLeft size={16} aria-hidden="true" />
-              <span>{t('nav.dashboard')}</span>
-            </Link>
-          ) : (
-            <Link className="qlg-dashboard-link" to="/login">
-              <span>{t('auth.signIn')}</span>
+    <header className="qlg-header" data-name="Application header">
+      <div className="qlg-header-inner">
+        <div className="header-left">
+          <Link className="brand" to="/" data-name="QuizClash">
+            <span className="brand-mark" aria-hidden="true"></span>
+            <span>QuizClash</span>
+          </Link>
+          <span className="brand-tagline" data-name="Study notes → active recall">
+            {t('nav.tagline')}
+          </span>
+        </div>
+        <div className="header-right">
+          <ThemeSwitch variant="header" />
+          {!user && (
+            <Link className="btn btn-sm btn-primary" to="/login">
+              {t('auth.signIn')}
             </Link>
           )}
-          <ThemeSwitch variant="header" />
+          <Link className="btn btn-sm" to={user ? '/dashboard' : '/'}>
+            {user ? t('nav.dashboard') : t('nav.home')}
+          </Link>
+          <Link
+            to={user ? '/settings' : '/login'}
+            className="user-badge"
+            data-name="User profile"
+            title={user?.display_name || settings.displayName || t('auth.signIn')}
+            aria-label={user?.display_name || settings.displayName || t('auth.signIn')}
+          >
+            <UserAvatar
+              avatarUrl={user?.avatar_url ?? settings.avatarUrl}
+              alt={user?.display_name || settings.displayName || t('auth.signIn')}
+              className="header-avatar"
+            />
+          </Link>
         </div>
       </div>
     </header>
@@ -285,15 +300,33 @@ export const LiveLobbyPage: React.FC = () => {
                         <SelectValue placeholder={t('lobby.selectQuizPlaceholder')} />
                       </SelectTrigger>
                       <SelectContent position="popper">
-                        {quizzes.map((q) => (
-                          <SelectItem key={q.id} value={q.id}>
-                            {q.title}
-                          </SelectItem>
-                        ))}
+                        {quizzes.length > 0 ? (
+                          quizzes.map((q) => (
+                            <SelectItem key={q.id} value={q.id}>
+                              {q.title}
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <div className="px-3 py-3 text-center text-sm text-muted-foreground">
+                            {t('lobby.noQuizzesAvailable')}
+                          </div>
+                        )}
                       </SelectContent>
                     </Select>
                     <span className="helper-text">
-                      {t('lobby.quizMeta', { count: liveQuizCount })}
+                      {quizzes.length > 0 ? (
+                        t('lobby.quizMeta', { count: liveQuizCount })
+                      ) : (
+                        <>
+                          {t('lobby.noQuizzesAvailable')}{' '}
+                          <Link
+                            to="/generate"
+                            style={{ color: 'var(--primary)', fontWeight: 600 }}
+                          >
+                            {t('lobby.generateQuizLink')}
+                          </Link>
+                        </>
+                      )}
                     </span>
                   </div>
 
@@ -784,11 +817,17 @@ export const LiveLobbyPage: React.FC = () => {
                       <SelectValue placeholder={t('lobby.selectQuizPlaceholder')} />
                     </SelectTrigger>
                     <SelectContent position="popper">
-                      {quizzes.map((q) => (
-                        <SelectItem key={q.id} value={q.id}>
-                          {q.title}
-                        </SelectItem>
-                      ))}
+                      {quizzes.length > 0 ? (
+                        quizzes.map((q) => (
+                          <SelectItem key={q.id} value={q.id}>
+                            {q.title}
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <div className="px-3 py-3 text-center text-sm text-muted-foreground">
+                          {t('lobby.noQuizzesAvailable')}
+                        </div>
+                      )}
                     </SelectContent>
                   </Select>
                   <span className="helper-text">

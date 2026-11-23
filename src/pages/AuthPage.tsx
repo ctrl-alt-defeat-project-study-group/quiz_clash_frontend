@@ -1,8 +1,20 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { Eye, EyeOff, Loader2 } from 'lucide-react';
+import {
+  AlertCircle,
+  ArrowRight,
+  CheckCircle2,
+  Eye,
+  EyeOff,
+  KeyRound,
+  Loader2,
+  Lock,
+  Mail,
+  MailCheck,
+  User
+} from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { LanguageSwitch, ThemeSwitch } from '../components/common';
+import { ThemeSwitch } from '../components/common';
 import * as api from '../services/api';
 
 export type AuthMode = 'login' | 'register' | 'verify' | 'forgot' | 'reset';
@@ -10,6 +22,8 @@ export type AuthMode = 'login' | 'register' | 'verify' | 'forgot' | 'reset';
 interface AuthPageProps {
   mode: AuthMode;
 }
+
+const OTP_LENGTH = 6;
 
 const GoogleIcon: React.FC = () => (
   <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
@@ -42,17 +56,36 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode }) => {
     (location.state as { from?: { pathname?: string } } | null)?.from?.pathname ||
     '/dashboard';
 
+  const queryEmail = searchParams.get('email')?.trim() || '';
+  const queryToken = searchParams.get('token') || '';
+
   const [motionEnabled, setMotionEnabled] = useState<boolean>(false);
-  const [email, setEmail] = useState<string>(searchParams.get('email') || '');
+  const [email, setEmail] = useState<string>(queryEmail);
+  const [prevQueryEmail, setPrevQueryEmail] = useState<string>(queryEmail);
+  if (queryEmail !== prevQueryEmail) {
+    setPrevQueryEmail(queryEmail);
+    if (queryEmail) setEmail(queryEmail);
+  }
   const [password, setPassword] = useState<string>('');
   const [confirmPassword, setConfirmPassword] = useState<string>('');
   const [showLoginPassword, setShowLoginPassword] = useState<boolean>(false);
   const [showRegisterPassword, setShowRegisterPassword] = useState<boolean>(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState<boolean>(false);
+  const [registerPasswordFocused, setRegisterPasswordFocused] = useState<boolean>(false);
+  const [confirmPasswordFocused, setConfirmPasswordFocused] = useState<boolean>(false);
+  const [previewExpanded, setPreviewExpanded] = useState<boolean>(false);
   const [displayName, setDisplayName] = useState<string>('');
-  const [token, setToken] = useState<string>(searchParams.get('token') || '');
+  const [token, setToken] = useState<string>(
+    mode === 'verify' ? queryToken.replace(/\D/g, '').slice(0, OTP_LENGTH) : queryToken
+  );
+  const [otpSelection, setOtpSelection] = useState<{ start: number; end: number }>({
+    start: 0,
+    end: 0
+  });
+  const otpInputRef = useRef<HTMLInputElement | null>(null);
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [googleSubmitting, setGoogleSubmitting] = useState<boolean>(false);
+
   const getOAuthErrorMessage = (code: string): string => {
     const messageMap: Record<string, string> = {
       OAUTH_PROVIDER_DISABLED: t('auth.googleBackendPending'),
@@ -62,7 +95,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode }) => {
       OAUTH_ACCOUNT_ALREADY_EXISTS: t('auth.oauthAccountAlreadyExists'),
       ACCOUNT_ALREADY_EXISTS: t('auth.oauthAccountAlreadyExists'),
       EMAIL_ALREADY_REGISTERED: t('auth.oauthAccountAlreadyExists'),
-      ACCOUNT_DISABLED: t('auth.oauthAccountDisabled'),
+      ACCOUNT_DISABLED: t('auth.oauthAccountDisabled')
     };
     return messageMap[code] || t('auth.oauthFailed');
   };
@@ -77,7 +110,6 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode }) => {
   );
   const [infoMessage, setInfoMessage] = useState<string>('');
 
-  // Field-level validation errors matching QuizClash-Login-Register.html
   const [fieldErrors, setFieldErrors] = useState<{
     name?: string;
     email?: string;
@@ -132,6 +164,8 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode }) => {
     setErrorCode(undefined);
     setInfoMessage('');
     setFieldErrors({});
+    setRegisterPasswordFocused(false);
+    setConfirmPasswordFocused(false);
   };
 
   const handleGoogleAuth = async (oauthMode: api.GoogleOAuthMode) => {
@@ -200,6 +234,38 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode }) => {
     }
   };
 
+  const passwordChecks = [
+    {
+      key: 'length',
+      met: password.length >= 8,
+      label: t('auth.passwordReqLength'),
+      errorMessage: t('auth.errPasswordTooShort')
+    },
+    {
+      key: 'upper',
+      met: /[A-Z]/.test(password),
+      label: t('auth.passwordReqUpper'),
+      errorMessage: t('auth.errPasswordUpper')
+    },
+    {
+      key: 'lower',
+      met: /[a-z]/.test(password),
+      label: t('auth.passwordReqLower'),
+      errorMessage: t('auth.errPasswordLower')
+    },
+    {
+      key: 'number',
+      met: /\d/.test(password),
+      label: t('auth.passwordReqNumber'),
+      errorMessage: t('auth.errPasswordNumber')
+    }
+  ];
+  const metPasswordCount = passwordChecks.filter((rule) => rule.met).length;
+  const allPasswordRulesMet = metPasswordCount === passwordChecks.length;
+  const showPasswordPreview =
+    mode === 'register' &&
+    (registerPasswordFocused || (Boolean(fieldErrors.password) && !allPasswordRulesMet));
+
   const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -223,8 +289,11 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode }) => {
     }
     if (!password) {
       nextErrors.password = t('auth.errPasswordRequired');
-    } else if (password.length < 8) {
-      nextErrors.password = t('auth.errPasswordTooShort');
+    } else {
+      const unmetRule = passwordChecks.find((rule) => !rule.met);
+      if (unmetRule) {
+        nextErrors.password = unmetRule.errorMessage;
+      }
     }
     if (!confirmPassword) {
       nextErrors.confirm = t('auth.errConfirmRequired');
@@ -249,13 +318,58 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode }) => {
     }
   };
 
+  const syncOtpSelection = () => {
+    const el = otpInputRef.current;
+    if (!el) return;
+    const start = el.selectionStart ?? el.value.length;
+    const end = el.selectionEnd ?? start;
+    setOtpSelection({ start, end });
+  };
+
+  const handleOtpChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value;
+    const rawCaret = e.target.selectionStart ?? raw.length;
+    const nextCode = raw.replace(/\D/g, '').slice(0, OTP_LENGTH);
+    const nextCaret = raw.slice(0, rawCaret).replace(/\D/g, '').slice(0, OTP_LENGTH).length;
+    setToken(nextCode);
+    setOtpSelection({ start: nextCaret, end: nextCaret });
+    if (error) setError('');
+    requestAnimationFrame(() => {
+      if (otpInputRef.current) {
+        otpInputRef.current.setSelectionRange(nextCaret, nextCaret);
+      }
+    });
+  };
+
+  const handleOtpClick = (e: React.MouseEvent<HTMLInputElement>) => {
+    const el = otpInputRef.current;
+    if (!el || e.detail !== 1 || el.selectionStart !== el.selectionEnd) {
+      syncOtpSelection();
+      return;
+    }
+    const { left, width } = el.getBoundingClientRect();
+    const index = Math.floor((e.clientX - left) / (width / OTP_LENGTH));
+    const caret = Math.max(0, Math.min(index, token.length));
+    el.setSelectionRange(caret, caret);
+    setOtpSelection({ start: caret, end: caret });
+  };
+
   const handleAuxSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setErrorCode(undefined);
     setInfoMessage('');
-    setSubmitting(true);
 
+    if (mode === 'verify') {
+      const cleaned = token.replace(/\D/g, '');
+      if (cleaned.length !== OTP_LENGTH) {
+        setError(t('auth.verifyIncomplete'));
+        otpInputRef.current?.focus();
+        return;
+      }
+    }
+
+    setSubmitting(true);
     try {
       if (mode === 'verify') {
         await api.verifyEmail(token.trim(), uiLanguage, email.trim() || undefined);
@@ -284,6 +398,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode }) => {
       return;
     }
     setError('');
+    setInfoMessage('');
     setSubmitting(true);
     try {
       await api.resendVerification(email.trim(), uiLanguage);
@@ -296,14 +411,15 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode }) => {
     }
   };
 
-  const layoutMode = mode === 'register' ? 'register' : 'login';
   const isLoginOrRegister = mode === 'login' || mode === 'register';
+  const layoutMode = isLoginOrRegister ? mode : 'aux';
 
   return (
     <div
       className="qc-auth-page"
       data-auth-mode={layoutMode}
       {...(motionEnabled ? { 'data-auth-motion': '' } : {})}
+      {...(showPasswordPreview ? { 'data-password-preview': '' } : {})}
     >
       <header className="site-header">
         <div className="header-content">
@@ -313,74 +429,90 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode }) => {
           </Link>
 
           <div className="header-right-actions">
-            <LanguageSwitch />
             <ThemeSwitch variant="header" />
-            <nav className="account-switch" aria-label={t('auth.eyebrow')}>
-              <Link
-                to="/login"
-                aria-current={mode !== 'register' ? 'page' : undefined}
-                onClick={handleModeSwitchClick}
-              >
-                {t('auth.signIn')}
-              </Link>
-              <Link
-                to="/register"
-                aria-current={mode === 'register' ? 'page' : undefined}
-                onClick={handleModeSwitchClick}
-              >
-                {uiLanguage === 'mm' ? t('auth.signUp') : 'Sign up'}
-              </Link>
+            <nav
+              className={`account-switch${mode === 'verify' ? ' is-disabled' : ''}`}
+              aria-label={t('auth.eyebrow')}
+            >
+              {mode === 'verify' ? (
+                <>
+                  <span aria-disabled="true">{t('auth.signIn')}</span>
+                  <span aria-disabled="true">
+                    {uiLanguage === 'mm' ? t('auth.signUp') : 'Sign up'}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <Link
+                    to="/login"
+                    aria-current={mode === 'login' ? 'page' : undefined}
+                    onClick={handleModeSwitchClick}
+                  >
+                    {t('auth.signIn')}
+                  </Link>
+                  <Link
+                    to="/register"
+                    aria-current={mode === 'register' ? 'page' : undefined}
+                    onClick={handleModeSwitchClick}
+                  >
+                    {uiLanguage === 'mm' ? t('auth.signUp') : 'Sign up'}
+                  </Link>
+                </>
+              )}
             </nav>
           </div>
         </div>
       </header>
 
-      <main className="auth-layout">
-        <div className="auth">
-          {isLoginOrRegister ? (
-            <>
-              {/* LOGIN VIEW */}
-              <section
-                data-view="login"
-                aria-labelledby="login-heading"
-                inert={mode !== 'login' ? true : undefined}
+      {isLoginOrRegister ? (
+        <main className="auth-layout">
+          <div className="auth">
+            {/* LOGIN VIEW */}
+            <section
+              data-view="login"
+              aria-labelledby="login-heading"
+              inert={mode !== 'login' ? true : undefined}
+            >
+              <h1 id="login-heading" tabIndex={-1}>
+                {uiLanguage === 'mm' ? t('auth.loginTitle') : 'Welcome back.'}
+              </h1>
+              <p className="intro">
+                {uiLanguage === 'mm'
+                  ? t('auth.loginSubtitle')
+                  : 'Get back to your quizzes, scores, and live games.'}
+              </p>
+
+              <button
+                type="button"
+                className="google-button"
+                onClick={() => void handleGoogleAuth('login')}
+                disabled={submitting || googleSubmitting}
+                data-name="Google login button"
               >
-                <h1 id="login-heading" tabIndex={-1}>
-                  {uiLanguage === 'mm' ? t('auth.loginTitle') : 'Welcome back.'}
-                </h1>
-                <p className="intro">
-                  {uiLanguage === 'mm'
-                    ? t('auth.loginSubtitle')
-                    : 'Get back to your quizzes, scores, and live games.'}
-                </p>
+                {googleSubmitting ? (
+                  <Loader2 size={18} className="animate-spin" aria-hidden="true" />
+                ) : (
+                  <GoogleIcon />
+                )}
+                <span>{t('auth.googleSignIn')}</span>
+              </button>
 
-                <button
-                  type="button"
-                  className="google-button"
-                  onClick={() => void handleGoogleAuth('login')}
-                  disabled={submitting || googleSubmitting}
-                  data-name="Google login button"
+              <div className="auth-divider" role="separator">
+                <span>{t('auth.orContinueWith')}</span>
+              </div>
+
+              <form method="post" noValidate onSubmit={handleLoginSubmit}>
+                <fieldset
+                  className="form-fields"
+                  aria-label="Sign-in details"
+                  disabled={submitting}
                 >
-                  {googleSubmitting ? (
-                    <Loader2 size={18} className="animate-spin" aria-hidden="true" />
-                  ) : (
-                    <GoogleIcon />
-                  )}
-                  <span>{t('auth.googleSignIn')}</span>
-                </button>
-
-                <div className="auth-divider" role="separator">
-                  <span>{t('auth.orContinueWith')}</span>
-                </div>
-
-                <form method="post" noValidate onSubmit={handleLoginSubmit}>
-                  <fieldset
-                    className="form-fields"
-                    aria-label="Sign-in details"
-                    disabled={submitting}
-                  >
-                    <div className="field">
-                      <label htmlFor="login-email">{t('auth.emailLabel')}</label>
+                  <div className="field">
+                    <label htmlFor="login-email">{t('auth.emailLabel')}</label>
+                    <div className="field-control">
+                      <span className="field-icon" aria-hidden="true">
+                        <Mail size={17} strokeWidth={1.7} />
+                      </span>
                       <input
                         id="login-email"
                         name="email"
@@ -398,153 +530,161 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode }) => {
                           }
                         }}
                       />
-                      {fieldErrors.email && (
-                        <p className="field-error" id="login-email-error">
-                          {fieldErrors.email}
-                        </p>
-                      )}
                     </div>
+                    {fieldErrors.email && (
+                      <p className="field-error" id="login-email-error">
+                        {fieldErrors.email}
+                      </p>
+                    )}
+                  </div>
 
-                    <div className="field">
-                      <div className="field-label-row">
-                        <label htmlFor="login-password">{t('auth.passwordLabel')}</label>
+                  <div className="field">
+                    <div className="field-label-row">
+                      <label htmlFor="login-password">{t('auth.passwordLabel')}</label>
+                      <Link
+                        to="/forgot-password"
+                        className="forgot-link"
+                        onClick={handleModeSwitchClick}
+                      >
+                        {t('auth.forgotPasswordLink')}
+                      </Link>
+                    </div>
+                    <div className="field-control password-field">
+                      <span className="field-icon" aria-hidden="true">
+                        <Lock size={17} strokeWidth={1.7} />
+                      </span>
+                      <input
+                        id="login-password"
+                        name="password"
+                        type={showLoginPassword ? 'text' : 'password'}
+                        autoComplete="current-password"
+                        required
+                        value={password}
+                        aria-invalid={fieldErrors.password ? 'true' : undefined}
+                        aria-describedby="login-password-error"
+                        onChange={(e) => {
+                          setPassword(e.target.value);
+                          if (fieldErrors.password) {
+                            setFieldErrors((prev) => ({ ...prev, password: undefined }));
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="password-toggle"
+                        aria-controls="login-password"
+                        aria-label={
+                          showLoginPassword ? t('common.hidePassword') : t('common.showPassword')
+                        }
+                        onClick={() => setShowLoginPassword((prev) => !prev)}
+                      >
+                        {showLoginPassword ? (
+                          <EyeOff size={18} aria-hidden="true" />
+                        ) : (
+                          <Eye size={18} aria-hidden="true" />
+                        )}
+                      </button>
+                    </div>
+                    {fieldErrors.password && (
+                      <p className="field-error" id="login-password-error">
+                        {fieldErrors.password}
+                      </p>
+                    )}
+                  </div>
+
+                  <button className="submit-button" type="submit" disabled={submitting}>
+                    <span>{submitting ? t('auth.submitting') : t('auth.signIn')}</span>
+                    {!submitting && (
+                      <span className="submit-arrow" aria-hidden="true">
+                        →
+                      </span>
+                    )}
+                  </button>
+                </fieldset>
+
+                {mode === 'login' && error && (
+                  <div className="form-status is-error" role="alert">
+                    <div>{error}</div>
+                    {errorCode === 'EMAIL_NOT_VERIFIED' && (
+                      <div style={{ marginTop: 6 }}>
                         <Link
-                          to="/forgot-password"
-                          className="forgot-link"
-                          onClick={handleModeSwitchClick}
+                          to={`/verify-email${
+                            email.trim()
+                              ? `?email=${encodeURIComponent(email.trim())}`
+                              : ''
+                          }`}
+                          style={{ color: 'inherit', fontWeight: 700 }}
                         >
-                          {t('auth.forgotPasswordLink')}
+                          {t('auth.verifyBtn')}
                         </Link>
                       </div>
-                      <div className="password-field">
-                        <input
-                          id="login-password"
-                          name="password"
-                          type={showLoginPassword ? 'text' : 'password'}
-                          autoComplete="current-password"
-                          required
-                          value={password}
-                          aria-invalid={fieldErrors.password ? 'true' : undefined}
-                          aria-describedby="login-password-error"
-                          onChange={(e) => {
-                            setPassword(e.target.value);
-                            if (fieldErrors.password) {
-                              setFieldErrors((prev) => ({ ...prev, password: undefined }));
-                            }
-                          }}
-                        />
-                        <button
-                          type="button"
-                          className="password-toggle"
-                          aria-controls="login-password"
-                          aria-label={
-                            showLoginPassword ? t('common.hidePassword') : t('common.showPassword')
-                          }
-                          onClick={() => setShowLoginPassword((prev) => !prev)}
-                        >
-                          {showLoginPassword ? (
-                            <EyeOff size={17} aria-hidden="true" />
-                          ) : (
-                            <Eye size={17} aria-hidden="true" />
-                          )}
-                        </button>
-                      </div>
-                      {fieldErrors.password && (
-                        <p className="field-error" id="login-password-error">
-                          {fieldErrors.password}
-                        </p>
-                      )}
-                    </div>
+                    )}
+                  </div>
+                )}
 
-                    <button className="submit-button" type="submit" disabled={submitting}>
-                      <span>{submitting ? t('auth.submitting') : t('auth.signIn')}</span>
-                      {!submitting && (
-                        <span className="submit-arrow" aria-hidden="true">
-                          →
-                        </span>
-                      )}
-                    </button>
-                  </fieldset>
+                {mode === 'login' && infoMessage && (
+                  <p className="form-status" role="status">
+                    {infoMessage}
+                  </p>
+                )}
+              </form>
 
-                  {mode === 'login' && error && (
-                    <div className="form-status is-error" role="alert">
-                      <div>{error}</div>
-                      {errorCode === 'EMAIL_NOT_VERIFIED' && (
-                        <div style={{ marginTop: 6 }}>
-                          <Link
-                            to={`/verify-email${
-                              email.trim()
-                                ? `?email=${encodeURIComponent(email.trim())}`
-                                : ''
-                            }`}
-                            style={{ color: 'inherit', fontWeight: 700 }}
-                          >
-                            {t('auth.verifyBtn')}
-                          </Link>
-                        </div>
-                      )}
-                    </div>
-                  )}
+              <p className="view-switch">
+                {uiLanguage === 'mm' ? t('auth.noAccountPrompt') : 'New to QuizClash?'}{' '}
+                <Link to="/register" onClick={handleModeSwitchClick}>
+                  {uiLanguage === 'mm' ? t('auth.signUp') : 'Create an account'}
+                </Link>
+              </p>
+            </section>
 
-                  {mode === 'login' && infoMessage && (
-                    <p className="form-status" role="status">
-                      {infoMessage}
-                    </p>
-                  )}
-                </form>
+            {/* REGISTER VIEW */}
+            <section
+              data-view="register"
+              aria-labelledby="register-heading"
+              inert={mode !== 'register' ? true : undefined}
+            >
+              <h1 id="register-heading" tabIndex={-1}>
+                {uiLanguage === 'mm' ? t('auth.registerTitle') : 'Create your account.'}
+              </h1>
+              <p className="intro">
+                {uiLanguage === 'mm'
+                  ? t('auth.registerSubtitle')
+                  : 'Turn your notes into quizzes and practice with friends.'}
+              </p>
 
-                <p className="view-switch">
-                  {uiLanguage === 'mm' ? t('auth.noAccountPrompt') : 'New to QuizClash?'}{' '}
-                  <Link to="/register" onClick={handleModeSwitchClick}>
-                    {uiLanguage === 'mm' ? t('auth.signUp') : 'Create an account'}
-                  </Link>
-                </p>
-              </section>
-
-              {/* REGISTER VIEW */}
-              <section
-                data-view="register"
-                aria-labelledby="register-heading"
-                inert={mode !== 'register' ? true : undefined}
+              <button
+                type="button"
+                className="google-button"
+                onClick={() => void handleGoogleAuth('register')}
+                disabled={submitting || googleSubmitting}
+                data-name="Google signup button"
               >
-                <h1 id="register-heading" tabIndex={-1}>
-                  {uiLanguage === 'mm' ? t('auth.registerTitle') : 'Create your account.'}
-                </h1>
-                <p className="intro">
-                  {uiLanguage === 'mm'
-                    ? t('auth.registerSubtitle')
-                    : 'Turn your notes into quizzes and practice with friends.'}
-                </p>
+                {googleSubmitting ? (
+                  <Loader2 size={18} className="animate-spin" aria-hidden="true" />
+                ) : (
+                  <GoogleIcon />
+                )}
+                <span>{t('auth.googleSignUp')}</span>
+              </button>
 
-                <button
-                  type="button"
-                  className="google-button"
-                  onClick={() => void handleGoogleAuth('register')}
-                  disabled={submitting || googleSubmitting}
-                  data-name="Google signup button"
+              <div className="auth-divider" role="separator">
+                <span>{t('auth.orContinueWith')}</span>
+              </div>
+
+              <form method="post" noValidate onSubmit={handleRegisterSubmit}>
+                <fieldset
+                  className="form-fields"
+                  aria-label="Registration details"
+                  disabled={submitting}
                 >
-                  {googleSubmitting ? (
-                    <Loader2 size={18} className="animate-spin" aria-hidden="true" />
-                  ) : (
-                    <GoogleIcon />
-                  )}
-                  <span>{t('auth.googleSignUp')}</span>
-                </button>
-
-                <div className="auth-divider" role="separator">
-                  <span>{t('auth.orContinueWith')}</span>
-                </div>
-
-                <form method="post" noValidate onSubmit={handleRegisterSubmit}>
-                  <fieldset
-                    className="form-fields"
-                    aria-label="Registration details"
-                    disabled={submitting}
-                  >
-                    <div className="field">
-                      <label htmlFor="register-name">
-                        {uiLanguage === 'mm' ? t('auth.displayNameLabel') : 'Full name'}
-                      </label>
+                  <div className="field">
+                    <label htmlFor="register-name">
+                      {uiLanguage === 'mm' ? t('auth.displayNameLabel') : 'Full name'}
+                    </label>
+                    <div className="field-control">
+                      <span className="field-icon" aria-hidden="true">
+                        <User size={17} strokeWidth={1.7} />
+                      </span>
                       <input
                         id="register-name"
                         name="name"
@@ -562,15 +702,20 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode }) => {
                           }
                         }}
                       />
-                      {fieldErrors.name && (
-                        <p className="field-error" id="register-name-error">
-                          {fieldErrors.name}
-                        </p>
-                      )}
                     </div>
+                    {fieldErrors.name && (
+                      <p className="field-error" id="register-name-error">
+                        {fieldErrors.name}
+                      </p>
+                    )}
+                  </div>
 
-                    <div className="field">
-                      <label htmlFor="register-email">{t('auth.emailLabel')}</label>
+                  <div className="field">
+                    <label htmlFor="register-email">{t('auth.emailLabel')}</label>
+                    <div className="field-control">
+                      <span className="field-icon" aria-hidden="true">
+                        <Mail size={17} strokeWidth={1.7} />
+                      </span>
                       <input
                         id="register-email"
                         name="email"
@@ -588,173 +733,415 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode }) => {
                           }
                         }}
                       />
-                      {fieldErrors.email && (
-                        <p className="field-error" id="register-email-error">
-                          {fieldErrors.email}
+                    </div>
+                    {fieldErrors.email && (
+                      <p className="field-error" id="register-email-error">
+                        {fieldErrors.email}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="password-group">
+                    <div className="field">
+                      <label htmlFor="register-password">{t('auth.passwordLabel')}</label>
+                      <div className="field-control password-field">
+                        <span className="field-icon" aria-hidden="true">
+                          <Lock size={17} strokeWidth={1.7} />
+                        </span>
+                        <input
+                          id="register-password"
+                          name="password"
+                          type={showRegisterPassword ? 'text' : 'password'}
+                          autoComplete="new-password"
+                          minLength={8}
+                          placeholder={t('auth.passwordMinPlaceholder')}
+                          required
+                          value={password}
+                          aria-invalid={fieldErrors.password ? 'true' : undefined}
+                          aria-describedby="register-password-rules register-password-error"
+                          onFocus={() => {
+                            setRegisterPasswordFocused(true);
+                            if (window.matchMedia('(max-width: 800px)').matches) {
+                              setPreviewExpanded(true);
+                            }
+                          }}
+                          onBlur={() => setRegisterPasswordFocused(false)}
+                          onChange={(e) => {
+                            setPassword(e.target.value);
+                            if (fieldErrors.password) {
+                              setFieldErrors((prev) => ({ ...prev, password: undefined }));
+                            }
+                          }}
+                        />
+                        <button
+                          type="button"
+                          className="password-toggle"
+                          aria-controls="register-password"
+                          aria-label={
+                            showRegisterPassword
+                              ? t('common.hidePassword')
+                              : t('common.showPassword')
+                          }
+                          onClick={() => setShowRegisterPassword((prev) => !prev)}
+                        >
+                          {showRegisterPassword ? (
+                            <EyeOff size={18} aria-hidden="true" />
+                          ) : (
+                            <Eye size={18} aria-hidden="true" />
+                          )}
+                        </button>
+                      </div>
+                      {fieldErrors.password && (
+                        <p className="field-error" id="register-password-error">
+                          {fieldErrors.password}
                         </p>
                       )}
                     </div>
 
-                    <div className="field-row-2">
-                      <div className="field">
-                        <label htmlFor="register-password">{t('auth.passwordLabel')}</label>
-                        <div className="password-field">
-                          <input
-                            id="register-password"
-                            name="password"
-                            type={showRegisterPassword ? 'text' : 'password'}
-                            autoComplete="new-password"
-                            minLength={8}
-                            placeholder={t('auth.passwordMinPlaceholder')}
-                            required
-                            value={password}
-                            aria-invalid={fieldErrors.password ? 'true' : undefined}
-                            aria-describedby="register-password-error"
-                            onChange={(e) => {
-                              setPassword(e.target.value);
-                              if (fieldErrors.password) {
-                                setFieldErrors((prev) => ({ ...prev, password: undefined }));
-                              }
-                            }}
-                          />
-                          <button
-                            type="button"
-                            className="password-toggle"
-                            aria-controls="register-password"
-                            aria-label={
-                              showRegisterPassword
-                                ? t('common.hidePassword')
-                                : t('common.showPassword')
-                            }
-                            onClick={() => setShowRegisterPassword((prev) => !prev)}
-                          >
-                            {showRegisterPassword ? (
-                              <EyeOff size={17} aria-hidden="true" />
-                            ) : (
-                              <Eye size={17} aria-hidden="true" />
-                            )}
-                          </button>
-                        </div>
-                        {fieldErrors.password && (
-                          <p className="field-error" id="register-password-error">
-                            {fieldErrors.password}
-                          </p>
-                        )}
-                      </div>
-
-                      <div className="field">
-                        <label htmlFor="register-confirm">{t('auth.confirmPasswordLabel')}</label>
-                        <div className="password-field">
-                          <input
-                            id="register-confirm"
-                            name="passwordConfirmation"
-                            type={showConfirmPassword ? 'text' : 'password'}
-                            autoComplete="new-password"
-                            placeholder={t('auth.confirmPasswordPlaceholder')}
-                            required
-                            value={confirmPassword}
-                            aria-invalid={fieldErrors.confirm ? 'true' : undefined}
-                            aria-describedby="register-confirm-error"
-                            onChange={(e) => {
-                              setConfirmPassword(e.target.value);
-                              if (fieldErrors.confirm) {
-                                setFieldErrors((prev) => ({ ...prev, confirm: undefined }));
-                              }
-                            }}
-                          />
-                          <button
-                            type="button"
-                            className="password-toggle"
-                            aria-controls="register-confirm"
-                            aria-label={
-                              showConfirmPassword
-                                ? t('common.hidePassword')
-                                : t('common.showPassword')
-                            }
-                            onClick={() => setShowConfirmPassword((prev) => !prev)}
-                          >
-                            {showConfirmPassword ? (
-                              <EyeOff size={17} aria-hidden="true" />
-                            ) : (
-                              <Eye size={17} aria-hidden="true" />
-                            )}
-                          </button>
-                        </div>
-                        {fieldErrors.confirm && (
-                          <p className="field-error" id="register-confirm-error">
-                            {fieldErrors.confirm}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-
-                    <button className="submit-button" type="submit" disabled={submitting}>
-                      <span>{submitting ? t('auth.submitting') : t('auth.signUp')}</span>
-                      {!submitting && (
-                        <span className="submit-arrow" aria-hidden="true">
-                          →
+                    <div className="field">
+                      <label htmlFor="register-confirm">{t('auth.confirmPasswordLabel')}</label>
+                      <div className="field-control password-field">
+                        <span className="field-icon" aria-hidden="true">
+                          <Lock size={17} strokeWidth={1.7} />
                         </span>
-                      )}
-                    </button>
-                  </fieldset>
-
-                  {mode === 'register' && error && (
-                    <div className="form-status is-error" role="alert">
-                      <div>{error}</div>
-                      {(errorCode === 'OAUTH_ACCOUNT_ALREADY_EXISTS' ||
-                        errorCode === 'ACCOUNT_ALREADY_EXISTS' ||
-                        errorCode === 'EMAIL_ALREADY_REGISTERED') && (
-                        <div style={{ marginTop: 6 }}>
-                          <Link
-                            to="/login"
-                            onClick={handleModeSwitchClick}
-                            style={{ color: 'inherit', fontWeight: 700 }}
-                          >
-                            {t('auth.signIn')}
-                          </Link>
-                        </div>
-                      )}
+                        <input
+                          id="register-confirm"
+                          name="passwordConfirmation"
+                          type={showConfirmPassword ? 'text' : 'password'}
+                          autoComplete="new-password"
+                          placeholder={t('auth.confirmPasswordPlaceholder')}
+                          required
+                          value={confirmPassword}
+                          aria-invalid={
+                            fieldErrors.confirm ||
+                            (confirmPassword.length > 0 && confirmPassword !== password)
+                              ? 'true'
+                              : undefined
+                          }
+                          aria-describedby="register-confirm-error register-confirm-status"
+                          onFocus={() => setConfirmPasswordFocused(true)}
+                          onBlur={() => setConfirmPasswordFocused(false)}
+                          onChange={(e) => {
+                            setConfirmPassword(e.target.value);
+                            if (fieldErrors.confirm) {
+                              setFieldErrors((prev) => ({ ...prev, confirm: undefined }));
+                            }
+                          }}
+                        />
+                        <button
+                          type="button"
+                          className="password-toggle"
+                          aria-controls="register-confirm"
+                          aria-label={
+                            showConfirmPassword
+                              ? t('common.hidePassword')
+                              : t('common.showPassword')
+                          }
+                          onClick={() => setShowConfirmPassword((prev) => !prev)}
+                        >
+                          {showConfirmPassword ? (
+                            <EyeOff size={18} aria-hidden="true" />
+                          ) : (
+                            <Eye size={18} aria-hidden="true" />
+                          )}
+                        </button>
+                      </div>
+                      {fieldErrors.confirm ? (
+                        <p className="field-error" id="register-confirm-error">
+                          {fieldErrors.confirm}
+                        </p>
+                      ) : confirmPassword.length > 0 ? (
+                        <p
+                          className={`confirm-status ${
+                            confirmPassword === password ? 'is-match' : 'is-mismatch'
+                          }`}
+                          id="register-confirm-status"
+                          aria-live="polite"
+                        >
+                          {confirmPassword === password ? (
+                            <CheckCircle2 size={14} aria-hidden="true" />
+                          ) : (
+                            <AlertCircle size={14} aria-hidden="true" />
+                          )}
+                          <span>
+                            {confirmPassword === password
+                              ? t('auth.passwordsMatch')
+                              : t('auth.errPasswordsMismatch')}
+                          </span>
+                        </p>
+                      ) : confirmPasswordFocused ? (
+                        <p className="confirm-status" id="register-confirm-status" aria-live="polite">
+                          <span>{t('auth.confirmPasswordHint')}</span>
+                        </p>
+                      ) : null}
                     </div>
-                  )}
+                  </div>
 
-                  {mode === 'register' && infoMessage && (
-                    <p className="form-status" role="status">
-                      {infoMessage}
-                    </p>
-                  )}
-                </form>
+                  <button className="submit-button" type="submit" disabled={submitting}>
+                    <span>{submitting ? t('auth.submitting') : t('auth.signUp')}</span>
+                    {!submitting && (
+                      <span className="submit-arrow" aria-hidden="true">
+                        →
+                      </span>
+                    )}
+                  </button>
+                </fieldset>
 
-                <p className="view-switch">
-                  {t('auth.haveAccountPrompt')}{' '}
-                  <Link to="/login" onClick={handleModeSwitchClick}>
-                    {t('auth.signIn')}
-                  </Link>
+                {mode === 'register' && error && (
+                  <div className="form-status is-error" role="alert">
+                    <div>{error}</div>
+                    {(errorCode === 'OAUTH_ACCOUNT_ALREADY_EXISTS' ||
+                      errorCode === 'ACCOUNT_ALREADY_EXISTS' ||
+                      errorCode === 'EMAIL_ALREADY_REGISTERED') && (
+                      <div style={{ marginTop: 6 }}>
+                        <Link
+                          to="/login"
+                          onClick={handleModeSwitchClick}
+                          style={{ color: 'inherit', fontWeight: 700 }}
+                        >
+                          {t('auth.signIn')}
+                        </Link>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {mode === 'register' && infoMessage && (
+                  <p className="form-status" role="status">
+                    {infoMessage}
+                  </p>
+                )}
+              </form>
+
+              <p className="view-switch">
+                {t('auth.haveAccountPrompt')}{' '}
+                <Link to="/login" onClick={handleModeSwitchClick}>
+                  {t('auth.signIn')}
+                </Link>
+              </p>
+            </section>
+          </div>
+
+          <button
+            className="preview-toggle"
+            type="button"
+            aria-controls="study-preview"
+            aria-expanded={previewExpanded}
+            onClick={() => setPreviewExpanded((prev) => !prev)}
+          >
+            <span>
+              {showPasswordPreview ? t('auth.passwordProgressLabel') : t('auth.previewLabel')}
+            </span>
+            <span className="preview-chevron" aria-hidden="true"></span>
+          </button>
+
+          <figure
+            className="study-scene"
+            id="study-preview"
+            aria-label="QuizClash preview: practice quiz and attempt history"
+          >
+            <div className="card-stack">
+              <div className="stack-backdrop" aria-hidden="true"></div>
+              <div className="preview-card history-card">
+                <div className="attempt-preview">
+                  <p className="preview-meta">{t('nav.attemptHistory')}</p>
+                  <p className="preview-title">{t('results.scoreTrendTitle')}</p>
+                  <svg
+                    className="score-chart"
+                    viewBox="0 0 300 150"
+                    width="300"
+                    height="150"
+                    role="img"
+                    aria-labelledby="attempt-chart-title"
+                    aria-describedby="attempt-chart-description"
+                  >
+                    <title id="attempt-chart-title">
+                      Sample quiz scores over three attempts
+                    </title>
+                    <desc id="attempt-chart-description">
+                      November 16: 50%. November 17: 60%. Today: 80%.
+                    </desc>
+                    <defs>
+                      <linearGradient id="attempt-score-fill" x2="0%" y2="100%">
+                        <stop offset="5%" stopColor="currentColor" stopOpacity="0.32" />
+                        <stop offset="95%" stopColor="currentColor" stopOpacity="0.02" />
+                      </linearGradient>
+                    </defs>
+                    <path
+                      d="M35 10H271 M35 39H271 M35 68H271 M35 97H271 M35 126H271"
+                      fill="none"
+                      stroke="var(--line)"
+                      strokeDasharray="3 3"
+                    />
+                    <path
+                      d="M35 68 C74.33 65.1 113.67 62.2 153 56.4 S231.67 41.9 271 33.2 V126H35Z"
+                      fill="url(#attempt-score-fill)"
+                    />
+                    <path
+                      d="M35 68 C74.33 65.1 113.67 62.2 153 56.4 S231.67 41.9 271 33.2"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      vectorEffect="non-scaling-stroke"
+                    />
+                    <g textAnchor="end" dominantBaseline="middle">
+                      <text x="29" y="10">
+                        100%
+                      </text>
+                      <text x="29" y="39">
+                        75%
+                      </text>
+                      <text x="29" y="68">
+                        50%
+                      </text>
+                      <text x="29" y="97">
+                        25%
+                      </text>
+                      <text x="29" y="126">
+                        0%
+                      </text>
+                    </g>
+                    <g textAnchor="middle">
+                      <text x="35" y="144">
+                        Nov 16
+                      </text>
+                      <text x="153" y="144">
+                        Nov 17
+                      </text>
+                      <text x="271" y="144">
+                        Today
+                      </text>
+                    </g>
+                  </svg>
+                </div>
+
+                <div className="registration-progress">
+                  <p className="preview-meta">{t('auth.passwordReqTitle')}</p>
+                  <p
+                    className="preview-title"
+                    id="requirement-count"
+                    aria-live="polite"
+                    aria-atomic="true"
+                  >
+                    {t('auth.passwordReqCount', {
+                      met: metPasswordCount,
+                      total: passwordChecks.length
+                    })}
+                  </p>
+                  <div
+                    className="requirement-meter"
+                    id="requirement-meter"
+                    aria-hidden="true"
+                    data-complete={allPasswordRulesMet ? '' : undefined}
+                  >
+                    {passwordChecks.map((rule, idx) => (
+                      <span
+                        key={rule.key}
+                        data-filled={idx < metPasswordCount ? '' : undefined}
+                      />
+                    ))}
+                  </div>
+                  <ul
+                    className="password-rules"
+                    id="register-password-rules"
+                    aria-label={t('auth.passwordReqTitle')}
+                    role="list"
+                  >
+                    {passwordChecks.map((rule) => (
+                      <li key={rule.key} data-met={rule.met ? '' : undefined}>
+                        <span className="rule-indicator" aria-hidden="true"></span>
+                        <span>
+                          {rule.label}
+                          <span className="visually-hidden">
+                            {rule.met ? ' (met)' : ' (not met)'}
+                          </span>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+
+              <div className="preview-card quiz-card">
+                <p className="preview-meta">
+                  <span>Practice quiz</span>
+                  <span>2 / 5</span>
                 </p>
-              </section>
-            </>
-          ) : (
-            /* VERIFY EMAIL / FORGOT PASSWORD / RESET PASSWORD VIEW */
-            <section data-view="aux" aria-labelledby="aux-heading">
-              <h1 id="aux-heading" tabIndex={-1}>
+                <div className="quiz-progress" aria-hidden="true"></div>
+                <p className="preview-title">What is the name of this Website?</p>
+                <ul className="options" role="list">
+                  <li>
+                    <span className="option-letter" aria-hidden="true">
+                      A
+                    </span>{' '}
+                    QuizGenerator
+                  </li>
+                  <li className="answer">
+                    <span className="option-letter" aria-hidden="true">
+                      B
+                    </span>{' '}
+                    QuizClash
+                    <span className="answer-check" aria-hidden="true">
+                      ✓
+                    </span>
+                    <span className="visually-hidden">Correct answer</span>
+                  </li>
+                  <li>
+                    <span className="option-letter" aria-hidden="true">
+                      C
+                    </span>{' '}
+                    AutoQuiz
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </figure>
+        </main>
+      ) : (
+        /* VERIFY EMAIL / FORGOT PASSWORD / RESET PASSWORD CENTERED PANEL */
+        <main className="verify-layout">
+          <section className="verify-panel" aria-labelledby="verify-heading">
+            <header className="verify-heading">
+              <span className="verify-icon" aria-hidden="true">
+                {mode === 'verify' ? (
+                  <MailCheck size={27} strokeWidth={1.8} />
+                ) : (
+                  <KeyRound size={26} strokeWidth={1.8} />
+                )}
+              </span>
+              <h1 id="verify-heading" tabIndex={-1}>
                 {mode === 'verify'
                   ? t('auth.verifyTitle')
                   : mode === 'forgot'
                   ? t('auth.forgotTitle')
                   : t('auth.resetTitle')}
               </h1>
-              <p className="intro">
-                {mode === 'verify'
-                  ? t('auth.verifySubtitle')
-                  : mode === 'forgot'
-                  ? t('auth.forgotSubtitle')
-                  : t('auth.resetSubtitle')}
-              </p>
+              {mode === 'verify' ? (
+                <p className="intro">
+                  <span>{t('auth.verifySentTo')}</span>
+                  {email.trim() && (
+                    <strong className="verify-recipient" dir="ltr">
+                      {email.trim()}
+                    </strong>
+                  )}
+                </p>
+              ) : (
+                <p className="intro">
+                  {mode === 'forgot' ? t('auth.forgotSubtitle') : t('auth.resetSubtitle')}
+                </p>
+              )}
+            </header>
 
-              <form method="post" onSubmit={handleAuxSubmit}>
-                <fieldset className="form-fields" disabled={submitting}>
-                  {(mode === 'forgot' || mode === 'verify') && (
-                    <div className="field">
-                      <label htmlFor="aux-email">{t('auth.emailLabel')}</label>
+            <form method="post" noValidate onSubmit={handleAuxSubmit}>
+              <fieldset className="form-fields" disabled={submitting}>
+                {(mode === 'forgot' || (mode === 'verify' && !queryEmail)) && (
+                  <div className="field">
+                    <label htmlFor="aux-email">{t('auth.emailLabel')}</label>
+                    <div className="field-control">
+                      <span className="field-icon" aria-hidden="true">
+                        <Mail size={17} strokeWidth={1.7} />
+                      </span>
                       <input
                         id="aux-email"
                         name="email"
@@ -766,44 +1153,85 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode }) => {
                         onChange={(e) => setEmail(e.target.value)}
                       />
                     </div>
-                  )}
+                  </div>
+                )}
 
-                  {(mode === 'verify' || mode === 'reset') && (
-                    <div className="field">
-                      <label htmlFor="aux-token">
-                        {mode === 'verify' ? t('auth.otpLabel') : t('auth.tokenLabel')}
-                      </label>
+                {mode === 'verify' && (
+                  <div className="field">
+                    <label htmlFor="verify-code">{t('auth.verifyCodeLabel')}</label>
+                    <div className="verify-code">
+                      <div className="verify-code-slots" aria-hidden="true">
+                        {Array.from({ length: OTP_LENGTH }, (_, idx) => {
+                          const digit = token[idx];
+                          const activeIndex = Math.min(otpSelection.start, OTP_LENGTH - 1);
+                          const isSelected =
+                            idx >= otpSelection.start && idx < otpSelection.end;
+                          return (
+                            <span
+                              key={idx}
+                              className="verify-code-slot"
+                              data-filled={digit !== undefined ? '' : undefined}
+                              data-active={idx === activeIndex ? '' : undefined}
+                              data-selected={isSelected ? '' : undefined}
+                            >
+                              {digit !== undefined ? (
+                                digit
+                              ) : (
+                                <span className="verify-code-dash"></span>
+                              )}
+                            </span>
+                          );
+                        })}
+                      </div>
                       <input
-                        id="aux-token"
+                        ref={otpInputRef}
+                        id="verify-code"
                         name="token"
                         type="text"
-                        inputMode={mode === 'verify' ? 'numeric' : undefined}
-                        autoComplete={mode === 'verify' ? 'one-time-code' : undefined}
-                        maxLength={mode === 'verify' ? 6 : undefined}
-                        placeholder={
-                          mode === 'verify'
-                            ? t('auth.otpPlaceholder')
-                            : t('auth.tokenPlaceholder')
-                        }
-                        required
+                        dir="ltr"
+                        inputMode="numeric"
+                        autoComplete="one-time-code"
+                        spellCheck={false}
+                        aria-required="true"
+                        aria-invalid={error ? 'true' : undefined}
+                        aria-describedby={error ? 'verify-feedback' : undefined}
                         value={token}
-                        style={
-                          mode === 'verify'
-                            ? { letterSpacing: '0.22em', fontWeight: 650 }
-                            : undefined
-                        }
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setToken(mode === 'verify' ? val.replace(/\D/g, '').slice(0, 6) : val);
-                        }}
+                        onChange={handleOtpChange}
+                        onFocus={syncOtpSelection}
+                        onSelect={syncOtpSelection}
+                        onKeyUp={syncOtpSelection}
+                        onClick={handleOtpClick}
                       />
                     </div>
-                  )}
+                  </div>
+                )}
 
-                  {mode === 'reset' && (
+                {mode === 'reset' && (
+                  <>
+                    <div className="field">
+                      <label htmlFor="aux-token">{t('auth.tokenLabel')}</label>
+                      <div className="field-control">
+                        <span className="field-icon" aria-hidden="true">
+                          <KeyRound size={17} strokeWidth={1.7} />
+                        </span>
+                        <input
+                          id="aux-token"
+                          name="token"
+                          type="text"
+                          placeholder={t('auth.tokenPlaceholder')}
+                          required
+                          value={token}
+                          onChange={(e) => setToken(e.target.value)}
+                        />
+                      </div>
+                    </div>
+
                     <div className="field">
                       <label htmlFor="aux-password">{t('auth.newPasswordLabel')}</label>
-                      <div className="password-field">
+                      <div className="field-control password-field">
+                        <span className="field-icon" aria-hidden="true">
+                          <Lock size={17} strokeWidth={1.7} />
+                        </span>
                         <input
                           id="aux-password"
                           name="password"
@@ -825,182 +1253,76 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode }) => {
                           onClick={() => setShowLoginPassword((prev) => !prev)}
                         >
                           {showLoginPassword ? (
-                            <EyeOff size={17} aria-hidden="true" />
+                            <EyeOff size={18} aria-hidden="true" />
                           ) : (
-                            <Eye size={17} aria-hidden="true" />
+                            <Eye size={18} aria-hidden="true" />
                           )}
                         </button>
                       </div>
                     </div>
-                  )}
-
-                  <button className="submit-button" type="submit" disabled={submitting}>
-                    <span>
-                      {submitting
-                        ? t('auth.submitting')
-                        : mode === 'verify'
-                        ? t('auth.verifyBtn').replace(/\s*→$/, '')
-                        : mode === 'forgot'
-                        ? t('auth.forgotBtn').replace(/\s*→$/, '')
-                        : t('auth.resetBtn').replace(/\s*→$/, '')}
-                    </span>
-                    {!submitting && (
-                      <span className="submit-arrow" aria-hidden="true">
-                        →
-                      </span>
-                    )}
-                  </button>
-
-                  {mode === 'verify' && (
-                    <button
-                      type="button"
-                      className="google-button"
-                      onClick={() => void handleResendVerification()}
-                      disabled={submitting}
-                    >
-                      {t('auth.resendBtn')}
-                    </button>
-                  )}
-                </fieldset>
-
-                {error && (
-                  <div className="form-status is-error" role="alert">
-                    {error}
-                  </div>
+                  </>
                 )}
 
-                {infoMessage && (
-                  <p className="form-status" role="status">
-                    {infoMessage}
-                  </p>
-                )}
-              </form>
-
-              <p className="view-switch">
-                <Link to="/login" onClick={handleModeSwitchClick}>
-                  {t('auth.backToSignIn')}
-                </Link>
-              </p>
-            </section>
-          )}
-        </div>
-
-        <figure
-          className="study-scene"
-          aria-label="QuizClash preview: practice quiz and attempt history"
-        >
-          <div className="card-stack">
-            <div className="stack-backdrop" aria-hidden="true"></div>
-            <div className="preview-card history-card">
-              <p className="preview-meta">{t('nav.attemptHistory')}</p>
-              <p className="preview-title">{t('results.scoreTrendTitle')}</p>
-              <svg
-                className="score-chart"
-                viewBox="0 0 300 150"
-                width="300"
-                height="150"
-                role="img"
-                aria-labelledby="attempt-chart-title"
-                aria-describedby="attempt-chart-description"
-              >
-                <title id="attempt-chart-title">
-                  Sample quiz scores over three attempts
-                </title>
-                <desc id="attempt-chart-description">
-                  November 16: 50%. November 17: 60%. Today: 80%.
-                </desc>
-                <defs>
-                  <linearGradient id="attempt-score-fill" x2="0%" y2="100%">
-                    <stop offset="5%" stopColor="currentColor" stopOpacity="0.32" />
-                    <stop offset="95%" stopColor="currentColor" stopOpacity="0.02" />
-                  </linearGradient>
-                </defs>
-                <path
-                  d="M35 10H271 M35 39H271 M35 68H271 M35 97H271 M35 126H271"
-                  fill="none"
-                  stroke="var(--line)"
-                  strokeDasharray="3 3"
-                />
-                <path
-                  d="M35 68 C74.33 65.1 113.67 62.2 153 56.4 S231.67 41.9 271 33.2 V126H35Z"
-                  fill="url(#attempt-score-fill)"
-                />
-                <path
-                  d="M35 68 C74.33 65.1 113.67 62.2 153 56.4 S231.67 41.9 271 33.2"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  vectorEffect="non-scaling-stroke"
-                />
-                <g textAnchor="end" dominantBaseline="middle">
-                  <text x="29" y="10">
-                    100%
-                  </text>
-                  <text x="29" y="39">
-                    75%
-                  </text>
-                  <text x="29" y="68">
-                    50%
-                  </text>
-                  <text x="29" y="97">
-                    25%
-                  </text>
-                  <text x="29" y="126">
-                    0%
-                  </text>
-                </g>
-                <g textAnchor="middle">
-                  <text x="35" y="144">
-                    Nov 16
-                  </text>
-                  <text x="153" y="144">
-                    Nov 17
-                  </text>
-                  <text x="271" y="144">
-                    Today
-                  </text>
-                </g>
-              </svg>
-            </div>
-
-            <div className="preview-card quiz-card">
-              <p className="preview-meta">
-                <span>Practice quiz</span>
-                <span>2 / 5</span>
-              </p>
-              <div className="quiz-progress" aria-hidden="true"></div>
-              <p className="preview-title">
-                What is the name of this Website?
-              </p>
-              <ul className="options" role="list">
-                <li>
-                  <span className="option-letter" aria-hidden="true">
-                    A
-                  </span>{' '}
-                  QuizGenerator
-                </li>
-                <li className="answer">
-                  <span className="option-letter" aria-hidden="true">
-                    B
-                  </span>{' '}
-                  QuizClash
-                  <span className="answer-check" aria-hidden="true">
-                    ✓
+                <button className="submit-button verify-submit" type="submit" disabled={submitting}>
+                  <span>
+                    {submitting
+                      ? t('auth.submitting')
+                      : mode === 'verify'
+                      ? t('auth.verifyBtn').replace(/\s*→$/, '')
+                      : mode === 'forgot'
+                      ? t('auth.forgotBtn').replace(/\s*→$/, '')
+                      : t('auth.resetBtn').replace(/\s*→$/, '')}
                   </span>
-                  <span className="visually-hidden">Correct answer</span>
-                </li>
-                <li>
-                  <span className="option-letter" aria-hidden="true">
-                    C
-                  </span>{' '}
-                  AutoQuiz
-                </li>
-              </ul>
-            </div>
-          </div>
-        </figure>
-      </main>
+                  {!submitting && <ArrowRight size={17} strokeWidth={2} aria-hidden="true" />}
+                </button>
+              </fieldset>
+
+              {error && (
+                <p
+                  className="verify-feedback"
+                  id="verify-feedback"
+                  data-feedback="error"
+                  role="alert"
+                >
+                  <AlertCircle size={17} strokeWidth={2} aria-hidden="true" />
+                  <span>{error}</span>
+                </p>
+              )}
+
+              {infoMessage && !error && (
+                <p
+                  className="verify-feedback"
+                  id="verify-feedback"
+                  data-feedback="success"
+                  role="status"
+                >
+                  <CheckCircle2 size={17} strokeWidth={2} aria-hidden="true" />
+                  <span>{infoMessage}</span>
+                </p>
+              )}
+
+              {mode === 'verify' && (
+                <div className="verify-resend">
+                  <span>{t('auth.resendPrompt')}</span>
+                  <button
+                    type="button"
+                    disabled={submitting}
+                    onClick={() => void handleResendVerification()}
+                  >
+                    {t('auth.resendShort')}
+                  </button>
+                </div>
+              )}
+            </form>
+
+            <footer className="verify-footer">
+              <Link to="/login" onClick={handleModeSwitchClick}>
+                {t('auth.backToSignIn')}
+              </Link>
+            </footer>
+          </section>
+        </main>
+      )}
     </div>
   );
 };

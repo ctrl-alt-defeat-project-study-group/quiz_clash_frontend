@@ -5,5 +5,7 @@ export { SettingToggleRow } from './SettingToggleRow';
 export { ThemeSwitch } from './ThemeSwitch';
 export { LanguageSwitch, UkFlagIcon, MyanmarFlagIcon } from './LanguageSwitch';
 export { UserAvatar } from './PresetAvatars';
-export { PRESET_AVATARS } from './presetAvatarList';
+export { DEFAULT_AVATAR_ID, PRESET_AVATARS } from './presetAvatarList';
 export { AppPagination } from './AppPagination';
+export { RouteProgressBar } from './RouteProgressBar';
+export { PageLoader } from './PageLoader';

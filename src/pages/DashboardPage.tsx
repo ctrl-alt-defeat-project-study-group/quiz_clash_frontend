@@ -40,8 +40,8 @@ export const DashboardPage: React.FC = () => {
         data-name="Study overview"
         aria-label={t('dashboard.studyOverviewAria')}
       >
-        <StatCard value={savedCount} label={t('dashboard.savedQuizzes')} />
-        <StatCard value={completedCount} label={t('dashboard.completedAttempts')} />
+        <StatCard value={savedCount} label={t('dashboard.savedQuizzes')} to="/quizzes" />
+        <StatCard value={completedCount} label={t('dashboard.completedAttempts')} to="/history" />
         <StatCard value={`${avgScore}%`} label={t('dashboard.averageScore')} />
       </section>
 

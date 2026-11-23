@@ -144,3 +144,5 @@ export const PRESET_AVATARS: PresetAvatarItem[] = [
     )
   }
 ];
+
+export const DEFAULT_AVATAR_ID = PRESET_AVATARS[0].id;

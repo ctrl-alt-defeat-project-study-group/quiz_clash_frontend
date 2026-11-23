@@ -5,6 +5,7 @@ import { useApp } from '../context/AppContext';
 import * as api from '../services/api';
 import type { AppLanguage, ThemeMode, UserSettings } from '../types/quiz';
 import {
+  DEFAULT_AVATAR_ID,
   MyanmarFlagIcon,
   PRESET_AVATARS,
   PageHeader,
@@ -230,6 +231,11 @@ export const SettingsPage: React.FC = () => {
     });
   };
 
+  const handleSignOut = () => {
+    navigate('/', { replace: true });
+    void logout();
+  };
+
   const handleUnlinkGoogle = async () => {
     setUnlinkingGoogle(true);
     try {
@@ -317,7 +323,7 @@ export const SettingsPage: React.FC = () => {
               <button
                 type="button"
                 className="btn"
-                onClick={() => void logout().then(() => navigate('/login'))}
+                onClick={handleSignOut}
                 data-name="Sign out"
               >
                 <LogOut size={15} aria-hidden="true" />
@@ -661,7 +667,7 @@ export const SettingsPage: React.FC = () => {
                     <button
                       type="button"
                       className="btn btn-sm"
-                      onClick={() => void logout().then(() => navigate('/login'))}
+                      onClick={handleSignOut}
                     >
                       {t('auth.signOut')}
                     </button>
@@ -1033,7 +1039,7 @@ export const SettingsPage: React.FC = () => {
               aria-label={t('settings.avatarTitle')}
             >
               {PRESET_AVATARS.map((item) => {
-                const selectedAvatar = user?.avatar_url ?? settings.avatarUrl;
+                const selectedAvatar = user?.avatar_url || settings.avatarUrl || DEFAULT_AVATAR_ID;
                 const isSelected = selectedAvatar === item.id;
                 return (
                   <button

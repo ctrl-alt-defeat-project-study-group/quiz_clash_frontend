@@ -9,6 +9,7 @@ import {
 } from 'react-router-dom';
 import { AppProvider, useApp } from './context/AppContext';
 import { AppLayout } from './components/layout/AppLayout';
+import { PageLoader, RouteProgressBar } from './components/common';
 
 const HomePage = lazy(() =>
   import('./pages/HomePage').then((m) => ({ default: m.HomePage }))
@@ -47,40 +48,12 @@ const AdminPage = lazy(() =>
   import('./pages/AdminPage').then((m) => ({ default: m.AdminPage }))
 );
 
-const RouteFallback: React.FC = () => {
-  const { t } = useApp();
-  return (
-    <div
-      style={{
-        minHeight: '50vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center'
-      }}
-    >
-      <p className="helper-text">{t('common.loading')}</p>
-    </div>
-  );
-};
-
 const RequireAuth: React.FC = () => {
   const { user, authLoading, t } = useApp();
   const location = useLocation();
 
   if (authLoading) {
-    return (
-      <div
-        className="home-frame"
-        style={{
-          minHeight: '100vh',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center'
-        }}
-      >
-        <p className="helper-text">{t('auth.submitting')}</p>
-      </div>
-    );
+    return <PageLoader variant="fullscreen" label={t('auth.submitting')} />;
   }
 
   if (!user) {
@@ -93,7 +66,7 @@ const RequireAuth: React.FC = () => {
 const GuestOnly: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, authLoading } = useApp();
 
-  if (authLoading) return null;
+  if (authLoading) return <PageLoader variant="fullscreen" />;
   if (user) return <Navigate to="/dashboard" replace />;
 
   return <>{children}</>;
@@ -102,7 +75,7 @@ const GuestOnly: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 const RequireAdmin: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, authLoading } = useApp();
 
-  if (authLoading) return null;
+  if (authLoading) return <PageLoader variant="fullscreen" />;
   if (!user || user.role !== 'admin') return <Navigate to="/dashboard" replace />;
 
   return <>{children}</>;
@@ -112,7 +85,8 @@ export function App() {
   return (
     <AppProvider>
       <BrowserRouter>
-        <Suspense fallback={<RouteFallback />}>
+        <RouteProgressBar />
+        <Suspense fallback={<PageLoader variant="fullscreen" />}>
           <Routes>
           {/* Public Landing / Home Page */}
           <Route path="/" element={<HomePage />} />

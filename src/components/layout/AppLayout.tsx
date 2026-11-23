@@ -1,8 +1,8 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { Suspense, useEffect, useRef, useState } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { ChevronDown, Settings } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-import { ThemeSwitch, UserAvatar } from '../common';
+import { PageLoader, ThemeSwitch, UserAvatar } from '../common';
 import { Progress } from '@/components/ui/progress';
 import {
   Drawer,
@@ -376,7 +376,9 @@ export const AppLayout: React.FC = () => {
 
           {/* Right Scrollable Main Panel */}
           <main id="main" ref={mainRef} className="main-panel" data-name="Main panel" tabIndex={-1}>
-            <Outlet />
+            <Suspense fallback={<PageLoader variant="panel" />}>
+              <Outlet />
+            </Suspense>
           </main>
         </div>
       </div>

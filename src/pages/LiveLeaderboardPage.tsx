@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import {
-  ArrowLeft,
   Check,
   Clock,
   Eye,
@@ -246,40 +245,54 @@ export const LiveLeaderboardPage: React.FC = () => {
   };
 
   const renderStandaloneHeader = () => (
-    <header className="qlg-header">
-      <div className="qlg-wrap qlg-header-inner">
-        <button
-          type="button"
-          className="brand"
-          style={{ background: 'none', border: 0, padding: 0, cursor: 'pointer' }}
-          onClick={() => void handleHeaderNavigate('/')}
-        >
-          <span className="brand-mark" aria-hidden="true"></span>
-          <span>QuizClash</span>
-        </button>
-        <div className="qlg-header-actions">
-          {user ? (
+    <header className="qlg-header" data-name="Application header">
+      <div className="qlg-header-inner">
+        <div className="header-left">
+          <button
+            type="button"
+            className="brand"
+            style={{ background: 'none', border: 0, padding: 0, cursor: 'pointer' }}
+            onClick={() => void handleHeaderNavigate('/')}
+          >
+            <span className="brand-mark" aria-hidden="true"></span>
+            <span>QuizClash</span>
+          </button>
+          <span className="brand-tagline" data-name="Study notes → active recall">
+            {t('nav.tagline')}
+          </span>
+        </div>
+        <div className="header-right">
+          <ThemeSwitch variant="header" />
+          {!user && (
             <button
               type="button"
-              className="qlg-dashboard-link"
-              style={{ background: 'none', border: 0, cursor: 'pointer' }}
-              onClick={() => void handleHeaderNavigate('/dashboard')}
+              className="btn btn-sm btn-primary"
+              onClick={() => void handleHeaderNavigate('/login')}
             >
-              <ArrowLeft size={16} aria-hidden="true" />
-              <span>{t('nav.dashboard')}</span>
-            </button>
-          ) : (
-            <button
-              type="button"
-              className="qlg-dashboard-link"
-              style={{ background: 'none', border: 0, cursor: 'pointer' }}
-              onClick={() => void handleHeaderNavigate('/')}
-            >
-              <ArrowLeft size={16} aria-hidden="true" />
-              <span>{t('nav.home')}</span>
+              {t('auth.signIn')}
             </button>
           )}
-          <ThemeSwitch variant="header" />
+          <button
+            type="button"
+            className="btn btn-sm"
+            onClick={() => void handleHeaderNavigate(user ? '/dashboard' : '/')}
+          >
+            {user ? t('nav.dashboard') : t('nav.home')}
+          </button>
+          <button
+            type="button"
+            className="user-badge"
+            data-name="User profile"
+            title={user?.display_name || settings.displayName || t('auth.signIn')}
+            aria-label={user?.display_name || settings.displayName || t('auth.signIn')}
+            onClick={() => void handleHeaderNavigate(user ? '/settings' : '/login')}
+          >
+            <UserAvatar
+              avatarUrl={user?.avatar_url ?? settings.avatarUrl}
+              alt={user?.display_name || settings.displayName || t('auth.signIn')}
+              className="header-avatar"
+            />
+          </button>
         </div>
       </div>
     </header>

@@ -3,17 +3,26 @@ import { Link, useNavigate } from 'react-router-dom';
 import {
   ArrowUp,
   CheckSquare,
+  ChevronDown,
   FileText,
+  Gamepad2,
+  LayoutDashboard,
   User,
   Users,
   X
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { LanguageSwitch, ThemeSwitch } from '../components/common';
+import { ThemeSwitch, UserAvatar } from '../components/common';
 import { Progress } from '@/components/ui/progress';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
+} from '@/components/ui/dropdown-menu';
 
 export const HomePage: React.FC = () => {
-  const { user, t } = useApp();
+  const { user, settings, uiLanguage, t } = useApp();
   const navigate = useNavigate();
 
   const sampleChoices = [
@@ -329,16 +338,16 @@ export const HomePage: React.FC = () => {
     <div className="qh-page">
       {/* Sticky Site Header */}
       <header className="qh-sticky-header" data-name="Home top navigation">
-        <div className="qh-container qh-header-inner">
+        <div className="qh-header-inner">
           <a
-            className="qh-brand"
+            className="brand"
             href="#overview"
             onClick={(e) => {
               e.preventDefault();
               scrollToSection('overview');
             }}
           >
-            <span className="qh-brand-mark" aria-hidden="true" />
+            <span className="brand-mark" aria-hidden="true" />
             <span>QuizClash</span>
           </a>
 
@@ -387,17 +396,55 @@ export const HomePage: React.FC = () => {
             />
           </nav>
 
-          <div className="qh-header-actions">
-            <LanguageSwitch />
-            <ThemeSwitch />
+          <div className="header-right">
+            <ThemeSwitch variant="header" />
             {user ? (
-              <Link to="/dashboard" className="qh-btn sm primary">
-                {t('nav.dashboard')}
-              </Link>
+              <>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button type="button" className="btn btn-sm">
+                      <span>{t('nav.portal')}</span>
+                      <ChevronDown size={14} aria-hidden="true" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="min-w-[160px]">
+                    <DropdownMenuItem
+                      onSelect={() => navigate('/dashboard')}
+                      className="cursor-pointer"
+                    >
+                      <LayoutDashboard size={15} aria-hidden="true" />
+                      <span>{t('nav.dashboard')}</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onSelect={() => navigate('/lobby')}
+                      className="cursor-pointer"
+                    >
+                      <Gamepad2 size={15} aria-hidden="true" />
+                      <span>{t('nav.joinGame')}</span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <Link
+                  to="/settings"
+                  className="user-badge"
+                  data-name="User profile"
+                  title={user.display_name || settings.displayName || t('auth.signIn')}
+                  aria-label={user.display_name || settings.displayName || t('auth.signIn')}
+                >
+                  <UserAvatar
+                    avatarUrl={user.avatar_url ?? settings.avatarUrl}
+                    alt={user.display_name || settings.displayName || t('auth.signIn')}
+                    className="header-avatar"
+                  />
+                </Link>
+              </>
             ) : (
-              <Link to="/login" className="qh-btn sm primary">
-                {t('auth.signIn')}
-              </Link>
+              <nav className="qh-account-switch" aria-label={t('auth.eyebrow')}>
+                <Link to="/login">{t('auth.signIn')}</Link>
+                <Link to="/register" className="is-accent">
+                  {uiLanguage === 'mm' ? t('auth.signUp') : 'Sign up'}
+                </Link>
+              </nav>
             )}
           </div>
         </div>
