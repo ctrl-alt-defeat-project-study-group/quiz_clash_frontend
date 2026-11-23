@@ -29,7 +29,7 @@ import type {
 } from '../types/quiz';
 
 const configuredApiUrl = (
-  import.meta.env.VITE_API_BASE_URL || 'https://quizclash-api-rg3m.onrender.com/api/v1'
+  import.meta.env.VITE_API_BASE_URL || 'https://quiz-clash-backend-ff3l.onrender.com/api/v1'
 ).replace(/\/+$/, '');
 
 // Route remote HTTPS API calls through same-origin /api/v1 when using Vite dev proxy
