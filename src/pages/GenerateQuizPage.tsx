@@ -60,6 +60,8 @@ export const GenerateQuizPage: React.FC = () => {
     mq.addEventListener('change', onChange);
     return () => mq.removeEventListener('change', onChange);
   }, []);
+  const [sourceMode, setSourceMode] = useState<'paste' | 'upload'>('paste');
+  const [pastedNotes, setPastedNotes] = useState<string>('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [fileName, setFileName] = useState<string>('');
   const [fileMeta, setFileMeta] = useState<string>('');
@@ -79,6 +81,14 @@ export const GenerateQuizPage: React.FC = () => {
     : null;
 
   const formatLabel = t('generate.formatMultipleChoice');
+  const trimmedNotes = pastedNotes.trim();
+  const notesExcerpt =
+    trimmedNotes.replace(/\s+/g, ' ').slice(0, 180) +
+    (trimmedNotes.replace(/\s+/g, ' ').length > 180 ? '…' : '');
+  const notesLineCount = trimmedNotes
+    ? trimmedNotes.split(/\r?\n/).filter((line) => line.trim()).length
+    : 0;
+  const hasMaterial = sourceMode === 'paste' ? Boolean(trimmedNotes) : Boolean(selectedFile);
 
   const handleFileSelection = (file: File | undefined) => {
     if (!file) return;
@@ -130,8 +140,26 @@ export const GenerateQuizPage: React.FC = () => {
     setError('');
   };
 
+  const deriveNotesTitle = (notes: string): string => {
+    const firstLine =
+      notes
+        .split(/\r?\n/)
+        .find((line) => line.trim())
+        ?.trim() || 'Study notes';
+    const cleaned = firstLine.replace(/[:\-–—].*$/, '').trim();
+    return (cleaned || firstLine).slice(0, 60);
+  };
+
   const handleNextToConfigure = () => {
-    if (!selectedFile) {
+    if (sourceMode === 'paste') {
+      if (!trimmedNotes) {
+        setError(t('generate.errBlankNotes'));
+        return;
+      }
+      if (!quizTitle.trim()) {
+        setQuizTitle(deriveNotesTitle(trimmedNotes));
+      }
+    } else if (!selectedFile) {
       setError(t('generate.errNoFileSelected'));
       return;
     }
@@ -140,18 +168,39 @@ export const GenerateQuizPage: React.FC = () => {
   };
 
   const handleGenerate = async () => {
-    if (!selectedFile) {
-      setError(t('generate.errNoFileSelected'));
-      setCurrentStep(1);
-      return;
+    let sourceFile: File;
+    let sourceFileName: string;
+    let fallbackTitle: string;
+
+    if (sourceMode === 'paste') {
+      if (!trimmedNotes) {
+        setError(t('generate.errBlankNotes'));
+        setCurrentStep(1);
+        return;
+      }
+      sourceFile = new File([trimmedNotes], 'study-notes.txt', {
+        type: 'text/plain;charset=utf-8'
+      });
+      sourceFileName = 'study-notes.txt';
+      fallbackTitle = deriveNotesTitle(trimmedNotes);
+    } else {
+      if (!selectedFile) {
+        setError(t('generate.errNoFileSelected'));
+        setCurrentStep(1);
+        return;
+      }
+      sourceFile = selectedFile;
+      sourceFileName = fileName;
+      fallbackTitle = fileName.replace(/\.[^.]+$/, '');
     }
+
     setError('');
     setGenerating(true);
     try {
       const created = await generateQuiz({
-        file: selectedFile,
-        fileName,
-        title: quizTitle.trim() || fileName.replace(/\.[^.]+$/, ''),
+        file: sourceFile,
+        fileName: sourceFileName,
+        title: quizTitle.trim() || fallbackTitle,
         category: quizCategory.trim() || undefined,
         questionCount,
         useLlm,
@@ -167,6 +216,9 @@ export const GenerateQuizPage: React.FC = () => {
 
   const handleResetWizard = () => {
     handleRemoveFile();
+    setPastedNotes('');
+    setSourceMode('paste');
+    setQuizCategory('');
     setCreatedQuiz(null);
     setCurrentStep(1);
   };
@@ -182,7 +234,12 @@ export const GenerateQuizPage: React.FC = () => {
       id: 1 as const,
       stepLabel: t('generate.step01Label'),
       title: t('generate.step01Title'),
-      description: fileName || t('generate.step01FallbackDesc'),
+      description:
+        sourceMode === 'paste' && trimmedNotes
+          ? t('generate.pastedNotesSourceTitle')
+          : sourceMode === 'upload' && fileName
+          ? fileName
+          : t('generate.step01FallbackDesc'),
       status: getStepStatus(1),
     },
     {
@@ -230,7 +287,7 @@ export const GenerateQuizPage: React.FC = () => {
           {generationSteps.map((step) => {
             const canClick =
               (step.id === 1 && currentStep > 1 && !generating) ||
-              (step.id === 2 && Boolean(fileName) && currentStep === 1 && !generating);
+              (step.id === 2 && hasMaterial && currentStep === 1 && !generating);
 
             return (
               <TimelineItem
@@ -241,9 +298,8 @@ export const GenerateQuizPage: React.FC = () => {
                   if (step.id === 1 && currentStep > 1 && !generating) {
                     setError('');
                     setCurrentStep(1);
-                  } else if (step.id === 2 && fileName && currentStep === 1 && !generating) {
-                    setError('');
-                    setCurrentStep(2);
+                  } else if (step.id === 2 && hasMaterial && currentStep === 1 && !generating) {
+                    handleNextToConfigure();
                   }
                 }}
               >
@@ -286,118 +342,215 @@ export const GenerateQuizPage: React.FC = () => {
         </Timeline>
       </div>
 
-      {/* Step 01: Upload material */}
+      {/* Step 01: Add your material */}
       {currentStep === 1 && (
         <SectionCard dataName="Study material">
           <h2 className="panel-heading">{t('generate.panel01Heading')}</h2>
 
-          <Empty
-            role="button"
-            tabIndex={0}
-            data-name="Upload drop zone"
-            className={cn(
-              'cursor-pointer border border-dashed border-border transition-colors hover:border-primary/60 hover:bg-muted/40',
-              dragging && 'border-primary bg-accent/40'
-            )}
-            onClick={() => fileInputRef.current?.click()}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                fileInputRef.current?.click();
-              }
-            }}
-            onDragOver={(e) => {
-              e.preventDefault();
-              setDragging(true);
-            }}
-            onDragLeave={() => setDragging(false)}
-            onDrop={(e) => {
-              e.preventDefault();
-              setDragging(false);
-              handleFileSelection(e.dataTransfer.files?.[0]);
-            }}
+          <div
+            className="qg-source-tabs"
+            role="tablist"
+            aria-label={t('generate.sourceTabsAria')}
           >
-            <EmptyHeader>
-              <EmptyMedia variant="icon">
-                <IconCloud />
-              </EmptyMedia>
-              <EmptyTitle>{t('generate.dropzoneTitle')}</EmptyTitle>
-              <EmptyDescription>{t('generate.dropzoneDesc')}</EmptyDescription>
-            </EmptyHeader>
-            <EmptyContent>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  fileInputRef.current?.click();
+            <button
+              type="button"
+              role="tab"
+              id="source-tab-paste"
+              aria-selected={sourceMode === 'paste'}
+              aria-controls="source-panel-paste"
+              className={cn('qg-source-tab', sourceMode === 'paste' && 'is-active')}
+              onClick={() => {
+                setSourceMode('paste');
+                setError('');
+              }}
+            >
+              {t('generate.tabPasteNotes')}
+            </button>
+            <button
+              type="button"
+              role="tab"
+              id="source-tab-upload"
+              aria-selected={sourceMode === 'upload'}
+              aria-controls="source-panel-upload"
+              className={cn('qg-source-tab', sourceMode === 'upload' && 'is-active')}
+              onClick={() => {
+                setSourceMode('upload');
+                setError('');
+              }}
+            >
+              {t('generate.tabUploadFile')}
+            </button>
+          </div>
+
+          {sourceMode === 'paste' ? (
+            <div
+              id="source-panel-paste"
+              role="tabpanel"
+              aria-labelledby="source-tab-paste"
+              className="field-group"
+              style={{ marginBottom: 0 }}
+            >
+              <label className="field-label" htmlFor="study-notes-input">
+                {t('generate.studyNotesLabel')}
+              </label>
+              <textarea
+                id="study-notes-input"
+                className="input qg-notes-textarea"
+                rows={9}
+                placeholder={t('generate.studyNotesPlaceholder')}
+                value={pastedNotes}
+                aria-invalid={Boolean(error)}
+                onChange={(e) => {
+                  setPastedNotes(e.target.value);
+                  if (error) setError('');
+                }}
+              />
+              <p className="helper-text" style={{ marginTop: 8 }}>
+                {trimmedNotes
+                  ? t('generate.studyNotesMeta', {
+                      chars: trimmedNotes.length,
+                      lines: notesLineCount
+                    })
+                  : t('generate.studyNotesHint')}
+              </p>
+            </div>
+          ) : (
+            <div
+              id="source-panel-upload"
+              role="tabpanel"
+              aria-labelledby="source-tab-upload"
+            >
+              <Empty
+                role="button"
+                tabIndex={0}
+                data-name="Upload drop zone"
+                className={cn(
+                  'cursor-pointer border border-dashed border-border transition-colors hover:border-primary/60 hover:bg-muted/40',
+                  dragging && 'border-primary bg-accent/40'
+                )}
+                onClick={() => fileInputRef.current?.click()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    fileInputRef.current?.click();
+                  }
+                }}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setDragging(true);
+                }}
+                onDragLeave={() => setDragging(false)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setDragging(false);
+                  handleFileSelection(e.dataTransfer.files?.[0]);
                 }}
               >
-                {t('generate.uploadFilesBtn')}
-              </Button>
-            </EmptyContent>
-          </Empty>
-          <input
-            ref={fileInputRef}
-            id="file-upload-input"
-            type="file"
-            className="visually-hidden"
-            accept=".pdf,.docx,.csv,.txt"
-            onChange={(e) => handleFileSelection(e.target.files?.[0])}
-          />
+                <EmptyHeader>
+                  <EmptyMedia variant="icon">
+                    <IconCloud />
+                  </EmptyMedia>
+                  <EmptyTitle>{t('generate.dropzoneTitle')}</EmptyTitle>
+                  <EmptyDescription>{t('generate.dropzoneDesc')}</EmptyDescription>
+                </EmptyHeader>
+                <EmptyContent>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      fileInputRef.current?.click();
+                    }}
+                  >
+                    {t('generate.uploadFilesBtn')}
+                  </Button>
+                </EmptyContent>
+              </Empty>
+              <input
+                ref={fileInputRef}
+                id="file-upload-input"
+                type="file"
+                className="visually-hidden"
+                accept=".pdf,.docx,.csv,.txt"
+                onChange={(e) => handleFileSelection(e.target.files?.[0])}
+              />
+
+              {fileName && (
+                <div className="uploaded-source-bar" data-name="Uploaded source">
+                  <div>
+                    <div className="source-name">{fileName}</div>
+                    <div className="source-meta">{fileMeta}</div>
+                  </div>
+                  <button type="button" className="btn btn-sm" onClick={handleRemoveFile}>
+                    {t('common.remove')}
+                  </button>
+                </div>
+              )}
+
+              {fileName && (
+                <div style={{ marginTop: 18 }}>
+                  <div className="field-label">{t('generate.extractedPreviewLabel')}</div>
+                  <div className="text-preview-box" data-name="Text preview">
+                    <h4>{previewTitle || t('generate.documentLoaded')}</h4>
+                    <p>{previewText || t('generate.previewPlaceholder')}</p>
+                  </div>
+                  <p className="helper-text" style={{ marginTop: 10 }}>
+                    {t('generate.cleaningNote')}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
 
           {error && (
             <p className="error-text" role="alert" style={{ marginTop: 10 }}>
               {error}
             </p>
           )}
-
-          {fileName && (
-            <div className="uploaded-source-bar" data-name="Uploaded source">
-              <div>
-                <div className="source-name">{fileName}</div>
-                <div className="source-meta">{fileMeta}</div>
-              </div>
-              <button type="button" className="btn btn-sm" onClick={handleRemoveFile}>
-                {t('common.remove')}
-              </button>
-            </div>
-          )}
-
-          {fileName && (
-            <div style={{ marginTop: 18 }}>
-              <div className="field-label">{t('generate.extractedPreviewLabel')}</div>
-              <div className="text-preview-box" data-name="Text preview">
-                <h4>{previewTitle || t('generate.documentLoaded')}</h4>
-                <p>{previewText || t('generate.previewPlaceholder')}</p>
-              </div>
-              <p className="helper-text" style={{ marginTop: 10 }}>
-                {t('generate.cleaningNote')}
-              </p>
-            </div>
-          )}
         </SectionCard>
       )}
 
-      {/* Step 02: Configure quiz */}
+      {/* Step 02: Configure your quiz */}
       {currentStep === 2 && (
         <SectionCard dataName="Quiz configuration">
           <h2 className="panel-heading">{t('generate.panel02Heading')}</h2>
 
-          <div className="uploaded-source-bar" style={{ marginTop: 0, marginBottom: 18 }}>
-            <div>
-              <div className="source-name">{fileName}</div>
-              <div className="source-meta">{fileMeta}</div>
+          {sourceMode === 'paste' ? (
+            <div className="uploaded-source-bar" style={{ marginTop: 0, marginBottom: 18 }}>
+              <div style={{ minWidth: 0 }}>
+                <div className="source-name">{t('generate.pastedNotesSourceTitle')}</div>
+                <div className="source-meta qg-notes-excerpt">{notesExcerpt}</div>
+              </div>
+              <button
+                type="button"
+                className="btn btn-sm"
+                onClick={() => {
+                  setError('');
+                  setCurrentStep(1);
+                }}
+              >
+                {t('generate.editNotesBtn')}
+              </button>
             </div>
-            <button
-              type="button"
-              className="btn btn-sm"
-              onClick={() => setCurrentStep(1)}
-            >
-              {t('generate.changeFileBtn')}
-            </button>
-          </div>
+          ) : (
+            <div className="uploaded-source-bar" style={{ marginTop: 0, marginBottom: 18 }}>
+              <div>
+                <div className="source-name">{fileName}</div>
+                <div className="source-meta">{fileMeta}</div>
+              </div>
+              <button
+                type="button"
+                className="btn btn-sm"
+                onClick={() => {
+                  setError('');
+                  setCurrentStep(1);
+                }}
+              >
+                {t('generate.changeFileBtn')}
+              </button>
+            </div>
+          )}
 
           <div className="field-group">
             <label className="field-label" htmlFor="gen-quiz-title">

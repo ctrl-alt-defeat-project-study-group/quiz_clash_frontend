@@ -26,6 +26,7 @@ import type {
   UserSettings
 } from '../types/quiz';
 import * as api from '../services/api';
+import { isValidRoomPin, normalizeRoomPin } from '../lib/roomPin';
 import {
   getErrorByCode,
   getLocalizedErrorMessage,
@@ -1090,6 +1091,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       );
       setHistory((prev) => [newRecord, ...prev]);
       setActiveAttemptId(newRecord.id);
+      setPractice(EMPTY_PRACTICE);
       showToast(
         t('toasts.assessmentCompleted', {
           score: newRecord.scorePct,
@@ -1411,8 +1413,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     pin: string,
     name: string
   ): Promise<{ ok: boolean; error?: string }> => {
-    const cleanPin = pin.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-    if (!cleanPin || cleanPin.length < 6 || cleanPin.length > 12) {
+    const cleanPin = normalizeRoomPin(pin);
+    if (!isValidRoomPin(cleanPin)) {
       return {
         ok: false,
         error: getErrorByCode('INVALID_ROOM_PIN', uiLanguage)

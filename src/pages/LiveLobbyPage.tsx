@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   ArrowRight,
   Check,
@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { SettingToggleRow, ThemeSwitch, UserAvatar } from '../components/common';
+import { formatRoomPin, isValidRoomPin, normalizeRoomPin } from '../lib/roomPin';
 import {
   Select,
   SelectContent,
@@ -34,6 +35,7 @@ const getInitials = (name: string) =>
 
 export const LiveLobbyPage: React.FC = () => {
   const { pin: routePin } = useParams<{ pin?: string }>();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const {
     user,
@@ -56,48 +58,77 @@ export const LiveLobbyPage: React.FC = () => {
 
   const [joinPin, setJoinPin] = useState<string | null>(null);
   const [joinName, setJoinName] = useState<string | null>(null);
-  const [joinError, setJoinError] = useState<string>('');
+  const [pinError, setPinError] = useState<string>('');
+  const [nameError, setNameError] = useState<string>('');
+  const [manualCopy, setManualCopy] = useState<{
+    kind: 'pin' | 'link';
+    value: string;
+    pin: string;
+  } | null>(null);
   const [participateAsHost, setParticipateAsHost] = useState<boolean>(true);
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [markingReady, setMarkingReady] = useState<boolean>(false);
-  const [dismissedInvitePin, setDismissedInvitePin] = useState<string | null>(null);
-  const inviteNameInputRef = useRef<HTMLInputElement | null>(null);
+  const joinPinInputRef = useRef<HTMLInputElement | null>(null);
+  const joinNameInputRef = useRef<HTMLInputElement | null>(null);
+  const manualCopyInputRef = useRef<HTMLInputElement | null>(null);
 
-  const normalizedRoutePin = routePin ? routePin.trim().toUpperCase() : '';
-  const displayedJoinPin = joinPin ?? normalizedRoutePin;
+  const queryPin = searchParams.get('pin') || '';
+  const incomingPinRaw = routePin || queryPin;
+  const normalizedRoutePin = incomingPinRaw ? normalizeRoomPin(incomingPinRaw) : '';
+  const formattedIncomingPin = normalizedRoutePin ? formatRoomPin(normalizedRoutePin) : '';
+  const displayedJoinPin = joinPin ?? formattedIncomingPin;
   const displayedJoinName = joinName ?? settings.displayName ?? user?.display_name ?? '';
-  const showInvitePopup =
-    live.status === 'idle' &&
-    Boolean(normalizedRoutePin) &&
-    dismissedInvitePin !== normalizedRoutePin;
+  const activeManualCopy =
+    manualCopy && live.status === 'hosting' && manualCopy.pin === live.pin
+      ? manualCopy
+      : null;
+
+  // When a room PIN is carried in via URL (/lobby?pin=... or /rooms/:pin), focus Display name
+  useEffect(() => {
+    if (live.status !== 'idle' || !normalizedRoutePin) return;
+    joinNameInputRef.current?.focus();
+  }, [live.status, normalizedRoutePin]);
 
   useEffect(() => {
-    if (!showInvitePopup) return;
-    inviteNameInputRef.current?.focus();
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !submitting) {
-        setDismissedInvitePin(normalizedRoutePin);
-      }
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [showInvitePopup, submitting, normalizedRoutePin]);
+    if (!activeManualCopy) return;
+    manualCopyInputRef.current?.focus();
+    manualCopyInputRef.current?.select();
+  }, [activeManualCopy]);
 
   const liveQuiz = quizzes.find((q) => q.id === live.quizId) ?? activeQuiz;
   const liveQuizTitle = liveQuiz?.title || t('nav.liveGames');
   const liveQuizCount = liveQuiz?.questionCount ?? liveQuiz?.questions.length ?? 0;
 
+  const copyTextWithFallback = async (
+    kind: 'pin' | 'link',
+    value: string,
+    successMessage: string
+  ) => {
+    try {
+      if (!navigator.clipboard || typeof navigator.clipboard.writeText !== 'function') {
+        throw new Error('Clipboard API unavailable');
+      }
+      await navigator.clipboard.writeText(value);
+      setManualCopy(null);
+      showToast(successMessage);
+    } catch {
+      setManualCopy({ kind, value, pin: live.pin });
+    }
+  };
+
   const handleCopyPin = () => {
-    navigator.clipboard?.writeText(live.pin.replace(/\s+/g, '')).catch(() => {});
-    showToast(t('toasts.pinCopied', { pin: live.pin }));
+    const cleanPin = normalizeRoomPin(live.pin);
+    void copyTextWithFallback(
+      'pin',
+      cleanPin,
+      t('toasts.pinCopied', { pin: live.pin })
+    );
   };
 
   const handleCopyInviteLink = () => {
-    const cleanPin = live.pin.replace(/\s+/g, '');
-    navigator.clipboard
-      ?.writeText(`${window.location.origin}/rooms/${cleanPin}`)
-      .catch(() => {});
-    showToast(t('toasts.inviteLinkCopied'));
+    const cleanPin = normalizeRoomPin(live.pin);
+    const inviteUrl = `${window.location.origin}/rooms/${encodeURIComponent(cleanPin)}`;
+    void copyTextWithFallback('link', inviteUrl, t('toasts.inviteLinkCopied'));
   };
 
   const handleCreateRoom = async (e: React.FormEvent) => {
@@ -112,36 +143,39 @@ export const LiveLobbyPage: React.FC = () => {
 
   const handleJoinSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitting(true);
-    try {
-      const res = await joinLiveRoom(displayedJoinPin, displayedJoinName);
-      if (!res.ok) {
-        setJoinError(res.error || t('lobby.invalidPinFallback'));
-        return;
-      }
-      setJoinError('');
-      setJoinPin('');
-    } finally {
-      setSubmitting(false);
-    }
-  };
+    setPinError('');
+    setNameError('');
 
-  const handleInviteJoinSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const trimmedName = displayedJoinName.trim();
-    if (!trimmedName) {
-      setJoinError(t('lobby.enterNameRequired'));
-      inviteNameInputRef.current?.focus();
+    const cleanPin = normalizeRoomPin(displayedJoinPin);
+    if (!isValidRoomPin(cleanPin)) {
+      setPinError(t('lobby.invalidPinFallback'));
+      joinPinInputRef.current?.focus();
       return;
     }
+
+    const trimmedName = displayedJoinName.trim();
+    if (!trimmedName) {
+      setNameError(t('lobby.enterNameRequired'));
+      joinNameInputRef.current?.focus();
+      return;
+    }
+
     setSubmitting(true);
     try {
-      const res = await joinLiveRoom(normalizedRoutePin, trimmedName);
+      const res = await joinLiveRoom(cleanPin, trimmedName);
       if (!res.ok) {
-        setJoinError(res.error || t('lobby.invalidPinFallback'));
+        const errMsg = res.error || t('lobby.invalidPinFallback');
+        if (/name/i.test(errMsg)) {
+          setNameError(errMsg);
+          joinNameInputRef.current?.focus();
+        } else {
+          setPinError(errMsg);
+          joinPinInputRef.current?.focus();
+        }
         return;
       }
-      setJoinError('');
+      setPinError('');
+      setNameError('');
       setJoinPin('');
     } finally {
       setSubmitting(false);
@@ -270,7 +304,9 @@ export const LiveLobbyPage: React.FC = () => {
 
           <div className="qlg-wrap">
             <div className="qlg-page-heading">
-              <h1 id="lobby-entry-title">{t('nav.liveGames')}</h1>
+              <h1 id="lobby-entry-title">
+                {user ? t('nav.liveGames') : t('lobby.guestHeading')}
+              </h1>
               <p>
                 {user ? t('lobby.entrySubtitle') : t('lobby.guestEntrySubtitle')}
               </p>
@@ -382,36 +418,42 @@ export const LiveLobbyPage: React.FC = () => {
                 className="qlg-card qlg-entry-card"
                 onSubmit={handleJoinSubmit}
                 data-name="Join room panel"
+                noValidate
               >
-                <div className="qlg-entry-heading">
-                  <div className="qlg-entry-label is-join">
-                    <Gamepad2 size={20} aria-hidden="true" />
-                    <span>{t('lobby.joinRoomEyebrow')}</span>
+                {user && (
+                  <div className="qlg-entry-heading">
+                    <div className="qlg-entry-label is-join">
+                      <Gamepad2 size={20} aria-hidden="true" />
+                      <span>{t('lobby.joinRoomEyebrow')}</span>
+                    </div>
+                    <h2>{t('lobby.joinRoomTitle')}</h2>
+                    <p>{t('lobby.joinRoomSubtitle')}</p>
                   </div>
-                  <h2>{t('lobby.joinRoomTitle')}</h2>
-                  <p>{t('lobby.joinRoomSubtitle')}</p>
-                </div>
+                )}
 
                 <div className="qlg-field">
                   <label htmlFor="join-pin-input">{t('lobby.roomPinLabel')}</label>
                   <input
+                    ref={joinPinInputRef}
                     id="join-pin-input"
                     className="qlg-control qlg-pin-input"
                     type="text"
-                    maxLength={14}
-                    placeholder="ADBI 482"
+                    maxLength={16}
+                    placeholder={t('lobby.roomPinPlaceholder')}
                     autoComplete="off"
                     autoCapitalize="characters"
                     spellCheck={false}
+                    aria-invalid={Boolean(pinError)}
+                    aria-describedby={pinError ? 'join-pin-error' : undefined}
                     value={displayedJoinPin}
                     onChange={(e) => {
                       setJoinPin(e.target.value.toUpperCase());
-                      if (joinError) setJoinError('');
+                      if (pinError) setPinError('');
                     }}
                   />
-                  {joinError && (
-                    <p className="qlg-error" role="alert">
-                      {joinError}
+                  {pinError && (
+                    <p id="join-pin-error" className="qlg-error" role="alert">
+                      {pinError}
                     </p>
                   )}
                 </div>
@@ -419,114 +461,39 @@ export const LiveLobbyPage: React.FC = () => {
                 <div className="qlg-field">
                   <label htmlFor="join-name-input">{t('lobby.displayNameLabel')}</label>
                   <input
+                    ref={joinNameInputRef}
                     id="join-name-input"
                     className="qlg-control"
                     type="text"
                     maxLength={40}
                     autoComplete="nickname"
                     placeholder={t('lobby.displayNamePlaceholder')}
+                    aria-invalid={Boolean(nameError)}
+                    aria-describedby={nameError ? 'join-name-error' : undefined}
                     value={displayedJoinName}
                     onChange={(e) => {
                       setJoinName(e.target.value);
-                      if (joinError) setJoinError('');
+                      if (nameError) setNameError('');
                     }}
                   />
+                  {nameError && (
+                    <p id="join-name-error" className="qlg-error" role="alert">
+                      {nameError}
+                    </p>
+                  )}
                 </div>
 
                 <button
                   type="submit"
-                  className="qlg-btn qlg-join-btn"
+                  className={user ? 'qlg-btn qlg-join-btn' : 'qlg-btn qlg-primary-btn'}
                   disabled={submitting}
                 >
-                  <span>{t('lobby.joinRoomTitle')}</span>
+                  <span>{t('lobby.joinGameBtn')}</span>
                   <ArrowRight size={17} aria-hidden="true" />
                 </button>
               </form>
             </div>
           </div>
-
-          {showInvitePopup && (
-            <div
-              className="modal-backdrop"
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="invite-join-title"
-              data-name="Invite join modal"
-              onClick={(e) => {
-                if (e.target === e.currentTarget && !submitting) {
-                  setDismissedInvitePin(normalizedRoutePin);
-                }
-              }}
-            >
-              <form className="modal-box" onSubmit={handleInviteJoinSubmit}>
-                <div className="dialog-head">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <Gamepad2 size={20} style={{ color: '#10b981' }} aria-hidden="true" />
-                    <h2 id="invite-join-title" className="panel-heading" style={{ margin: 0 }}>
-                      {t('lobby.invitePopupTitle')}
-                    </h2>
-                  </div>
-                  <button
-                    type="button"
-                    className="btn btn-sm"
-                    aria-label={t('common.cancel')}
-                    disabled={submitting}
-                    onClick={() => setDismissedInvitePin(normalizedRoutePin)}
-                  >
-                    <X size={16} aria-hidden="true" />
-                  </button>
-                </div>
-
-                <div style={{ marginBottom: 14 }}>
-                  <span className="qg-pin-pill">PIN {normalizedRoutePin}</span>
-                </div>
-
-                <p className="helper-text" style={{ marginBottom: 16 }}>
-                  {t('lobby.invitePopupSubtitle', { pin: normalizedRoutePin })}
-                </p>
-
-                <div className="field-group">
-                  <label className="field-label-caps" htmlFor="invite-join-name-input">
-                    {t('lobby.displayNameLabel')}
-                  </label>
-                  <input
-                    ref={inviteNameInputRef}
-                    id="invite-join-name-input"
-                    className="input"
-                    type="text"
-                    maxLength={40}
-                    autoFocus
-                    placeholder={t('lobby.displayNamePlaceholder')}
-                    value={displayedJoinName}
-                    onChange={(e) => {
-                      setJoinName(e.target.value);
-                      if (joinError) setJoinError('');
-                    }}
-                  />
-                </div>
-
-                {joinError && (
-                  <p className="error-text" role="alert" style={{ marginBottom: 12 }}>
-                    {joinError}
-                  </p>
-                )}
-
-                <div className="btn-row" style={{ justifyContent: 'flex-end', marginTop: 16 }}>
-                  <button
-                    type="button"
-                    className="qp-btn"
-                    disabled={submitting}
-                    onClick={() => setDismissedInvitePin(normalizedRoutePin)}
-                  >
-                    {t('common.cancel')}
-                  </button>
-                  <button type="submit" className="qp-btn primary" disabled={submitting}>
-                    {t('lobby.joinRoomBtn')}
-                  </button>
-                </div>
-              </form>
-            </div>
-          )}
         </main>
       </div>
     );
@@ -690,6 +657,36 @@ export const LiveLobbyPage: React.FC = () => {
                   <span>{t('lobby.closeRoom')}</span>
                 </button>
               </div>
+              {activeManualCopy && (
+                <div className="qg-manual-copy" role="region" aria-live="polite">
+                  <label htmlFor="manual-copy-input" className="qg-manual-copy-label">
+                    {activeManualCopy.kind === 'pin'
+                      ? t('lobby.manualCopyPinLabel')
+                      : t('lobby.manualCopyLinkLabel')}
+                  </label>
+                  <div className="qg-manual-copy-row">
+                    <input
+                      ref={manualCopyInputRef}
+                      id="manual-copy-input"
+                      type="text"
+                      readOnly
+                      className="qg-manual-copy-input"
+                      value={activeManualCopy.value}
+                      onFocus={(e) => e.currentTarget.select()}
+                      onClick={(e) => e.currentTarget.select()}
+                    />
+                    <button
+                      type="button"
+                      className="qp-hero-btn"
+                      aria-label={t('common.close')}
+                      onClick={() => setManualCopy(null)}
+                      style={{ padding: '6px 10px' }}
+                    >
+                      <X size={15} aria-hidden="true" />
+                    </button>
+                  </div>
+                </div>
+              )}
             </section>
 
             <div

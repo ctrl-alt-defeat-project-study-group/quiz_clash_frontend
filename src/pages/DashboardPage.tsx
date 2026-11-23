@@ -7,7 +7,6 @@ export const DashboardPage: React.FC = () => {
   const {
     quizzes,
     history,
-    activeQuiz,
     practice,
     setActiveQuizId,
     deleteQuiz,
@@ -21,8 +20,12 @@ export const DashboardPage: React.FC = () => {
     : 0;
   const savedCount = quizzes.length;
   const completedCount = history.length;
-  const isResumingActiveQuiz = Boolean(activeQuiz && practice.quizId === activeQuiz.id);
-  const answeredCount = isResumingActiveQuiz ? Object.keys(practice.answers).length : 0;
+  const avgScoreDisplay = completedCount === 0 ? '—' : `${avgScore}%`;
+  const practiceQuiz = practice.quizId
+    ? quizzes.find((q) => q.id === practice.quizId) ?? null
+    : null;
+  const hasPracticeInProgress = Boolean(practiceQuiz);
+  const answeredCount = hasPracticeInProgress ? Object.keys(practice.answers).length : 0;
 
   return (
     <>
@@ -35,6 +38,18 @@ export const DashboardPage: React.FC = () => {
         subtitle={t('dashboard.subtitle')}
       />
 
+      {savedCount === 0 && (
+        <SectionCard className="banner-row" dataName="Create your first quiz">
+          <div>
+            <h2>{t('dashboard.firstQuizTitle')}</h2>
+            <p>{t('dashboard.firstQuizBody')}</p>
+          </div>
+          <Link to="/generate" className="btn btn-primary">
+            {t('dashboard.firstQuizBtn')}
+          </Link>
+        </SectionCard>
+      )}
+
       <section
         className="stat-grid-3"
         data-name="Study overview"
@@ -42,18 +57,20 @@ export const DashboardPage: React.FC = () => {
       >
         <StatCard value={savedCount} label={t('dashboard.savedQuizzes')} to="/quizzes" />
         <StatCard value={completedCount} label={t('dashboard.completedAttempts')} to="/history" />
-        <StatCard value={`${avgScore}%`} label={t('dashboard.averageScore')} />
+        <StatCard value={avgScoreDisplay} label={t('dashboard.averageScore')} />
       </section>
 
-      <SectionCard className="banner-row" dataName="Start from a document">
-        <div>
-          <h2>{t('dashboard.bannerTitle')}</h2>
-          <p>{t('dashboard.bannerBody')}</p>
-        </div>
-        <Link to="/generate" className="btn btn-primary">
-          {t('dashboard.createQuizBtn')}
-        </Link>
-      </SectionCard>
+      {savedCount > 0 && (
+        <SectionCard className="banner-row" dataName="Start from a document">
+          <div>
+            <h2>{t('dashboard.bannerTitle')}</h2>
+            <p>{t('dashboard.bannerBody')}</p>
+          </div>
+          <Link to="/generate" className="btn btn-primary">
+            {t('dashboard.createQuizBtn')}
+          </Link>
+        </SectionCard>
+      )}
 
       <SectionCard
         title={t('dashboard.recentQuizzes')}
@@ -138,49 +155,35 @@ export const DashboardPage: React.FC = () => {
         </div>
       </SectionCard>
 
-      <section className="grid-2-equal" data-name="Continue learning">
-        <div className="box-card continue-card" data-name="Resume studying">
-          {activeQuiz ? (
-            <>
-              <div>
-                <div className="eyebrow">{t('dashboard.resumeEyebrow')}</div>
-                <h3>{activeQuiz.title}</h3>
-                <p className="page-subtitle">
-                  {t('dashboard.resumeProgress', {
-                    current: isResumingActiveQuiz
-                      ? Math.min(
-                          practice.questionIndex + 1,
-                          Math.max(1, activeQuiz.questionCount ?? activeQuiz.questions.length)
-                        )
-                      : 1,
-                    total: activeQuiz.questionCount ?? activeQuiz.questions.length,
-                    status: answeredCount
-                      ? t('dashboard.statusInProgress')
-                      : t('dashboard.statusReady')
-                  })}
-                </p>
-              </div>
-              <div className="btn-row">
-                <Link to="/play" className="btn btn-primary">
-                  {t('dashboard.continueQuiz')}
-                </Link>
-              </div>
-            </>
-          ) : (
-            <>
-              <div>
-                <div className="eyebrow">{t('dashboard.resumeEyebrow')}</div>
-                <h3>{t('dashboard.bannerTitle')}</h3>
-                <p className="page-subtitle">{t('dashboard.bannerBody')}</p>
-              </div>
-              <div className="btn-row">
-                <Link to="/generate" className="btn btn-primary">
-                  {t('dashboard.createQuizBtn')}
-                </Link>
-              </div>
-            </>
-          )}
-        </div>
+      <section
+        className={hasPracticeInProgress ? 'grid-2-equal' : undefined}
+        data-name="Continue learning"
+      >
+        {hasPracticeInProgress && practiceQuiz && (
+          <div className="box-card continue-card" data-name="Resume studying">
+            <div>
+              <div className="eyebrow">{t('dashboard.resumeEyebrow')}</div>
+              <h3>{practiceQuiz.title}</h3>
+              <p className="page-subtitle">
+                {t('dashboard.resumeProgress', {
+                  current: Math.min(
+                    practice.questionIndex + 1,
+                    Math.max(1, practiceQuiz.questionCount ?? practiceQuiz.questions.length)
+                  ),
+                  total: practiceQuiz.questionCount ?? practiceQuiz.questions.length,
+                  status: answeredCount
+                    ? t('dashboard.statusInProgress')
+                    : t('dashboard.statusReady')
+                })}
+              </p>
+            </div>
+            <div className="btn-row">
+              <Link to="/play" className="btn btn-primary">
+                {t('dashboard.continueQuiz')}
+              </Link>
+            </div>
+          </div>
+        )}
 
         <div className="box-card continue-card" data-name="Multiplayer shortcut">
           <div>

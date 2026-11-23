@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { ThemeSwitch, UserAvatar } from '../components/common';
+import { isValidRoomPin, normalizeRoomPin, ROOM_PIN_EXAMPLE } from '../lib/roomPin';
 import { Progress } from '@/components/ui/progress';
 import {
   DropdownMenu,
@@ -322,14 +323,16 @@ export const HomePage: React.FC = () => {
 
   const handleGuestJoinSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const cleanPin = joinPin.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-    if (!/^[A-Z0-9]{6,12}$/.test(cleanPin)) {
+    const cleanPin = normalizeRoomPin(joinPin);
+    if (!isValidRoomPin(cleanPin)) {
       setJoinError(t('home.guestJoinError'));
       return;
     }
     setJoinError('');
     setJoinOpen(false);
-    navigate(`/rooms/${cleanPin}`);
+    navigate(`/lobby?pin=${encodeURIComponent(cleanPin)}`, {
+      state: { focusDisplayName: true }
+    });
   };
 
   const currentWorkflow = workflowSteps[activeStep] ?? workflowSteps[0];
@@ -441,7 +444,7 @@ export const HomePage: React.FC = () => {
             ) : (
               <nav className="qh-account-switch" aria-label={t('auth.eyebrow')}>
                 <Link to="/login">{t('auth.signIn')}</Link>
-                <Link to="/register" className="is-accent">
+                <Link to="/register">
                   {uiLanguage === 'mm' ? t('auth.signUp') : 'Sign up'}
                 </Link>
               </nav>
@@ -470,7 +473,7 @@ export const HomePage: React.FC = () => {
               </Link>
               {user ? (
                 <Link to="/lobby" className="qh-btn">
-                  {t('nav.joinGame')}
+                  {t('home.joinWithPinBtn')}
                 </Link>
               ) : (
                 <button
@@ -481,7 +484,7 @@ export const HomePage: React.FC = () => {
                     setJoinOpen(true);
                   }}
                 >
-                  {t('nav.joinGame')}
+                  {t('home.joinWithPinBtn')}
                 </button>
               )}
             </div>
@@ -585,7 +588,7 @@ export const HomePage: React.FC = () => {
               </div>
               <div className="qh-mock" aria-hidden="true">
                 <strong>{t('home.bentoSamplePinLabel')}</strong>
-                <span className="qh-mock-pin">731 409</span>
+                <span className="qh-mock-pin">{ROOM_PIN_EXAMPLE}</span>
               </div>
             </article>
           </div>
@@ -779,7 +782,7 @@ export const HomePage: React.FC = () => {
                 id="guest-join-title"
                 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}
               >
-                {t('nav.joinGame')}
+                {t('home.guestJoinTitle')}
               </h2>
               <button
                 type="button"
@@ -815,7 +818,7 @@ export const HomePage: React.FC = () => {
                   id="home-join-code"
                   type="text"
                   autoComplete="off"
-                  maxLength={14}
+                  maxLength={16}
                   placeholder={t('home.guestJoinPlaceholder')}
                   autoFocus
                   value={joinPin}
@@ -834,7 +837,7 @@ export const HomePage: React.FC = () => {
                   }}
                 />
                 <button type="submit" className="qh-btn primary">
-                  {t('nav.joinGame')}
+                  {t('home.guestJoinSubmit')}
                 </button>
               </div>
               <p style={{ margin: '8px 0 0', fontSize: 13, color: 'var(--qh-muted)' }}>
