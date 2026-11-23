@@ -188,15 +188,26 @@ export const LiveLobbyPage: React.FC = () => {
     : '/rooms/play';
 
   const prevLiveStatusRef = useRef(live.status);
+  const normalizedPathPin = routePin ? normalizeRoomPin(routePin) : '';
 
-  // If the user leaves or the host closes the room while on /rooms/:pin, clear the URL PIN
+  // Sync URL to /rooms/:pin when hosting or joined, and back to /lobby when returning to idle
   useEffect(() => {
     const prev = prevLiveStatusRef.current;
     prevLiveStatusRef.current = live.status;
-    if (prev !== 'idle' && live.status === 'idle' && normalizedRoutePin) {
+
+    if (
+      (live.status === 'hosting' || live.status === 'joined') &&
+      cleanLivePin &&
+      normalizedPathPin !== cleanLivePin
+    ) {
+      navigate(`/rooms/${encodeURIComponent(cleanLivePin)}`);
+      return;
+    }
+
+    if (prev !== 'idle' && live.status === 'idle' && normalizedPathPin) {
       navigate('/lobby', { replace: true });
     }
-  }, [live.status, normalizedRoutePin, navigate]);
+  }, [live.status, cleanLivePin, normalizedPathPin, navigate]);
 
   // Auto-route joined participants to the live game screen as soon as the host starts the game
   useEffect(() => {

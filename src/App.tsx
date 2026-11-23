@@ -9,7 +9,7 @@ import {
 } from 'react-router-dom';
 import { AppProvider, useApp } from './context/AppContext';
 import { AppLayout } from './components/layout/AppLayout';
-import { PageLoader, RouteProgressBar } from './components/common';
+import { InitialLogoLoader, PageLoader, RouteProgressBar } from './components/common';
 
 const HomePage = lazy(() =>
   import('./pages/HomePage').then((m) => ({ default: m.HomePage }))
@@ -85,6 +85,7 @@ export function App() {
   return (
     <AppProvider>
       <BrowserRouter>
+        <InitialLogoLoader />
         <RouteProgressBar />
         <Suspense fallback={<PageLoader variant="fullscreen" />}>
           <Routes>

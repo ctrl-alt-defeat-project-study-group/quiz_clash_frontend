@@ -3,7 +3,7 @@ import { Code2, RefreshCw, Search, Shield, Trash2 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import * as api from '../services/api';
 import type { ApiAdminQuizSummary, ApiAdminStats, UserProfile } from '../types/quiz';
-import { AppPagination, PageHeader, SectionCard, StatCard } from '../components/common';
+import { AdminPageSkeleton, AppPagination, PageHeader, SectionCard, StatCard } from '../components/common';
 
 const PAGE_SIZE = 10;
 
@@ -206,7 +206,11 @@ export const AdminPage: React.FC = () => {
         </SectionCard>
       )}
 
-      {/* Platform Stats */}
+      {loading && !stats && !error ? (
+        <AdminPageSkeleton />
+      ) : (
+        <>
+          {/* Platform Stats */}
       <section className="stat-grid-3" aria-label={t('admin.title')}>
         <StatCard value={stats?.total_users ?? '—'} label={t('admin.statTotalUsers')} />
         <StatCard value={stats?.active_users ?? '—'} label={t('admin.statActiveUsers')} />
@@ -439,6 +443,8 @@ export const AdminPage: React.FC = () => {
             {JSON.stringify({ stats, users, quizzes }, null, 2)}
           </pre>
         </SectionCard>
+      )}
+        </>
       )}
     </>
   );

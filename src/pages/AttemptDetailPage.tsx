@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Download, Loader2 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { PageHeader, SectionCard, StatCard } from '../components/common';
+import { AttemptDetailsSkeleton, PageHeader, SectionCard, StatCard } from '../components/common';
 
 export const AttemptDetailPage: React.FC = () => {
   const { id } = useParams<{ id?: string }>();
@@ -138,17 +138,7 @@ export const AttemptDetailPage: React.FC = () => {
         dataName="Missed question review"
       >
         {isLoadingDetails ? (
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-              padding: '12px 0'
-            }}
-          >
-            <Loader2 size={16} className="animate-spin" aria-hidden="true" />
-            <span className="helper-text">{t('results.loadingDetails')}</span>
-          </div>
+          <AttemptDetailsSkeleton />
         ) : (
         <div className="missed-grid">
           {showAllAnswers

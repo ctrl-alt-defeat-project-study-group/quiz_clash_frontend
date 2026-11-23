@@ -413,6 +413,71 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode }) => {
 
   const isLoginOrRegister = mode === 'login' || mode === 'register';
   const layoutMode = isLoginOrRegister ? mode : 'aux';
+  const activeFieldErrors = Object.values(fieldErrors).filter(Boolean) as string[];
+  const showErrorPreview =
+    isLoginOrRegister &&
+    !showPasswordPreview &&
+    (Boolean(error) || activeFieldErrors.length > 0);
+
+  const renderErrorCardBody = () => (
+    <div className="auth-error-preview" role="alert" aria-live="polite">
+      <p className="preview-meta auth-error-meta">
+        <span className="auth-error-badge">
+          <AlertCircle size={14} strokeWidth={2} aria-hidden="true" />
+          <span>
+            {mode === 'register'
+              ? uiLanguage === 'mm'
+                ? t('auth.signUp')
+                : 'Sign-up issue'
+              : uiLanguage === 'mm'
+              ? t('auth.signIn')
+              : 'Sign-in issue'}
+          </span>
+        </span>
+      </p>
+      <p className="preview-title auth-error-title">
+        {error || activeFieldErrors[0]}
+      </p>
+      {(error ? activeFieldErrors.length > 0 : activeFieldErrors.length > 1) && (
+        <ul className="auth-error-list" role="list">
+          {(error ? activeFieldErrors : activeFieldErrors.slice(1)).map((msg) => (
+            <li key={msg}>
+              <span className="auth-error-dot" aria-hidden="true" />
+              <span>{msg}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {mode === 'login' && errorCode === 'EMAIL_NOT_VERIFIED' && (
+        <div className="auth-error-action">
+          <Link
+            to={`/verify-email${
+              email.trim() ? `?email=${encodeURIComponent(email.trim())}` : ''
+            }`}
+          >
+            {t('auth.verifyBtn')}
+          </Link>
+        </div>
+      )}
+      {mode === 'login' && error && errorCode !== 'EMAIL_NOT_VERIFIED' && (
+        <div className="auth-error-action">
+          <Link to="/forgot-password" onClick={handleModeSwitchClick}>
+            {t('auth.forgotPasswordLink')}
+          </Link>
+        </div>
+      )}
+      {mode === 'register' &&
+        (errorCode === 'OAUTH_ACCOUNT_ALREADY_EXISTS' ||
+          errorCode === 'ACCOUNT_ALREADY_EXISTS' ||
+          errorCode === 'EMAIL_ALREADY_REGISTERED') && (
+          <div className="auth-error-action">
+            <Link to="/login" onClick={handleModeSwitchClick}>
+              {t('auth.signIn')} →
+            </Link>
+          </div>
+        )}
+    </div>
+  );
 
   return (
     <div
@@ -420,6 +485,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode }) => {
       data-auth-mode={layoutMode}
       {...(motionEnabled ? { 'data-auth-motion': '' } : {})}
       {...(showPasswordPreview ? { 'data-password-preview': '' } : {})}
+      {...(showErrorPreview ? { 'data-error-preview': '' } : {})}
     >
       <header className="site-header">
         <div className="header-content">
@@ -525,6 +591,10 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode }) => {
                         aria-describedby="login-email-error"
                         onChange={(e) => {
                           setEmail(e.target.value);
+                          if (error) {
+                            setError('');
+                            setErrorCode(undefined);
+                          }
                           if (fieldErrors.email) {
                             setFieldErrors((prev) => ({ ...prev, email: undefined }));
                           }
@@ -564,6 +634,10 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode }) => {
                         aria-describedby="login-password-error"
                         onChange={(e) => {
                           setPassword(e.target.value);
+                          if (error) {
+                            setError('');
+                            setErrorCode(undefined);
+                          }
                           if (fieldErrors.password) {
                             setFieldErrors((prev) => ({ ...prev, password: undefined }));
                           }
@@ -728,6 +802,10 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode }) => {
                         aria-describedby="register-email-error"
                         onChange={(e) => {
                           setEmail(e.target.value);
+                          if (error) {
+                            setError('');
+                            setErrorCode(undefined);
+                          }
                           if (fieldErrors.email) {
                             setFieldErrors((prev) => ({ ...prev, email: undefined }));
                           }
@@ -1061,39 +1139,45 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode }) => {
                     ))}
                   </ul>
                 </div>
+
+                {renderErrorCardBody()}
               </div>
 
               <div className="preview-card quiz-card">
-                <p className="preview-meta">
-                  <span>Practice quiz</span>
-                  <span>2 / 5</span>
-                </p>
-                <div className="quiz-progress" aria-hidden="true"></div>
-                <p className="preview-title">What is the name of this Website?</p>
-                <ul className="options" role="list">
-                  <li>
-                    <span className="option-letter" aria-hidden="true">
-                      A
-                    </span>{' '}
-                    QuizGenerator
-                  </li>
-                  <li className="answer">
-                    <span className="option-letter" aria-hidden="true">
-                      B
-                    </span>{' '}
-                    QuizClash
-                    <span className="answer-check" aria-hidden="true">
-                      ✓
-                    </span>
-                    <span className="visually-hidden">Correct answer</span>
-                  </li>
-                  <li>
-                    <span className="option-letter" aria-hidden="true">
-                      C
-                    </span>{' '}
-                    AutoQuiz
-                  </li>
-                </ul>
+                <div className="quiz-preview">
+                  <p className="preview-meta">
+                    <span>Practice quiz</span>
+                    <span>2 / 5</span>
+                  </p>
+                  <div className="quiz-progress" aria-hidden="true"></div>
+                  <p className="preview-title">What is the name of this Website?</p>
+                  <ul className="options" role="list">
+                    <li>
+                      <span className="option-letter" aria-hidden="true">
+                        A
+                      </span>{' '}
+                      QuizGenerator
+                    </li>
+                    <li className="answer">
+                      <span className="option-letter" aria-hidden="true">
+                        B
+                      </span>{' '}
+                      QuizClash
+                      <span className="answer-check" aria-hidden="true">
+                        ✓
+                      </span>
+                      <span className="visually-hidden">Correct answer</span>
+                    </li>
+                    <li>
+                      <span className="option-letter" aria-hidden="true">
+                        C
+                      </span>{' '}
+                      AutoQuiz
+                    </li>
+                  </ul>
+                </div>
+
+                {renderErrorCardBody()}
               </div>
             </div>
           </figure>

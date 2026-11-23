@@ -5,7 +5,7 @@ import { IconCloud } from '@tabler/icons-react';
 import { CheckIcon, CircleIcon, PlayIcon } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import type { QuizItem } from '../types/quiz';
-import { PageHeader, SectionCard, SettingToggleRow } from '../components/common';
+import { PageHeader, PageLoader, SectionCard, SettingToggleRow } from '../components/common';
 import { QuizReviewWorkspace } from '../components/quiz/QuizReviewWorkspace';
 import { Button } from '@/components/ui/button';
 import {
@@ -724,6 +724,9 @@ export const GenerateQuizPage: React.FC = () => {
             )}
           </div>
         </div>
+      )}
+      {generating && (
+        <PageLoader variant="overlay" label={t('generate.generatingBtn')} />
       )}
     </>
   );

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { ChevronLeft, ChevronRight, Download, Eye, Loader2, Trash2, X } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import type { ExportFormat, QuizItem } from '../../types/quiz';
-import { AppPagination, SectionCard } from '../common';
+import { AppPagination, ReviewWorkspaceSkeleton, SectionCard } from '../common';
 import { Progress } from '@/components/ui/progress';
 import {
   Select,
@@ -90,6 +90,10 @@ export const QuizReviewWorkspace: React.FC<QuizReviewWorkspaceProps> = ({
     setActiveQuizId(quiz.id);
     void exportStudySheet('answers', exportFormat);
   };
+
+  if (quiz.backendId && !quiz.questionsLoaded && quiz.questions.length === 0) {
+    return <ReviewWorkspaceSkeleton />;
+  }
 
   return (
     <div
