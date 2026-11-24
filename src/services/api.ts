@@ -30,7 +30,7 @@ import type {
 } from '../types/quiz';
 
 const configuredApiUrl = (
-  import.meta.env.VITE_API_BASE_URL || 'https://quizclash-api.duckdns.org/api/v1'
+  import.meta.env.VITE_API_BASE_URL || 'https://quiz-clash-backend-ff3l.onrender.com/api/v1'
 ).replace(/\/+$/, '');
 
 // Route remote HTTPS API calls (or localhost API calls accessed from a LAN device in dev)
