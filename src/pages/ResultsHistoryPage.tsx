@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowRight, BarChart3, History, Trash2 } from 'lucide-react';
+import { ArrowRight, BarChart3, Eye, History, Trash2 } from 'lucide-react';
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts';
 import { useApp } from '../context/AppContext';
 import { AppPagination, PageHeader, SectionCard, StatCard } from '../components/common';
@@ -30,6 +30,7 @@ export const ResultsHistoryPage: React.FC = () => {
   const navigate = useNavigate();
   const [attemptPage, setAttemptPage] = useState<number>(1);
   const [livePage, setLivePage] = useState<number>(1);
+  const [mobileHistoryTab, setMobileHistoryTab] = useState<'solo' | 'live'>('solo');
 
   const attemptTotalPages = Math.max(1, Math.ceil(history.length / HISTORY_PAGE_SIZE));
   const safeAttemptPage = Math.min(attemptPage, attemptTotalPages);
@@ -55,16 +56,33 @@ export const ResultsHistoryPage: React.FC = () => {
     return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
   };
 
-  const renderLiveHistoryCard = () => {
-    if (!user || liveHistory.length === 0) return null;
+  const renderLiveHistoryCard = (showEmptyFallback = false) => {
+    if (!user) return null;
+    if (liveHistory.length === 0) {
+      if (!showEmptyFallback) return null;
+      return (
+        <SectionCard className="history-empty-live-card" dataName="Live games history">
+          <h2 className="section-title" style={{ marginBottom: 4 }}>
+            {t('results.noLiveHistoryTitle')}
+          </h2>
+          <p className="helper-text" style={{ margin: 0 }}>
+            {t('results.liveHistorySubtitle')}
+          </p>
+        </SectionCard>
+      );
+    }
     return (
-      <SectionCard dataName="Live games history">
-        <h2 className="section-title" style={{ marginBottom: 4 }}>
-          {t('results.liveHistoryTitle')}
-        </h2>
-        <p className="helper-text" style={{ marginBottom: 16 }}>
-          {t('results.liveHistorySubtitle')}
-        </p>
+      <SectionCard className="history-records history-room-records" dataName="Live games history">
+        <div className="history-records-head">
+          <div>
+            <h2 className="section-title" style={{ marginBottom: 4 }}>
+              {t('results.liveHistoryTitle')}
+            </h2>
+            <p className="helper-text" style={{ margin: 0 }}>
+              {t('results.liveHistorySubtitle')}
+            </p>
+          </div>
+        </div>
 
         <div className="table-wrap">
           <table className="data-table">
@@ -83,48 +101,85 @@ export const ResultsHistoryPage: React.FC = () => {
             <tbody>
               {pagedLiveHistory.map((item) => (
                 <tr key={item.id}>
-                  <td>{formatLiveDate(item.finished_at || item.created_at)}</td>
                   <td>
-                    <span className="score-badge" style={{ fontFamily: 'var(--font-mono, monospace)' }}>
-                      {item.pin}
+                    <span className="ah-mobile-label" aria-hidden="true">
+                      {t('results.colDate')}
                     </span>
-                  </td>
-                  <td style={{ fontWeight: 600 }}>{item.quiz_title}</td>
-                  <td>
-                    {item.role === 'host'
-                      ? t('results.roleHost')
-                      : t('results.rolePlayer')}
-                  </td>
-                  <td>{item.player_count}</td>
-                  <td>
-                    {item.winner_name
-                      ? `${item.winner_name} (${item.winner_points.toLocaleString()} pts)`
-                      : t('results.noWinner')}
+                    <div className="ah-cell-value">
+                      {formatLiveDate(item.finished_at || item.created_at)}
+                    </div>
                   </td>
                   <td>
-                    {item.my_points !== null
-                      ? `#${item.my_rank ?? '—'} · ${item.my_points.toLocaleString()} pts (${item.my_correct ?? 0}/${item.total_rounds || item.my_total || 0})`
-                      : t('results.noWinner')}
+                    <span className="ah-mobile-label" aria-hidden="true">
+                      {t('results.colPin')}
+                    </span>
+                    <div className="ah-cell-value">
+                      <span className="score-badge" style={{ fontFamily: 'var(--font-mono, monospace)' }}>
+                        {item.pin}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="ah-room-title" style={{ fontWeight: 600 }}>
+                    <div className="ah-cell-value">{item.quiz_title}</div>
                   </td>
                   <td>
+                    <span className="ah-mobile-label" aria-hidden="true">
+                      {t('results.colRole')}
+                    </span>
+                    <div className="ah-cell-value">
+                      {item.role === 'host'
+                        ? t('results.roleHost')
+                        : t('results.rolePlayer')}
+                    </div>
+                  </td>
+                  <td>
+                    <span className="ah-mobile-label" aria-hidden="true">
+                      {t('results.colPlayers')}
+                    </span>
+                    <div className="ah-cell-value">{item.player_count}</div>
+                  </td>
+                  <td className="ah-room-wide">
+                    <span className="ah-mobile-label" aria-hidden="true">
+                      {t('results.colWinner')}
+                    </span>
+                    <div className="ah-cell-value">
+                      {item.winner_name
+                        ? `${item.winner_name} (${item.winner_points.toLocaleString()} pts)`
+                        : t('results.noWinner')}
+                    </div>
+                  </td>
+                  <td className="ah-room-wide">
+                    <span className="ah-mobile-label" aria-hidden="true">
+                      {t('results.colYourResult')}
+                    </span>
+                    <div className="ah-cell-value">
+                      {item.my_points !== null
+                        ? `#${item.my_rank ?? '—'} · ${item.my_points.toLocaleString()} pts (${item.my_correct ?? 0}/${item.total_rounds || item.my_total || 0})`
+                        : t('results.noWinner')}
+                    </div>
+                  </td>
+                  <td className="ah-cell-actions">
                     {item.role === 'host' ? (
-                      <button
-                        type="button"
-                        className="text-link"
-                        style={{ color: 'var(--danger, #dc2626)' }}
-                        onClick={() => {
-                          openModal({
-                            title: t('results.deleteAttemptConfirmTitle'),
-                            message: t('results.deleteAttemptConfirmMsg'),
-                            confirmLabel: t('results.deleteAttempt'),
-                            onConfirm: () => {
-                              void deleteLiveHistoryRoom(item.id);
-                            }
-                          });
-                        }}
-                      >
-                        {t('results.deleteAttempt')}
-                      </button>
+                      <div className="table-action-group">
+                        <button
+                          type="button"
+                          className="table-action-btn is-danger"
+                          title={t('results.deleteAttempt')}
+                          aria-label={t('results.deleteAttempt')}
+                          onClick={() => {
+                            openModal({
+                              title: t('results.deleteAttemptConfirmTitle'),
+                              message: t('results.deleteAttemptConfirmMsg'),
+                              confirmLabel: t('results.deleteAttempt'),
+                              onConfirm: () => {
+                                void deleteLiveHistoryRoom(item.id);
+                              }
+                            });
+                          }}
+                        >
+                          <Trash2 size={15} aria-hidden="true" />
+                        </button>
+                      </div>
                     ) : (
                       <span className="helper-text">—</span>
                     )}
@@ -247,32 +302,40 @@ export const ResultsHistoryPage: React.FC = () => {
     );
   }
 
+  const avgScore = history.length
+    ? Math.round(history.reduce((sum, item) => sum + item.scorePct, 0) / history.length)
+    : 0;
+  const bestScore = history.length
+    ? Math.max(...history.map((item) => item.scorePct))
+    : 0;
+
   return (
-    <>
+    <div className="history-page" data-history={mobileHistoryTab}>
       <PageHeader
         breadcrumbs={[
           { label: 'QuizClash', to: '/' },
           { label: t('nav.attemptHistory') }
         ]}
-        title={t('results.title')}
-        subtitle={t('results.subtitle', { quizTitle: latest.quizTitle })}
+        title={t('nav.attemptHistory')}
+        subtitle={t('results.emptySubtitle')}
       />
 
       <section
-        className="stat-grid-4"
-        data-name="Attempt summary"
-        aria-label={t('results.attemptSummaryAria')}
+        className="stat-grid-4 history-metrics"
+        data-name="Attempt history overview"
+        aria-label={t('results.historySummaryAria')}
       >
-        <StatCard value={`${latest.scorePct}%`} label={t('results.yourScore')} />
+        <StatCard value={history.length} label={t('results.totalAttempts')} />
+        <StatCard value={`${avgScore}%`} label={t('results.averageScore')} />
+        <StatCard value={`${bestScore}%`} label={t('results.bestScore')} />
         <StatCard
-          value={`${latest.correct} / ${latest.total}`}
-          label={t('results.correctAnswers')}
+          value={`${latest.scorePct}%`}
+          label={t('results.latestScore')}
+          to={`/attempts/${encodeURIComponent(latest.id)}`}
         />
-        <StatCard value={latest.duration} label={t('results.timeTaken')} />
-        <StatCard value={latest.deltaPts} label={t('results.fromLastAttempt')} />
       </section>
 
-      <SectionCard dataName="Score progress chart">
+      <SectionCard className="history-chart-card" dataName="Score progress chart">
         <h2 className="section-title" style={{ marginBottom: 4 }}>
           {t('results.scoreTrendTitle')}
         </h2>
@@ -327,122 +390,166 @@ export const ResultsHistoryPage: React.FC = () => {
         </ChartContainer>
       </SectionCard>
 
-      <SectionCard dataName="Attempt history">
+      {user && (
         <div
-          style={{
-            display: 'flex',
-            alignItems: 'flex-start',
-            justifyContent: 'space-between',
-            gap: 12,
-            flexWrap: 'wrap',
-            marginBottom: 16
-          }}
+          className="history-switch"
+          role="group"
+          aria-label={t('results.historyTypeAria')}
         >
-          <div>
-            <h2 className="section-title" style={{ marginBottom: 4 }}>
-              {t('results.attemptHistoryTitle')}
-            </h2>
-            <p className="helper-text" style={{ margin: 0 }}>
-              {t('results.allAttemptsSubtitle', { count: history.length })}
-            </p>
-          </div>
           <button
             type="button"
-            className="btn btn-sm btn-danger"
-            onClick={() => {
-              openModal({
-                title: t('results.clearHistoryConfirmTitle'),
-                message: t('results.clearHistoryConfirmMsg'),
-                confirmLabel: t('results.clearHistory'),
-                onConfirm: () => {
-                  void clearAllAttempts();
-                }
-              });
-            }}
+            aria-controls="solo-history-panel"
+            aria-pressed={mobileHistoryTab === 'solo'}
+            onClick={() => setMobileHistoryTab('solo')}
           >
-            <Trash2 size={14} aria-hidden="true" />
-            <span>{t('results.clearHistory')}</span>
+            {t('results.soloAttemptsTab')}
+          </button>
+          <button
+            type="button"
+            aria-controls="live-history-panel"
+            aria-pressed={mobileHistoryTab === 'live'}
+            onClick={() => setMobileHistoryTab('live')}
+          >
+            {t('results.liveGamesTab')}
           </button>
         </div>
+      )}
 
-        <div className="table-wrap">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>{t('results.colQuiz')}</th>
-                <th>{t('results.colDate')}</th>
-                <th>{t('results.colScore')}</th>
-                <th>{t('results.colCorrect')}</th>
-                <th>{t('results.colDuration')}</th>
-                <th>{t('results.colReview')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pagedHistory.map((h) => (
-                <tr key={h.id}>
-                  <td style={{ fontWeight: 600 }}>{h.quizTitle}</td>
-                  <td>{h.dateLabel}</td>
-                  <td>
-                    <span className="score-badge">{h.scorePct}%</span>
-                  </td>
-                  <td>
-                    {h.correct} / {h.total}
-                  </td>
-                  <td>{h.duration}</td>
-                  <td>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                      <button
-                        type="button"
-                        className="text-link"
-                        onClick={() => {
-                          setActiveAttemptId(h.id);
-                          navigate(`/attempts/${encodeURIComponent(h.id)}`);
-                        }}
-                      >
-                        {t('results.viewAttempt')}
-                      </button>
-                      <button
-                        type="button"
-                        className="text-link"
-                        style={{ color: 'var(--danger, #dc2626)' }}
-                        onClick={() => {
-                          openModal({
-                            title: t('results.deleteAttemptConfirmTitle'),
-                            message: t('results.deleteAttemptConfirmMsg'),
-                            confirmLabel: t('results.deleteAttempt'),
-                            onConfirm: () => {
-                              void deleteAttempt(h.id);
-                            }
-                          });
-                        }}
-                      >
-                        {t('results.deleteAttempt')}
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {attemptTotalPages > 1 && (
-          <div style={{ marginTop: 14 }}>
-            <AppPagination
-              currentPage={safeAttemptPage}
-              totalPages={attemptTotalPages}
-              onPageChange={setAttemptPage}
-            />
+      <div id="solo-history-panel" className="history-panel-solo">
+        <SectionCard className="history-records history-attempt-records" dataName="Attempt history">
+          <div className="history-records-head">
+            <div>
+              <h2 className="section-title" style={{ marginBottom: 4 }}>
+                {t('results.attemptHistoryTitle')}
+              </h2>
+              <p className="helper-text" style={{ margin: 0 }}>
+                {t('results.allAttemptsSubtitle', { count: history.length })}
+              </p>
+            </div>
+            <button
+              type="button"
+              className="btn btn-sm btn-danger"
+              onClick={() => {
+                openModal({
+                  title: t('results.clearHistoryConfirmTitle'),
+                  message: t('results.clearHistoryConfirmMsg'),
+                  confirmLabel: t('results.clearHistory'),
+                  onConfirm: () => {
+                    void clearAllAttempts();
+                  }
+                });
+              }}
+            >
+              <Trash2 size={14} aria-hidden="true" />
+              <span>{t('results.clearHistory')}</span>
+            </button>
           </div>
-        )}
-      </SectionCard>
 
-      {renderLiveHistoryCard()}
+          <div className="table-wrap">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>{t('results.colQuiz')}</th>
+                  <th>{t('results.colDate')}</th>
+                  <th>{t('results.colScore')}</th>
+                  <th>{t('results.colCorrect')}</th>
+                  <th>{t('results.colDuration')}</th>
+                  <th>{t('results.colReview')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pagedHistory.map((h) => (
+                  <tr key={h.id}>
+                    <td className="ah-cell-title" style={{ fontWeight: 600 }}>
+                      <div className="ah-cell-value">{h.quizTitle}</div>
+                    </td>
+                    <td className="ah-cell-date">
+                      <div className="ah-cell-value">{h.dateLabel}</div>
+                    </td>
+                    <td className="ah-cell-score">
+                      <span className="ah-mobile-label" aria-hidden="true">
+                        {t('results.colScore')}
+                      </span>
+                      <div className="ah-cell-value">
+                        <span className="score-badge">{h.scorePct}%</span>
+                      </div>
+                    </td>
+                    <td className="ah-cell-correct">
+                      <span className="ah-mobile-label" aria-hidden="true">
+                        {t('results.colCorrect')}
+                      </span>
+                      <div className="ah-cell-value">
+                        {h.correct} / {h.total}
+                      </div>
+                    </td>
+                    <td className="ah-cell-duration">
+                      <span className="ah-mobile-label" aria-hidden="true">
+                        {t('results.colDuration')}
+                      </span>
+                      <div className="ah-cell-value">{h.duration}</div>
+                    </td>
+                    <td className="ah-cell-actions">
+                      <div className="table-action-group">
+                        <button
+                          type="button"
+                          className="table-action-btn is-primary"
+                          title={t('results.viewAttempt')}
+                          aria-label={t('results.viewAttempt')}
+                          onClick={() => {
+                            setActiveAttemptId(h.id);
+                            navigate(`/attempts/${encodeURIComponent(h.id)}`);
+                          }}
+                        >
+                          <Eye size={15} aria-hidden="true" />
+                        </button>
+                        <button
+                          type="button"
+                          className="table-action-btn is-danger"
+                          title={t('results.deleteAttempt')}
+                          aria-label={t('results.deleteAttempt')}
+                          onClick={() => {
+                            openModal({
+                              title: t('results.deleteAttemptConfirmTitle'),
+                              message: t('results.deleteAttemptConfirmMsg'),
+                              confirmLabel: t('results.deleteAttempt'),
+                              onConfirm: () => {
+                                void deleteAttempt(h.id);
+                              }
+                            });
+                          }}
+                        >
+                          <Trash2 size={15} aria-hidden="true" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {attemptTotalPages > 1 && (
+            <div style={{ marginTop: 14 }}>
+              <AppPagination
+                currentPage={safeAttemptPage}
+                totalPages={attemptTotalPages}
+                onPageChange={setAttemptPage}
+              />
+            </div>
+          )}
+        </SectionCard>
+      </div>
+
+      {user && (
+        <div id="live-history-panel" className="history-panel-live">
+          {renderLiveHistoryCard(true)}
+        </div>
+      )}
 
       <div className="btn-row" data-name="Results actions">
         <Link to="/lobby" className="btn btn-primary">
           {t('results.challengeFriends')}
         </Link>
       </div>
-    </>
+    </div>
   );
 };

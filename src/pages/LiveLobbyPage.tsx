@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   ArrowRight,
   Check,
@@ -36,6 +36,7 @@ const getInitials = (name: string) =>
 export const LiveLobbyPage: React.FC = () => {
   const { pin: routePin } = useParams<{ pin?: string }>();
   const [searchParams] = useSearchParams();
+  const location = useLocation();
   const navigate = useNavigate();
   const {
     user,
@@ -68,6 +69,8 @@ export const LiveLobbyPage: React.FC = () => {
   const [participateAsHost, setParticipateAsHost] = useState<boolean>(true);
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [markingReady, setMarkingReady] = useState<boolean>(false);
+  const hostCardRef = useRef<HTMLFormElement | null>(null);
+  const joinCardRef = useRef<HTMLFormElement | null>(null);
   const joinPinInputRef = useRef<HTMLInputElement | null>(null);
   const joinNameInputRef = useRef<HTMLInputElement | null>(null);
   const manualCopyInputRef = useRef<HTMLInputElement | null>(null);
@@ -78,16 +81,47 @@ export const LiveLobbyPage: React.FC = () => {
   const formattedIncomingPin = normalizedRoutePin ? formatRoomPin(normalizedRoutePin) : '';
   const displayedJoinPin = joinPin ?? formattedIncomingPin;
   const displayedJoinName = joinName ?? settings.displayName ?? user?.display_name ?? '';
+  const rawMode = (searchParams.get('mode') || location.hash.replace(/^#/, '')).toLowerCase();
+  const routeTargetPanel: 'host' | 'join' | null =
+    rawMode === 'host' && user
+      ? 'host'
+      : rawMode === 'join' || Boolean(normalizedRoutePin)
+      ? 'join'
+      : null;
+  const [highlightedPanel, setHighlightedPanel] = useState<'host' | 'join' | null>(
+    routeTargetPanel
+  );
   const activeManualCopy =
     manualCopy && live.status === 'hosting' && manualCopy.pin === live.pin
       ? manualCopy
       : null;
 
-  // When a room PIN is carried in via URL (/lobby?pin=... or /rooms/:pin), focus Display name
   useEffect(() => {
-    if (live.status !== 'idle' || !normalizedRoutePin) return;
-    joinNameInputRef.current?.focus();
-  }, [live.status, normalizedRoutePin]);
+    setHighlightedPanel(routeTargetPanel);
+  }, [routeTargetPanel]);
+
+  // When routed to a specific entry box (?mode=host or ?mode=join), scroll to it and focus its primary input
+  useEffect(() => {
+    if (live.status !== 'idle') return;
+
+    if (normalizedRoutePin) {
+      joinCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      joinNameInputRef.current?.focus({ preventScroll: true });
+      return;
+    }
+
+    if (routeTargetPanel === 'host') {
+      hostCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const quizTrigger = hostCardRef.current?.querySelector<HTMLButtonElement>('#entry-quiz-select');
+      quizTrigger?.focus({ preventScroll: true });
+      return;
+    }
+
+    if (routeTargetPanel === 'join') {
+      joinCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      joinPinInputRef.current?.focus({ preventScroll: true });
+    }
+  }, [live.status, normalizedRoutePin, routeTargetPanel]);
 
   useEffect(() => {
     if (!activeManualCopy) return;
@@ -188,15 +222,26 @@ export const LiveLobbyPage: React.FC = () => {
     : '/rooms/play';
 
   const prevLiveStatusRef = useRef(live.status);
+  const normalizedPathPin = routePin ? normalizeRoomPin(routePin) : '';
 
-  // If the user leaves or the host closes the room while on /rooms/:pin, clear the URL PIN
+  // Sync URL to /rooms/:pin when hosting or joined, and back to /lobby when returning to idle
   useEffect(() => {
     const prev = prevLiveStatusRef.current;
     prevLiveStatusRef.current = live.status;
-    if (prev !== 'idle' && live.status === 'idle' && normalizedRoutePin) {
+
+    if (
+      (live.status === 'hosting' || live.status === 'joined') &&
+      cleanLivePin &&
+      normalizedPathPin !== cleanLivePin
+    ) {
+      navigate(`/rooms/${encodeURIComponent(cleanLivePin)}`);
+      return;
+    }
+
+    if (prev !== 'idle' && live.status === 'idle' && normalizedPathPin) {
       navigate('/lobby', { replace: true });
     }
-  }, [live.status, normalizedRoutePin, navigate]);
+  }, [live.status, cleanLivePin, normalizedPathPin, navigate]);
 
   // Auto-route joined participants to the live game screen as soon as the host starts the game
   useEffect(() => {
@@ -316,8 +361,17 @@ export const LiveLobbyPage: React.FC = () => {
               {/* Card 1: Host a Game (Signed-in users only) */}
               {user && (
                 <form
-                  className="qlg-card qlg-entry-card"
+                  ref={hostCardRef}
+                  id="host-room-panel"
+                  className={`qlg-card qlg-entry-card ${
+                    highlightedPanel === 'host' ? 'is-targeted' : ''
+                  }`}
                   onSubmit={handleCreateRoom}
+                  onFocusCapture={() => {
+                    if (highlightedPanel && highlightedPanel !== 'host') {
+                      setHighlightedPanel('host');
+                    }
+                  }}
                   data-name="Create room panel"
                 >
                   <div className="qlg-entry-heading">
@@ -415,8 +469,17 @@ export const LiveLobbyPage: React.FC = () => {
 
               {/* Card 2: Join a Game (Shown to everyone; sole card for guests) */}
               <form
-                className="qlg-card qlg-entry-card"
+                ref={joinCardRef}
+                id="join-room-panel"
+                className={`qlg-card qlg-entry-card ${
+                  highlightedPanel === 'join' ? 'is-targeted is-targeted-join' : ''
+                }`}
                 onSubmit={handleJoinSubmit}
+                onFocusCapture={() => {
+                  if (highlightedPanel && highlightedPanel !== 'join') {
+                    setHighlightedPanel('join');
+                  }
+                }}
                 data-name="Join room panel"
                 noValidate
               >

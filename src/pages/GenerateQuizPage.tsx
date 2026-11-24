@@ -5,7 +5,7 @@ import { IconCloud } from '@tabler/icons-react';
 import { CheckIcon, CircleIcon, PlayIcon } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import type { QuizItem } from '../types/quiz';
-import { PageHeader, SectionCard, SettingToggleRow } from '../components/common';
+import { PageHeader, PageLoader, SectionCard, SettingToggleRow } from '../components/common';
 import { QuizReviewWorkspace } from '../components/quiz/QuizReviewWorkspace';
 import { Button } from '@/components/ui/button';
 import {
@@ -51,11 +51,11 @@ export const GenerateQuizPage: React.FC = () => {
 
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
   const [isCompactTimeline, setIsCompactTimeline] = useState<boolean>(() =>
-    typeof window !== 'undefined' ? window.innerWidth <= 640 : false
+    typeof window !== 'undefined' ? window.innerWidth <= 700 : false
   );
 
   useEffect(() => {
-    const mq = window.matchMedia('(max-width: 640px)');
+    const mq = window.matchMedia('(max-width: 700px)');
     const onChange = (e: MediaQueryListEvent) => setIsCompactTimeline(e.matches);
     mq.addEventListener('change', onChange);
     return () => mq.removeEventListener('change', onChange);
@@ -263,6 +263,10 @@ export const GenerateQuizPage: React.FC = () => {
     },
   ];
 
+  const activeStepInfo =
+    generationSteps.find((step) => step.id === currentStep) ?? generationSteps[0];
+  const mobileStepProgress = (currentStep - 1) / (generationSteps.length - 1);
+
   return (
     <>
       <PageHeader
@@ -279,50 +283,42 @@ export const GenerateQuizPage: React.FC = () => {
         data-name="Generation steps"
         style={{ padding: isCompactTimeline ? '16px 18px' : '18px 22px' }}
       >
-        <Timeline
-          value={currentStep}
-          orientation={isCompactTimeline ? 'vertical' : 'horizontal'}
-          className="w-full"
-        >
-          {generationSteps.map((step) => {
-            const canClick =
-              (step.id === 1 && currentStep > 1 && !generating) ||
-              (step.id === 2 && hasMaterial && currentStep === 1 && !generating);
+        {isCompactTimeline ? (
+          <div className="gen-mobile-timeline">
+            <div
+              className="gen-mobile-track"
+              role="list"
+              aria-label={t('generate.title')}
+              style={{ '--gen-progress': mobileStepProgress } as React.CSSProperties}
+            >
+              {generationSteps.map((step) => {
+                const canClick =
+                  (step.id === 1 && currentStep > 1 && !generating) ||
+                  (step.id === 2 && hasMaterial && currentStep === 1 && !generating);
 
-            return (
-              <TimelineItem
-                key={step.id}
-                step={step.id}
-                className={cn(canClick && 'cursor-pointer')}
-                onClick={() => {
-                  if (step.id === 1 && currentStep > 1 && !generating) {
-                    setError('');
-                    setCurrentStep(1);
-                  } else if (step.id === 2 && hasMaterial && currentStep === 1 && !generating) {
-                    handleNextToConfigure();
-                  }
-                }}
-              >
-                <TimelineHeader>
-                  <TimelineSeparator className="bg-input! group-data-[orientation=horizontal]/timeline:-top-6 group-data-[orientation=horizontal]/timeline:left-2.5 group-data-[orientation=horizontal]/timeline:w-[calc(100%-2.25rem)] group-data-[orientation=vertical]/timeline:top-2 group-data-[orientation=vertical]/timeline:h-[calc(100%-0.5rem)]" />
-                  <TimelineDate>{step.stepLabel}</TimelineDate>
-                  <TimelineTitle className="flex flex-wrap items-center gap-2">
-                    {step.title}
-                    {step.status === 'current' && (
-                      <Badge variant="primary-light" size="sm">
-                        {t('generate.currentBadge')}
-                      </Badge>
-                    )}
-                  </TimelineTitle>
-                  <TimelineIndicator
+                return (
+                  <button
+                    key={step.id}
+                    type="button"
+                    role="listitem"
+                    disabled={!canClick}
+                    aria-label={`${step.stepLabel}: ${step.title}`}
+                    aria-current={step.status === 'current' ? 'step' : undefined}
                     className={cn(
-                      'flex size-6 items-center justify-center border-none',
+                      'gen-mobile-node',
                       step.status === 'completed' && 'bg-emerald-500 text-white',
-                      step.status === 'current' &&
-                        'bg-primary text-primary-foreground',
-                      step.status === 'upcoming' &&
-                        'bg-muted text-muted-foreground'
+                      step.status === 'current' && 'bg-primary text-primary-foreground',
+                      step.status === 'upcoming' && 'bg-muted text-muted-foreground',
+                      canClick && 'cursor-pointer'
                     )}
+                    onClick={() => {
+                      if (step.id === 1 && currentStep > 1 && !generating) {
+                        setError('');
+                        setCurrentStep(1);
+                      } else if (step.id === 2 && hasMaterial && currentStep === 1 && !generating) {
+                        handleNextToConfigure();
+                      }
+                    }}
                   >
                     {step.status === 'completed' ? (
                       <CheckIcon className="size-3.5" />
@@ -331,15 +327,83 @@ export const GenerateQuizPage: React.FC = () => {
                     ) : (
                       <CircleIcon className="size-3" />
                     )}
-                  </TimelineIndicator>
-                </TimelineHeader>
-                <TimelineContent className="text-xs break-words">
-                  {step.description}
-                </TimelineContent>
-              </TimelineItem>
-            );
-          })}
-        </Timeline>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div key={activeStepInfo.id} className="gen-mobile-step-info">
+              <div className="gen-mobile-step-label">{activeStepInfo.stepLabel}</div>
+              <div className="gen-mobile-step-title">
+                <span>{activeStepInfo.title}</span>
+                {activeStepInfo.status === 'current' && (
+                  <Badge variant="primary-light" size="sm">
+                    {t('generate.currentBadge')}
+                  </Badge>
+                )}
+              </div>
+              <p className="gen-mobile-step-desc">{activeStepInfo.description}</p>
+            </div>
+          </div>
+        ) : (
+          <Timeline value={currentStep} orientation="horizontal" className="w-full">
+            {generationSteps.map((step) => {
+              const canClick =
+                (step.id === 1 && currentStep > 1 && !generating) ||
+                (step.id === 2 && hasMaterial && currentStep === 1 && !generating);
+
+              return (
+                <TimelineItem
+                  key={step.id}
+                  step={step.id}
+                  className={cn(canClick && 'cursor-pointer')}
+                  onClick={() => {
+                    if (step.id === 1 && currentStep > 1 && !generating) {
+                      setError('');
+                      setCurrentStep(1);
+                    } else if (step.id === 2 && hasMaterial && currentStep === 1 && !generating) {
+                      handleNextToConfigure();
+                    }
+                  }}
+                >
+                  <TimelineHeader>
+                    <TimelineSeparator className="bg-input! group-data-[orientation=horizontal]/timeline:-top-6 group-data-[orientation=horizontal]/timeline:left-2.5 group-data-[orientation=horizontal]/timeline:w-[calc(100%-2.25rem)] group-data-[orientation=vertical]/timeline:top-2 group-data-[orientation=vertical]/timeline:h-[calc(100%-0.5rem)]" />
+                    <TimelineDate>{step.stepLabel}</TimelineDate>
+                    <TimelineTitle className="flex flex-wrap items-center gap-2">
+                      {step.title}
+                      {step.status === 'current' && (
+                        <Badge variant="primary-light" size="sm">
+                          {t('generate.currentBadge')}
+                        </Badge>
+                      )}
+                    </TimelineTitle>
+                    <TimelineIndicator
+                      className={cn(
+                        'flex size-6 items-center justify-center border-none',
+                        step.status === 'completed' && 'bg-emerald-500 text-white',
+                        step.status === 'current' &&
+                          'bg-primary text-primary-foreground',
+                        step.status === 'upcoming' &&
+                          'bg-muted text-muted-foreground'
+                      )}
+                    >
+                      {step.status === 'completed' ? (
+                        <CheckIcon className="size-3.5" />
+                      ) : step.status === 'current' ? (
+                        <PlayIcon className="size-3" />
+                      ) : (
+                        <CircleIcon className="size-3" />
+                      )}
+                    </TimelineIndicator>
+                  </TimelineHeader>
+                  <TimelineContent className="text-xs break-words">
+                    {step.description}
+                  </TimelineContent>
+                </TimelineItem>
+              );
+            })}
+          </Timeline>
+        )}
       </div>
 
       {/* Step 01: Add your material */}
@@ -724,6 +788,9 @@ export const GenerateQuizPage: React.FC = () => {
             )}
           </div>
         </div>
+      )}
+      {generating && (
+        <PageLoader variant="overlay" label={t('generate.generatingBtn')} />
       )}
     </>
   );

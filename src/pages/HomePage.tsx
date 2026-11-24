@@ -220,6 +220,23 @@ export const HomePage: React.FC = () => {
         rafId = 0;
         const wf = workflowRef.current;
         if (!wf) return;
+        const isMobileHorizontal = window.matchMedia('(max-width: 700px)').matches;
+        if (isMobileHorizontal) {
+          const section = wf.closest<HTMLElement>('.qh-steps-section');
+          if (!section) return;
+          const rect = section.getBoundingClientRect();
+          const stickyTop = 72;
+          if (rect.top > window.innerHeight * 0.65 || rect.bottom < 0) return;
+          const scrollable = Math.max(1, rect.height - window.innerHeight + stickyTop);
+          const passed = stickyTop - rect.top;
+          const ratio = Math.min(1, Math.max(0, passed / scrollable));
+          const nextIdx = Math.min(
+            workflowSteps.length - 1,
+            Math.floor(ratio * workflowSteps.length)
+          );
+          setActiveStep(nextIdx);
+          return;
+        }
         const bounds = wf.getBoundingClientRect();
         const anchor = window.innerHeight * 0.68;
         if (bounds.top > anchor || bounds.bottom < 0) return;
@@ -472,7 +489,7 @@ export const HomePage: React.FC = () => {
                 {t('home.createQuizBtn')}
               </Link>
               {user ? (
-                <Link to="/lobby" className="qh-btn">
+                <Link to="/lobby?mode=join" className="qh-btn">
                   {t('home.joinWithPinBtn')}
                 </Link>
               ) : (
@@ -596,78 +613,130 @@ export const HomePage: React.FC = () => {
 
         {/* Interactive How It Works Section */}
         <section className="qh-steps-section" id="how-it-works">
-          <h2 className="qh-section-title">{t('home.tabHowItWorks')}</h2>
-          <div ref={workflowRef} className="qh-workflow is-animated">
-            <ol
-              aria-label={t('home.tabHowItWorks')}
-              style={
-                {
-                  '--qh-track-height': `${trackHeight}px`,
-                  '--qh-progress': trackProgress
-                } as React.CSSProperties
-              }
-            >
-              {workflowSteps.map((step, idx) => {
-                const isActive = idx === activeStep;
-                const isComplete = idx < activeStep;
-                const isInView = revealedSteps[idx];
-                return (
-                  <li
-                    key={step.title}
-                    ref={(el) => {
-                      stepLiRefs.current[idx] = el;
-                    }}
-                    className={[
-                      isActive && 'active',
-                      isComplete && 'complete',
-                      isInView && 'in-view'
-                    ]
-                      .filter(Boolean)
-                      .join(' ')}
-                  >
-                    <span className="qh-step-number" aria-hidden="true">
-                      {idx + 1}
-                    </span>
+          <div className="qh-steps-sticky">
+            <h2 className="qh-section-title">{t('home.tabHowItWorks')}</h2>
+            <div ref={workflowRef} className="qh-workflow is-animated">
+              <div
+                className="qh-mobile-timeline"
+                role="tablist"
+                aria-label={t('home.tabHowItWorks')}
+                style={
+                  {
+                    '--qh-mobile-progress':
+                      workflowSteps.length > 1 ? activeStep / (workflowSteps.length - 1) : 0
+                  } as React.CSSProperties
+                }
+              >
+                {workflowSteps.map((step, idx) => {
+                  const isActive = idx === activeStep;
+                  const isComplete = idx < activeStep;
+                  return (
                     <button
+                      key={step.title}
                       type="button"
-                      className="qh-step-button"
-                      aria-pressed={isActive}
+                      role="tab"
+                      aria-selected={isActive}
+                      aria-label={`${idx + 1}. ${step.title}`}
+                      className={[
+                        'qh-step-number',
+                        isActive && 'active',
+                        isComplete && 'complete'
+                      ]
+                        .filter(Boolean)
+                        .join(' ')}
                       onClick={() => {
                         manualStepUntilRef.current = Date.now() + 900;
                         setActiveStep(idx);
                       }}
                     >
-                      <strong>{step.title}</strong>
-                      <span>{step.subtitle}</span>
+                      {idx + 1}
                     </button>
-                  </li>
-                );
-              })}
-            </ol>
+                  );
+                })}
+              </div>
 
-            <div className="qh-workflow-stage" id="workflow-preview">
-              <div key={activeStep} className="qh-workflow-preview-body">
-                <h3 style={{ marginBottom: 16 }}>{currentWorkflow.stageTitle}</h3>
-                <div className="qh-workflow-detail">
-                  {currentWorkflow.items.map((item) => (
-                    <div key={item.heading} className="qh-workflow-detail-row">
-                      <span className="qh-workflow-detail-icon" aria-hidden="true">
-                        {item.icon === 'file' ? (
-                          <FileText size={18} />
-                        ) : item.icon === 'check' ? (
-                          <CheckSquare size={18} />
-                        ) : item.icon === 'user' ? (
-                          <User size={18} />
-                        ) : (
-                          <Users size={18} />
-                        )}
-                      </span>
-                      <div>
-                        <strong>{item.heading}</strong>
-                        <p>{item.body}</p>
+              <ol
+                aria-label={t('home.tabHowItWorks')}
+                style={
+                  {
+                    '--qh-track-height': `${trackHeight}px`,
+                    '--qh-progress': trackProgress
+                  } as React.CSSProperties
+                }
+              >
+                {workflowSteps.map((step, idx) => {
+                  const isActive = idx === activeStep;
+                  const isComplete = idx < activeStep;
+                  const isReached = idx <= activeStep;
+                  const isInView = revealedSteps[idx];
+                  const handleSelectStep = () => {
+                    manualStepUntilRef.current = Date.now() + 900;
+                    setActiveStep(idx);
+                  };
+                  return (
+                    <li
+                      key={step.title}
+                      ref={(el) => {
+                        stepLiRefs.current[idx] = el;
+                      }}
+                      className={[
+                        isActive && 'active',
+                        isComplete && 'complete',
+                        isReached ? 'is-reached' : 'is-future',
+                        isInView && 'in-view'
+                      ]
+                        .filter(Boolean)
+                        .join(' ')}
+                    >
+                      <button
+                        type="button"
+                        className="qh-step-number"
+                        aria-label={`${idx + 1}. ${step.title}`}
+                        aria-current={isActive ? 'step' : undefined}
+                        onClick={handleSelectStep}
+                      >
+                        {idx + 1}
+                      </button>
+                      <button
+                        type="button"
+                        className="qh-step-button"
+                        aria-pressed={isActive}
+                        aria-hidden={!isReached}
+                        tabIndex={isReached ? 0 : -1}
+                        onClick={handleSelectStep}
+                      >
+                        <strong>{step.title}</strong>
+                        <span>{step.subtitle}</span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ol>
+
+              <div className="qh-workflow-stage" id="workflow-preview">
+                <div key={activeStep} className="qh-workflow-preview-body">
+                  <h3 style={{ marginBottom: 16 }}>{currentWorkflow.stageTitle}</h3>
+                  <div className="qh-workflow-detail">
+                    {currentWorkflow.items.map((item) => (
+                      <div key={item.heading} className="qh-workflow-detail-row">
+                        <span className="qh-workflow-detail-icon" aria-hidden="true">
+                          {item.icon === 'file' ? (
+                            <FileText size={18} />
+                          ) : item.icon === 'check' ? (
+                            <CheckSquare size={18} />
+                          ) : item.icon === 'user' ? (
+                            <User size={18} />
+                          ) : (
+                            <Users size={18} />
+                          )}
+                        </span>
+                        <div>
+                          <strong>{item.heading}</strong>
+                          <p>{item.body}</p>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>

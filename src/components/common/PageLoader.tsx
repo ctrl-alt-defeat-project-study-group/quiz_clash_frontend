@@ -1,9 +1,9 @@
 import React from 'react';
-import { Loader2 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { QuizClashLoaderArt } from './QuizClashLogo';
 
 interface PageLoaderProps {
-  variant?: 'fullscreen' | 'panel';
+  variant?: 'fullscreen' | 'panel' | 'compact' | 'overlay';
   label?: string;
 }
 
@@ -13,20 +13,23 @@ export const PageLoader: React.FC<PageLoaderProps> = ({
 }) => {
   const { t } = useApp();
 
+  const artClass =
+    variant === 'compact'
+      ? 'loader-art--compact'
+      : variant === 'panel'
+      ? 'loader-art--panel'
+      : undefined;
+
   return (
     <div
       className={`page-loader page-loader--${variant}`}
       role="status"
       aria-live="polite"
     >
-      <div className="page-loader-inner">
-        <span className="page-loader-badge" aria-hidden="true">
-          <span className="brand-mark" />
-        </span>
-        <div className="page-loader-row">
-          <Loader2 size={16} className="page-loader-spinner" aria-hidden="true" />
-          <span className="page-loader-text">{label || t('common.loading')}</span>
-        </div>
+      <div className="loader-center">
+        <QuizClashLoaderArt className={artClass} />
+        <strong>QuizClash</strong>
+        <span className="loader-caption">{label || t('common.loading')}</span>
       </div>
     </div>
   );

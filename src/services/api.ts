@@ -25,6 +25,7 @@ import type {
   ApiUserSettings,
   ExportFormat,
   ExportKind,
+  RegisterPendingResponse,
   UserProfile
 } from '../types/quiz';
 
@@ -32,13 +33,19 @@ const configuredApiUrl = (
   import.meta.env.VITE_API_BASE_URL || 'https://quiz-clash-backend-ff3l.onrender.com/api/v1'
 ).replace(/\/+$/, '');
 
-// Route remote HTTPS API calls through same-origin /api/v1 when using Vite dev proxy
-// or Vercel rewrites (set VITE_USE_DIRECT_API=true to bypass the same-origin proxy).
+// Route remote HTTPS API calls (or localhost API calls accessed from a LAN device in dev)
+// through same-origin /api/v1 when using Vite dev proxy or Vercel rewrites
+// (set VITE_USE_DIRECT_API=true to bypass the same-origin proxy).
+const isLocalhostApi = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/i.test(configuredApiUrl);
+const isBrowserOnLocalhost =
+  typeof window !== 'undefined' &&
+  /^(localhost|127\.0\.0\.1|\[::1\])$/i.test(window.location.hostname);
+
 const useSameOriginProxy =
   import.meta.env.VITE_USE_DIRECT_API !== 'true' &&
   import.meta.env.VITE_USE_DEV_PROXY !== 'false' &&
   /^https?:\/\//i.test(configuredApiUrl) &&
-  !/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/i.test(configuredApiUrl);
+  (!isLocalhostApi || (import.meta.env.DEV && !isBrowserOnLocalhost));
 
 export const API_BASE_URL = useSameOriginProxy ? '/api/v1' : configuredApiUrl;
 
@@ -250,8 +257,8 @@ export async function register(params: {
   password: string;
   display_name: string;
   language?: AppLanguage;
-}): Promise<UserProfile> {
-  return apiJson<UserProfile>('/auth/register', {
+}): Promise<RegisterPendingResponse> {
+  return apiJson<RegisterPendingResponse>('/auth/register', {
     method: 'POST',
     language: params.language,
     body: JSON.stringify({

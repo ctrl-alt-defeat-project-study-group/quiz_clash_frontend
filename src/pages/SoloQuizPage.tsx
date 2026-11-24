@@ -12,7 +12,7 @@ import {
   X
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { PageHeader, SectionCard } from '../components/common';
+import { PageHeader, SectionCard, SoloQuizSkeleton } from '../components/common';
 
 const LETTERS = ['A', 'B', 'C', 'D'];
 const pad2 = (n: number) => String(n).padStart(2, '0');
@@ -155,6 +155,10 @@ export const SoloQuizPage: React.FC = () => {
         </SectionCard>
       </>
     );
+  }
+
+  if (quiz.backendId && !quiz.questionsLoaded && quiz.questions.length === 0) {
+    return <SoloQuizSkeleton />;
   }
 
   const currentQ = quiz.questions[origIdx] ||
