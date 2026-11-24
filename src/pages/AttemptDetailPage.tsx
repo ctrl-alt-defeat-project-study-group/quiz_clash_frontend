@@ -85,7 +85,7 @@ export const AttemptDetailPage: React.FC = () => {
           }
         ]}
         title={attempt.quizTitle}
-        subtitle={t('results.subtitle', { quizTitle: attempt.quizTitle })}
+        subtitle={t('results.detailSubtitle', { date: attempt.dateLabel })}
         actions={
           <Link to="/history" className="btn">
             {t('common.back')}
