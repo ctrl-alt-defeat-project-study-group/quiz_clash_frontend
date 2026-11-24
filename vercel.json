@@ -4,7 +4,7 @@
   "rewrites": [
     {
       "source": "/api/v1/:path*",
-      "destination": "https://quiz-clash-backend-ff3l.onrender.com/api/v1/:path*"
+      "destination": "https://quizclash-api.duckdns.org/api/v1/:path*"
     },
     {
       "source": "/(.*)",

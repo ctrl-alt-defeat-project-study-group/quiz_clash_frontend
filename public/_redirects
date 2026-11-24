@@ -1,2 +1,2 @@
-/api/v1/*  https://quiz-clash-backend-ff3l.onrender.com/api/v1/:splat  200!
+/api/v1/*  https://quizclash-api.duckdns.org/api/v1/:splat  200!
 /*         /index.html                                            200
