@@ -1,5 +1,6 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { FolderOpen, Trash2 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { PageHeader, SectionCard, StatCard } from '../components/common';
 
@@ -117,21 +118,24 @@ export const DashboardPage: React.FC = () => {
                     </td>
                     <td>{q.updated || t('common.today')}</td>
                     <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                      <div className="table-action-group">
                         <button
                           type="button"
-                          className="text-link"
+                          className="table-action-btn is-primary"
+                          title={t('dashboard.openQuiz')}
+                          aria-label={t('dashboard.openQuiz')}
                           onClick={() => {
                             setActiveQuizId(q.id);
                             navigate(`/quizzes/${encodeURIComponent(q.id)}`);
                           }}
                         >
-                          {t('dashboard.openQuiz')}
+                          <FolderOpen size={15} aria-hidden="true" />
                         </button>
                         <button
                           type="button"
-                          className="text-link"
-                          style={{ color: 'var(--danger, #dc2626)' }}
+                          className="table-action-btn is-danger"
+                          title={t('review.deleteQuiz')}
+                          aria-label={t('review.deleteQuiz')}
                           onClick={() => {
                             openModal({
                               title: t('review.deleteQuizConfirmTitle'),
@@ -143,7 +147,7 @@ export const DashboardPage: React.FC = () => {
                             });
                           }}
                         >
-                          {t('review.deleteQuiz')}
+                          <Trash2 size={15} aria-hidden="true" />
                         </button>
                       </div>
                     </td>
@@ -192,10 +196,10 @@ export const DashboardPage: React.FC = () => {
             <p className="page-subtitle">{t('dashboard.multiplayerSubtitle')}</p>
           </div>
           <div className="btn-row">
-            <Link to="/lobby" className="btn btn-primary">
+            <Link to="/lobby?mode=host" className="btn btn-primary">
               {t('dashboard.hostGame')}
             </Link>
-            <Link to="/lobby" className="btn">
+            <Link to="/lobby?mode=join" className="btn">
               {t('dashboard.joinWithPin')}
             </Link>
           </div>

@@ -67,7 +67,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
       active: path.startsWith('/generate') || path === '/s2'
     },
     {
-      label: t('nav.yourLibrary'),
+      label: t('nav.myQuizzes'),
       to: '/quizzes',
       active:
         path.startsWith('/quizzes') ||

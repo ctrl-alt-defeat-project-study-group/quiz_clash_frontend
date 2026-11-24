@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowRight, BarChart3, History, Trash2 } from 'lucide-react';
+import { ArrowRight, BarChart3, Eye, History, Trash2 } from 'lucide-react';
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts';
 import { useApp } from '../context/AppContext';
 import { AppPagination, PageHeader, SectionCard, StatCard } from '../components/common';
@@ -108,23 +108,26 @@ export const ResultsHistoryPage: React.FC = () => {
                   </td>
                   <td>
                     {item.role === 'host' ? (
-                      <button
-                        type="button"
-                        className="text-link"
-                        style={{ color: 'var(--danger, #dc2626)' }}
-                        onClick={() => {
-                          openModal({
-                            title: t('results.deleteAttemptConfirmTitle'),
-                            message: t('results.deleteAttemptConfirmMsg'),
-                            confirmLabel: t('results.deleteAttempt'),
-                            onConfirm: () => {
-                              void deleteLiveHistoryRoom(item.id);
-                            }
-                          });
-                        }}
-                      >
-                        {t('results.deleteAttempt')}
-                      </button>
+                      <div className="table-action-group">
+                        <button
+                          type="button"
+                          className="table-action-btn is-danger"
+                          title={t('results.deleteAttempt')}
+                          aria-label={t('results.deleteAttempt')}
+                          onClick={() => {
+                            openModal({
+                              title: t('results.deleteAttemptConfirmTitle'),
+                              message: t('results.deleteAttemptConfirmMsg'),
+                              confirmLabel: t('results.deleteAttempt'),
+                              onConfirm: () => {
+                                void deleteLiveHistoryRoom(item.id);
+                              }
+                            });
+                          }}
+                        >
+                          <Trash2 size={15} aria-hidden="true" />
+                        </button>
+                      </div>
                     ) : (
                       <span className="helper-text">—</span>
                     )}
@@ -390,21 +393,24 @@ export const ResultsHistoryPage: React.FC = () => {
                   </td>
                   <td>{h.duration}</td>
                   <td>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                    <div className="table-action-group">
                       <button
                         type="button"
-                        className="text-link"
+                        className="table-action-btn is-primary"
+                        title={t('results.viewAttempt')}
+                        aria-label={t('results.viewAttempt')}
                         onClick={() => {
                           setActiveAttemptId(h.id);
                           navigate(`/attempts/${encodeURIComponent(h.id)}`);
                         }}
                       >
-                        {t('results.viewAttempt')}
+                        <Eye size={15} aria-hidden="true" />
                       </button>
                       <button
                         type="button"
-                        className="text-link"
-                        style={{ color: 'var(--danger, #dc2626)' }}
+                        className="table-action-btn is-danger"
+                        title={t('results.deleteAttempt')}
+                        aria-label={t('results.deleteAttempt')}
                         onClick={() => {
                           openModal({
                             title: t('results.deleteAttemptConfirmTitle'),
@@ -416,7 +422,7 @@ export const ResultsHistoryPage: React.FC = () => {
                           });
                         }}
                       >
-                        {t('results.deleteAttempt')}
+                        <Trash2 size={15} aria-hidden="true" />
                       </button>
                     </div>
                   </td>

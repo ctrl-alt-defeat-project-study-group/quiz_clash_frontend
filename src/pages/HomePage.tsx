@@ -472,7 +472,7 @@ export const HomePage: React.FC = () => {
                 {t('home.createQuizBtn')}
               </Link>
               {user ? (
-                <Link to="/lobby" className="qh-btn">
+                <Link to="/lobby?mode=join" className="qh-btn">
                   {t('home.joinWithPinBtn')}
                 </Link>
               ) : (

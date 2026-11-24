@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { Search, Trash2 } from 'lucide-react';
+import { FolderOpen, Play, Search, Trash2 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { AppPagination, PageHeader, SectionCard } from '../components/common';
 import { QuizReviewWorkspace } from '../components/quiz/QuizReviewWorkspace';
@@ -225,31 +225,36 @@ export const ReviewExportPage: React.FC = () => {
                         </td>
                         <td>{q.updated || t('common.today')}</td>
                         <td>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                          <div className="table-action-group">
                             <button
                               type="button"
-                              className="text-link"
+                              className="table-action-btn is-primary"
+                              title={t('dashboard.openQuiz')}
+                              aria-label={t('dashboard.openQuiz')}
                               onClick={() => {
                                 setActiveQuizId(q.id);
                                 navigate(`/quizzes/${encodeURIComponent(q.id)}`);
                               }}
                             >
-                              {t('dashboard.openQuiz')}
+                              <FolderOpen size={15} aria-hidden="true" />
                             </button>
                             <button
                               type="button"
-                              className="text-link"
+                              className="table-action-btn is-primary"
+                              title={t('review.playSoloShort')}
+                              aria-label={t('review.playSoloShort')}
                               onClick={() => {
                                 startPractice(q.id);
                                 navigate(`/quizzes/${encodeURIComponent(q.id)}/play`);
                               }}
                             >
-                              {t('review.playSoloShort')}
+                              <Play size={15} aria-hidden="true" />
                             </button>
                             <button
                               type="button"
-                              className="text-link"
-                              style={{ color: 'var(--danger, #dc2626)' }}
+                              className="table-action-btn is-danger"
+                              title={t('review.deleteQuiz')}
+                              aria-label={t('review.deleteQuiz')}
                               onClick={() => {
                                 openModal({
                                   title: t('review.deleteQuizConfirmTitle'),
@@ -261,7 +266,7 @@ export const ReviewExportPage: React.FC = () => {
                                 });
                               }}
                             >
-                              {t('review.deleteQuiz')}
+                              <Trash2 size={15} aria-hidden="true" />
                             </button>
                           </div>
                         </td>

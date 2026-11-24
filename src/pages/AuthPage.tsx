@@ -6,7 +6,6 @@ import {
   CheckCircle2,
   Eye,
   EyeOff,
-  KeyRound,
   Loader2,
   Lock,
   Mail,
@@ -86,6 +85,15 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode }) => {
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [googleSubmitting, setGoogleSubmitting] = useState<boolean>(false);
   const [forgotSent, setForgotSent] = useState<boolean>(false);
+  const [resendCooldown, setResendCooldown] = useState<number>(0);
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = window.setInterval(() => {
+      setResendCooldown((prev) => (prev <= 1 ? 0 : prev - 1));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [resendCooldown]);
 
   const getOAuthErrorMessage = (code: string): string => {
     const messageMap: Record<string, string> = {
@@ -1230,111 +1238,357 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode }) => {
             </div>
           </figure>
         </main>
+      ) : mode === 'forgot' || mode === 'reset' ? (
+        /* FORGOT PASSWORD / CHECK YOUR INBOX / RESET PASSWORD CARD */
+        <main className="verify-layout">
+          <article
+            className={`qc-reset-card${mode === 'forgot' && forgotSent ? ' is-inbox' : ''}`}
+          >
+            {mode === 'forgot' && forgotSent ? (
+              <section className="qc-inbox-grid" aria-labelledby="reset-sent-heading">
+                <div className="qc-postal-art" aria-hidden="true">
+                  <div className="qc-envelope-art">
+                    <span className="qc-envelope-letter" />
+                    <span className="qc-envelope-fold" />
+                    <span className="qc-envelope-stamp">
+                      <span className="brand-mark" />
+                    </span>
+                  </div>
+                </div>
+
+                <div className="qc-delivery">
+                  <h1 id="reset-sent-heading" tabIndex={-1}>
+                    {t('auth.forgotSentTitle')}
+                  </h1>
+                  <p>{t('auth.forgotSentSubtitle')}</p>
+
+                  <div className="qc-address-row">
+                    <span className="qc-address-icon" aria-hidden="true">
+                      <Mail size={18} strokeWidth={1.8} />
+                    </span>
+                    <strong className="qc-recipient" dir="ltr">
+                      {email.trim()}
+                    </strong>
+                    <button
+                      type="button"
+                      className="qc-edit-email-btn"
+                      onClick={() => {
+                        setForgotSent(false);
+                        setResendCooldown(0);
+                        setInfoMessage('');
+                        setError('');
+                      }}
+                    >
+                      {t('auth.forgotEditEmail')}
+                    </button>
+                  </div>
+
+                  <p>{t('auth.forgotSentHint')}</p>
+
+                  <Link
+                    to="/login"
+                    className="qc-reset-primary"
+                    onClick={handleModeSwitchClick}
+                  >
+                    <span>{t('auth.backToSignIn').replace(/^←\s*/, '')}</span>
+                    <ArrowRight size={17} strokeWidth={2} aria-hidden="true" />
+                  </Link>
+
+                  <div className="qc-follow-up">
+                    <span>{t('auth.forgotResendPrompt')}</span>
+                    <button
+                      type="button"
+                      disabled={submitting || resendCooldown > 0}
+                      onClick={async () => {
+                        if (!email.trim()) return;
+                        setError('');
+                        setSubmitting(true);
+                        try {
+                          await api.forgotPassword(email.trim(), uiLanguage);
+                          setResendCooldown(30);
+                          showToast(t('toasts.passwordResetSent'), 'info');
+                        } catch (err) {
+                          setError(getErrorMessage(err));
+                        } finally {
+                          setSubmitting(false);
+                        }
+                      }}
+                    >
+                      {t('auth.forgotResendAction')}
+                    </button>
+                  </div>
+
+                  {resendCooldown > 0 && (
+                    <p className="qc-delivery-feedback" role="status">
+                      {t('auth.forgotResendCooldown', { seconds: resendCooldown })}
+                    </p>
+                  )}
+
+                  {error && (
+                    <p
+                      className="verify-feedback"
+                      id="verify-feedback"
+                      data-feedback="error"
+                      role="alert"
+                    >
+                      <AlertCircle size={17} strokeWidth={2} aria-hidden="true" />
+                      <span>{error}</span>
+                    </p>
+                  )}
+                </div>
+              </section>
+            ) : (
+              <>
+                <div className="qc-reset-art" aria-hidden="true">
+                  <div className="qc-envelope-art">
+                    <span className="qc-envelope-letter" />
+                    <span className="qc-envelope-fold" />
+                    <span className="qc-envelope-stamp">
+                      <span className="brand-mark" />
+                    </span>
+                  </div>
+                </div>
+
+                <div className="qc-reset-content">
+                  <h1 id="verify-heading" tabIndex={-1}>
+                    {mode === 'forgot'
+                      ? t('auth.forgotTitle')
+                      : !queryToken.trim()
+                      ? t('auth.resetInvalidLinkTitle')
+                      : t('auth.resetTitle')}
+                  </h1>
+                  <p className="qc-reset-intro">
+                    {mode === 'forgot'
+                      ? t('auth.forgotSubtitle')
+                      : !queryToken.trim()
+                      ? t('auth.resetInvalidLinkDesc')
+                      : t('auth.resetSubtitle')}
+                  </p>
+
+                  {mode === 'reset' && !queryToken.trim() ? (
+                    <Link
+                      to="/forgot-password"
+                      className="qc-reset-primary"
+                      onClick={handleModeSwitchClick}
+                    >
+                      <span>{t('auth.resetRequestNewLink')}</span>
+                      <ArrowRight size={17} strokeWidth={2} aria-hidden="true" />
+                    </Link>
+                  ) : (
+                    <form method="post" noValidate onSubmit={handleAuxSubmit}>
+                      <fieldset className="form-fields" disabled={submitting}>
+                        {mode === 'forgot' && (
+                          <div className="field">
+                            <label htmlFor="aux-email">{t('auth.emailLabel')}</label>
+                            <div className="field-control">
+                              <span className="field-icon" aria-hidden="true">
+                                <Mail size={17} strokeWidth={1.7} />
+                              </span>
+                              <input
+                                id="aux-email"
+                                name="email"
+                                type="email"
+                                autoComplete="email"
+                                placeholder={t('auth.emailPlaceholder')}
+                                required
+                                value={email}
+                                aria-invalid={fieldErrors.email ? 'true' : undefined}
+                                aria-describedby={fieldErrors.email ? 'aux-email-error' : undefined}
+                                onChange={(e) => {
+                                  setEmail(e.target.value);
+                                  if (fieldErrors.email) {
+                                    setFieldErrors((prev) => ({ ...prev, email: undefined }));
+                                  }
+                                  if (error) setError('');
+                                }}
+                              />
+                            </div>
+                            {fieldErrors.email && (
+                              <p className="field-error" id="aux-email-error">
+                                {fieldErrors.email}
+                              </p>
+                            )}
+                          </div>
+                        )}
+
+                        {mode === 'reset' && (
+                          <>
+                            <div className="field">
+                              <label htmlFor="aux-password">{t('auth.newPasswordLabel')}</label>
+                              <div className="field-control password-field">
+                                <span className="field-icon" aria-hidden="true">
+                                  <Lock size={17} strokeWidth={1.7} />
+                                </span>
+                                <input
+                                  id="aux-password"
+                                  name="password"
+                                  type={showLoginPassword ? 'text' : 'password'}
+                                  autoComplete="new-password"
+                                  minLength={8}
+                                  placeholder={t('auth.newPasswordPlaceholder')}
+                                  required
+                                  value={password}
+                                  aria-invalid={fieldErrors.password ? 'true' : undefined}
+                                  aria-describedby="aux-password-hint aux-password-error"
+                                  onChange={(e) => {
+                                    setPassword(e.target.value);
+                                    if (fieldErrors.password) {
+                                      setFieldErrors((prev) => ({ ...prev, password: undefined }));
+                                    }
+                                    if (error) setError('');
+                                  }}
+                                />
+                                <button
+                                  type="button"
+                                  className="password-toggle"
+                                  aria-controls="aux-password"
+                                  aria-label={
+                                    showLoginPassword
+                                      ? t('common.hidePassword')
+                                      : t('common.showPassword')
+                                  }
+                                  onClick={() => setShowLoginPassword((prev) => !prev)}
+                                >
+                                  {showLoginPassword ? (
+                                    <EyeOff size={18} aria-hidden="true" />
+                                  ) : (
+                                    <Eye size={18} aria-hidden="true" />
+                                  )}
+                                </button>
+                              </div>
+                              <p className="qc-reset-hint" id="aux-password-hint">
+                                {t('auth.resetPasswordHint')}
+                              </p>
+                              {fieldErrors.password && (
+                                <p className="field-error" id="aux-password-error">
+                                  {fieldErrors.password}
+                                </p>
+                              )}
+                            </div>
+
+                            <div className="field">
+                              <label htmlFor="aux-confirm-password">
+                                {t('auth.confirmPasswordLabel')}
+                              </label>
+                              <div className="field-control password-field">
+                                <span className="field-icon" aria-hidden="true">
+                                  <Lock size={17} strokeWidth={1.7} />
+                                </span>
+                                <input
+                                  id="aux-confirm-password"
+                                  name="confirmPassword"
+                                  type={showConfirmPassword ? 'text' : 'password'}
+                                  autoComplete="new-password"
+                                  placeholder={t('auth.confirmPasswordPlaceholder')}
+                                  required
+                                  value={confirmPassword}
+                                  aria-invalid={fieldErrors.confirm ? 'true' : undefined}
+                                  aria-describedby={
+                                    fieldErrors.confirm ? 'aux-confirm-error' : undefined
+                                  }
+                                  onChange={(e) => {
+                                    setConfirmPassword(e.target.value);
+                                    if (fieldErrors.confirm) {
+                                      setFieldErrors((prev) => ({ ...prev, confirm: undefined }));
+                                    }
+                                    if (error) setError('');
+                                  }}
+                                />
+                                <button
+                                  type="button"
+                                  className="password-toggle"
+                                  aria-controls="aux-confirm-password"
+                                  aria-label={
+                                    showConfirmPassword
+                                      ? t('common.hidePassword')
+                                      : t('common.showPassword')
+                                  }
+                                  onClick={() => setShowConfirmPassword((prev) => !prev)}
+                                >
+                                  {showConfirmPassword ? (
+                                    <EyeOff size={18} aria-hidden="true" />
+                                  ) : (
+                                    <Eye size={18} aria-hidden="true" />
+                                  )}
+                                </button>
+                              </div>
+                              {fieldErrors.confirm && (
+                                <p className="field-error" id="aux-confirm-error">
+                                  {fieldErrors.confirm}
+                                </p>
+                              )}
+                            </div>
+                          </>
+                        )}
+
+                        <button className="qc-reset-primary" type="submit" disabled={submitting}>
+                          <span>
+                            {submitting
+                              ? t('auth.submitting')
+                              : mode === 'forgot'
+                              ? t('auth.forgotBtn').replace(/\s*→$/, '')
+                              : t('auth.resetBtn').replace(/\s*→$/, '')}
+                          </span>
+                          {!submitting && (
+                            <ArrowRight size={17} strokeWidth={2} aria-hidden="true" />
+                          )}
+                        </button>
+                      </fieldset>
+
+                      {error && (
+                        <p
+                          className="verify-feedback"
+                          id="verify-feedback"
+                          data-feedback="error"
+                          role="alert"
+                        >
+                          <AlertCircle size={17} strokeWidth={2} aria-hidden="true" />
+                          <span>{error}</span>
+                        </p>
+                      )}
+                    </form>
+                  )}
+
+                  <div className="qc-reset-foot">
+                    {mode === 'reset' && queryToken.trim() ? (
+                      <Link to="/forgot-password" onClick={handleModeSwitchClick}>
+                        {t('auth.resetRequestNewLink')}
+                      </Link>
+                    ) : (
+                      <Link to="/login" onClick={handleModeSwitchClick}>
+                        {t('auth.backToSignIn')}
+                      </Link>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+          </article>
+        </main>
       ) : (
-        /* VERIFY EMAIL / FORGOT PASSWORD / RESET PASSWORD CENTERED PANEL */
+        /* VERIFY EMAIL (6-DIGIT OTP) CENTERED PANEL */
         <main className="verify-layout">
           <section className="verify-panel" aria-labelledby="verify-heading">
             <header className="verify-heading">
               <span className="verify-icon" aria-hidden="true">
-                {mode === 'verify' || (mode === 'forgot' && forgotSent) ? (
-                  <MailCheck size={27} strokeWidth={1.8} />
-                ) : (
-                  <KeyRound size={26} strokeWidth={1.8} />
-                )}
+                <MailCheck size={27} strokeWidth={1.8} />
               </span>
               <h1 id="verify-heading" tabIndex={-1}>
-                {mode === 'verify'
-                  ? t('auth.verifyTitle')
-                  : mode === 'forgot'
-                  ? forgotSent
-                    ? t('auth.forgotSentTitle')
-                    : t('auth.forgotTitle')
-                  : !queryToken.trim()
-                  ? t('auth.resetInvalidLinkTitle')
-                  : t('auth.resetTitle')}
+                {t('auth.verifyTitle')}
               </h1>
-              {mode === 'verify' ? (
-                <p className="intro">
-                  <span>{t('auth.verifySentTo')}</span>
-                  {email.trim() && (
-                    <strong className="verify-recipient" dir="ltr">
-                      {email.trim()}
-                    </strong>
-                  )}
-                </p>
-              ) : mode === 'forgot' && forgotSent ? (
-                <p className="intro">
-                  <span>{t('auth.forgotSentSubtitle')}</span>
-                  {email.trim() && (
-                    <strong className="verify-recipient" dir="ltr">
-                      {email.trim()}
-                    </strong>
-                  )}
-                  <span style={{ display: 'block', marginTop: 6 }}>{t('auth.forgotSentHint')}</span>
-                </p>
-              ) : (
-                <p className="intro">
-                  {mode === 'forgot'
-                    ? t('auth.forgotSubtitle')
-                    : !queryToken.trim()
-                    ? t('auth.resetInvalidLinkDesc')
-                    : t('auth.resetSubtitle')}
-                </p>
-              )}
+              <p className="intro">
+                <span>{t('auth.verifySentTo')}</span>
+                {email.trim() && (
+                  <strong className="verify-recipient" dir="ltr">
+                    {email.trim()}
+                  </strong>
+                )}
+              </p>
             </header>
 
-            {mode === 'reset' && !queryToken.trim() ? (
-              <div className="form-fields">
-                <Link
-                  to="/forgot-password"
-                  className="submit-button verify-submit"
-                  onClick={handleModeSwitchClick}
-                >
-                  <span>{t('auth.resetRequestNewLink')}</span>
-                  <ArrowRight size={17} strokeWidth={2} aria-hidden="true" />
-                </Link>
-              </div>
-            ) : mode === 'forgot' && forgotSent ? (
-              <div className="form-fields">
-                {error && (
-                  <p
-                    className="verify-feedback"
-                    id="verify-feedback"
-                    data-feedback="error"
-                    role="alert"
-                  >
-                    <AlertCircle size={17} strokeWidth={2} aria-hidden="true" />
-                    <span>{error}</span>
-                  </p>
-                )}
-
-                <div className="verify-resend">
-                  <span>{t('auth.forgotResendPrompt')}</span>
-                  <button
-                    type="button"
-                    disabled={submitting}
-                    onClick={async () => {
-                      if (!email.trim()) return;
-                      setError('');
-                      setSubmitting(true);
-                      try {
-                        await api.forgotPassword(email.trim(), uiLanguage);
-                        showToast(t('toasts.passwordResetSent'), 'info');
-                      } catch (err) {
-                        setError(getErrorMessage(err));
-                      } finally {
-                        setSubmitting(false);
-                      }
-                    }}
-                  >
-                    {t('auth.forgotResendAction')}
-                  </button>
-                </div>
-              </div>
-            ) : (
             <form method="post" noValidate onSubmit={handleAuxSubmit}>
               <fieldset className="form-fields" disabled={submitting}>
-                {(mode === 'forgot' || (mode === 'verify' && !queryEmail)) && (
+                {!queryEmail && (
                   <div className="field">
                     <label htmlFor="aux-email">{t('auth.emailLabel')}</label>
                     <div className="field-control">
@@ -1347,185 +1601,66 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode }) => {
                         type="email"
                         autoComplete="username"
                         placeholder={t('auth.emailPlaceholder')}
-                        required={mode === 'forgot'}
                         value={email}
-                        aria-invalid={fieldErrors.email ? 'true' : undefined}
-                        aria-describedby={fieldErrors.email ? 'aux-email-error' : undefined}
-                        onChange={(e) => {
-                          setEmail(e.target.value);
-                          if (fieldErrors.email) {
-                            setFieldErrors((prev) => ({ ...prev, email: undefined }));
-                          }
-                          if (error) setError('');
-                        }}
-                      />
-                    </div>
-                    {fieldErrors.email && (
-                      <p className="field-error" id="aux-email-error">
-                        {fieldErrors.email}
-                      </p>
-                    )}
-                  </div>
-                )}
-
-                {mode === 'verify' && (
-                  <div className="field">
-                    <label htmlFor="verify-code">{t('auth.verifyCodeLabel')}</label>
-                    <div className="verify-code">
-                      <div className="verify-code-slots" aria-hidden="true">
-                        {Array.from({ length: OTP_LENGTH }, (_, idx) => {
-                          const digit = token[idx];
-                          const activeIndex = Math.min(otpSelection.start, OTP_LENGTH - 1);
-                          const isSelected =
-                            idx >= otpSelection.start && idx < otpSelection.end;
-                          return (
-                            <span
-                              key={idx}
-                              className="verify-code-slot"
-                              data-filled={digit !== undefined ? '' : undefined}
-                              data-active={idx === activeIndex ? '' : undefined}
-                              data-selected={isSelected ? '' : undefined}
-                            >
-                              {digit !== undefined ? (
-                                digit
-                              ) : (
-                                <span className="verify-code-dash"></span>
-                              )}
-                            </span>
-                          );
-                        })}
-                      </div>
-                      <input
-                        ref={otpInputRef}
-                        id="verify-code"
-                        name="token"
-                        type="text"
-                        dir="ltr"
-                        inputMode="numeric"
-                        autoComplete="one-time-code"
-                        spellCheck={false}
-                        aria-required="true"
-                        aria-invalid={error ? 'true' : undefined}
-                        aria-describedby={error ? 'verify-feedback' : undefined}
-                        value={token}
-                        onChange={handleOtpChange}
-                        onFocus={syncOtpSelection}
-                        onSelect={syncOtpSelection}
-                        onKeyUp={syncOtpSelection}
-                        onClick={handleOtpClick}
+                        onChange={(e) => setEmail(e.target.value)}
                       />
                     </div>
                   </div>
                 )}
 
-                {mode === 'reset' && (
-                  <>
-                    <div className="field">
-                      <label htmlFor="aux-password">{t('auth.newPasswordLabel')}</label>
-                      <div className="field-control password-field">
-                        <span className="field-icon" aria-hidden="true">
-                          <Lock size={17} strokeWidth={1.7} />
-                        </span>
-                        <input
-                          id="aux-password"
-                          name="password"
-                          type={showLoginPassword ? 'text' : 'password'}
-                          autoComplete="new-password"
-                          minLength={8}
-                          placeholder={t('auth.newPasswordPlaceholder')}
-                          required
-                          value={password}
-                          aria-invalid={fieldErrors.password ? 'true' : undefined}
-                          aria-describedby={fieldErrors.password ? 'aux-password-error' : undefined}
-                          onChange={(e) => {
-                            setPassword(e.target.value);
-                            if (fieldErrors.password) {
-                              setFieldErrors((prev) => ({ ...prev, password: undefined }));
-                            }
-                            if (error) setError('');
-                          }}
-                        />
-                        <button
-                          type="button"
-                          className="password-toggle"
-                          aria-controls="aux-password"
-                          aria-label={
-                            showLoginPassword ? t('common.hidePassword') : t('common.showPassword')
-                          }
-                          onClick={() => setShowLoginPassword((prev) => !prev)}
-                        >
-                          {showLoginPassword ? (
-                            <EyeOff size={18} aria-hidden="true" />
-                          ) : (
-                            <Eye size={18} aria-hidden="true" />
-                          )}
-                        </button>
-                      </div>
-                      {fieldErrors.password && (
-                        <p className="field-error" id="aux-password-error">
-                          {fieldErrors.password}
-                        </p>
-                      )}
+                <div className="field">
+                  <label htmlFor="verify-code">{t('auth.verifyCodeLabel')}</label>
+                  <div className="verify-code">
+                    <div className="verify-code-slots" aria-hidden="true">
+                      {Array.from({ length: OTP_LENGTH }, (_, idx) => {
+                        const digit = token[idx];
+                        const activeIndex = Math.min(otpSelection.start, OTP_LENGTH - 1);
+                        const isSelected =
+                          idx >= otpSelection.start && idx < otpSelection.end;
+                        return (
+                          <span
+                            key={idx}
+                            className="verify-code-slot"
+                            data-filled={digit !== undefined ? '' : undefined}
+                            data-active={idx === activeIndex ? '' : undefined}
+                            data-selected={isSelected ? '' : undefined}
+                          >
+                            {digit !== undefined ? (
+                              digit
+                            ) : (
+                              <span className="verify-code-dash"></span>
+                            )}
+                          </span>
+                        );
+                      })}
                     </div>
-
-                    <div className="field">
-                      <label htmlFor="aux-confirm-password">{t('auth.confirmPasswordLabel')}</label>
-                      <div className="field-control password-field">
-                        <span className="field-icon" aria-hidden="true">
-                          <Lock size={17} strokeWidth={1.7} />
-                        </span>
-                        <input
-                          id="aux-confirm-password"
-                          name="confirmPassword"
-                          type={showConfirmPassword ? 'text' : 'password'}
-                          autoComplete="new-password"
-                          placeholder={t('auth.confirmPasswordPlaceholder')}
-                          required
-                          value={confirmPassword}
-                          aria-invalid={fieldErrors.confirm ? 'true' : undefined}
-                          aria-describedby={fieldErrors.confirm ? 'aux-confirm-error' : undefined}
-                          onChange={(e) => {
-                            setConfirmPassword(e.target.value);
-                            if (fieldErrors.confirm) {
-                              setFieldErrors((prev) => ({ ...prev, confirm: undefined }));
-                            }
-                            if (error) setError('');
-                          }}
-                        />
-                        <button
-                          type="button"
-                          className="password-toggle"
-                          aria-controls="aux-confirm-password"
-                          aria-label={
-                            showConfirmPassword ? t('common.hidePassword') : t('common.showPassword')
-                          }
-                          onClick={() => setShowConfirmPassword((prev) => !prev)}
-                        >
-                          {showConfirmPassword ? (
-                            <EyeOff size={18} aria-hidden="true" />
-                          ) : (
-                            <Eye size={18} aria-hidden="true" />
-                          )}
-                        </button>
-                      </div>
-                      {fieldErrors.confirm && (
-                        <p className="field-error" id="aux-confirm-error">
-                          {fieldErrors.confirm}
-                        </p>
-                      )}
-                    </div>
-                  </>
-                )}
+                    <input
+                      ref={otpInputRef}
+                      id="verify-code"
+                      name="token"
+                      type="text"
+                      dir="ltr"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      spellCheck={false}
+                      aria-required="true"
+                      aria-invalid={error ? 'true' : undefined}
+                      aria-describedby={error ? 'verify-feedback' : undefined}
+                      value={token}
+                      onChange={handleOtpChange}
+                      onFocus={syncOtpSelection}
+                      onSelect={syncOtpSelection}
+                      onKeyUp={syncOtpSelection}
+                      onClick={handleOtpClick}
+                    />
+                  </div>
+                </div>
 
                 <button className="submit-button verify-submit" type="submit" disabled={submitting}>
                   <span>
                     {submitting
                       ? t('auth.submitting')
-                      : mode === 'verify'
-                      ? t('auth.verifyBtn').replace(/\s*→$/, '')
-                      : mode === 'forgot'
-                      ? t('auth.forgotBtn').replace(/\s*→$/, '')
-                      : t('auth.resetBtn').replace(/\s*→$/, '')}
+                      : t('auth.verifyBtn').replace(/\s*→$/, '')}
                   </span>
                   {!submitting && <ArrowRight size={17} strokeWidth={2} aria-hidden="true" />}
                 </button>
@@ -1555,20 +1690,17 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode }) => {
                 </p>
               )}
 
-              {mode === 'verify' && (
-                <div className="verify-resend">
-                  <span>{t('auth.resendPrompt')}</span>
-                  <button
-                    type="button"
-                    disabled={submitting}
-                    onClick={() => void handleResendVerification()}
-                  >
-                    {t('auth.resendShort')}
-                  </button>
-                </div>
-              )}
+              <div className="verify-resend">
+                <span>{t('auth.resendPrompt')}</span>
+                <button
+                  type="button"
+                  disabled={submitting}
+                  onClick={() => void handleResendVerification()}
+                >
+                  {t('auth.resendShort')}
+                </button>
+              </div>
             </form>
-            )}
 
             <footer className="verify-footer">
               <Link to="/login" onClick={handleModeSwitchClick}>

@@ -1,5 +1,15 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Code2, RefreshCw, Search, Shield, Trash2 } from 'lucide-react';
+import {
+  Code2,
+  RefreshCw,
+  Search,
+  Shield,
+  ShieldCheck,
+  ShieldOff,
+  Trash2,
+  UserCheck,
+  UserX
+} from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import * as api from '../services/api';
 import type { ApiAdminQuizSummary, ApiAdminStats, UserProfile } from '../types/quiz';
@@ -315,29 +325,42 @@ export const AdminPage: React.FC = () => {
                       </span>
                     </td>
                     <td>
-                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      <div className="table-action-group">
                         <button
                           type="button"
-                          className="btn btn-sm"
+                          className="table-action-btn is-primary"
+                          title={u.role === 'admin' ? t('admin.makeUser') : t('admin.makeAdmin')}
+                          aria-label={u.role === 'admin' ? t('admin.makeUser') : t('admin.makeAdmin')}
                           onClick={() => void handleToggleUserRole(u)}
                         >
-                          {u.role === 'admin' ? t('admin.makeUser') : t('admin.makeAdmin')}
+                          {u.role === 'admin' ? (
+                            <ShieldOff size={15} aria-hidden="true" />
+                          ) : (
+                            <ShieldCheck size={15} aria-hidden="true" />
+                          )}
                         </button>
                         <button
                           type="button"
-                          className="btn btn-sm"
+                          className="table-action-btn"
+                          title={u.is_active ? t('admin.disableUser') : t('admin.enableUser')}
+                          aria-label={u.is_active ? t('admin.disableUser') : t('admin.enableUser')}
                           onClick={() => void handleToggleUserActive(u)}
                         >
-                          {u.is_active ? t('admin.disableUser') : t('admin.enableUser')}
+                          {u.is_active ? (
+                            <UserX size={15} aria-hidden="true" />
+                          ) : (
+                            <UserCheck size={15} aria-hidden="true" />
+                          )}
                         </button>
                         <button
                           type="button"
-                          className="btn btn-sm btn-danger"
+                          className="table-action-btn is-danger"
+                          title={t('common.delete')}
+                          aria-label={t('common.delete')}
                           onClick={() => handleDeleteUser(u)}
                           disabled={user?.id === u.id}
                         >
-                          <Trash2 size={13} aria-hidden="true" />
-                          <span>{t('common.delete')}</span>
+                          <Trash2 size={15} aria-hidden="true" />
                         </button>
                       </div>
                     </td>
@@ -398,14 +421,17 @@ export const AdminPage: React.FC = () => {
                     <td>{t('common.questionsCount', { count: q.question_count })}</td>
                     <td>{formatShortDate(q.created_at)}</td>
                     <td>
-                      <button
-                        type="button"
-                        className="btn btn-sm btn-danger"
-                        onClick={() => handleDeleteQuiz(q)}
-                      >
-                        <Trash2 size={13} aria-hidden="true" />
-                        <span>{t('common.delete')}</span>
-                      </button>
+                      <div className="table-action-group">
+                        <button
+                          type="button"
+                          className="table-action-btn is-danger"
+                          title={t('common.delete')}
+                          aria-label={t('common.delete')}
+                          onClick={() => handleDeleteQuiz(q)}
+                        >
+                          <Trash2 size={15} aria-hidden="true" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))

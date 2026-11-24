@@ -1,6 +1,6 @@
 import React, { Suspense, useEffect, useRef, useState } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { ChevronDown, Settings } from 'lucide-react';
+import { ChevronDown, Library, Settings } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { PageLoader, ThemeSwitch, UserAvatar } from '../common';
 import { Progress } from '@/components/ui/progress';
@@ -161,23 +161,36 @@ export const AppLayout: React.FC = () => {
         <div className="nav-divider" role="separator"></div>
 
         <div className="nav-group">
-          <button
-            type="button"
-            className={`nav-dropdown-trigger ${libraryOpen ? 'is-open' : ''}`}
-            data-name={isMobile ? undefined : 'YOUR LIBRARY'}
-            aria-expanded={libraryOpen}
-            aria-controls={libraryListId}
-            onClick={() => setLibraryOpen((prev) => !prev)}
-          >
-            <span>{t('nav.yourLibrary')}</span>
-            <ChevronDown size={14} className="nav-dropdown-chevron" aria-hidden="true" />
-          </button>
+          <div className="nav-library-header">
+            <button
+              type="button"
+              className={`nav-dropdown-trigger ${libraryOpen ? 'is-open' : ''}`}
+              data-name={isMobile ? undefined : 'YOUR LIBRARY'}
+              aria-expanded={libraryOpen}
+              aria-controls={libraryListId}
+              onClick={() => setLibraryOpen((prev) => !prev)}
+            >
+              <span>{t('nav.yourLibrary')}</span>
+              <ChevronDown size={14} className="nav-dropdown-chevron" aria-hidden="true" />
+            </button>
+            <Link
+              to="/quizzes"
+              className={`nav-library-icon-btn ${
+                path === '/quizzes' || path === '/s3' ? 'active' : ''
+              }`}
+              aria-label={t('nav.myQuizzes')}
+              aria-current={path === '/quizzes' || path === '/s3' ? 'page' : undefined}
+              title={t('nav.myQuizzes')}
+              onClick={isMobile ? () => setDrawerOpen(false) : undefined}
+            >
+              <Library size={15} aria-hidden="true" />
+            </Link>
+          </div>
           <div id={libraryListId} className={`nav-collapse ${libraryOpen ? 'is-open' : ''}`}>
             <div className="nav-collapse-inner">
               <div className="library-list" aria-label={t('nav.savedQuizzesAria')}>
                 {quizzes.slice(0, 4).map((q) => {
-                  const isSelected =
-                    (path.startsWith('/quizzes') || path === '/s3') && q.id === activeQuizId;
+                  const isSelected = path.startsWith('/quizzes/') && q.id === activeQuizId;
                   return (
                     <button
                       key={q.id}
