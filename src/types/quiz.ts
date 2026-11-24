@@ -17,6 +17,13 @@ export interface ApiMessage {
   message: string;
 }
 
+export interface RegisterPendingResponse {
+  message: string;
+  email: string;
+  display_name: string;
+  verification_required: boolean;
+}
+
 export interface UserProfile {
   id: number;
   email: string;

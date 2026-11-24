@@ -17,6 +17,11 @@ export type ErrorCode =
   | 'EXPORT_FAILED'
   | 'VALIDATION_ERROR'
   | 'UNAUTHORIZED'
+  | 'INVALID_CREDENTIALS'
+  | 'OAUTH_ACCOUNT_USE_GOOGLE'
+  | 'EMAIL_ALREADY_EXISTS'
+  | 'TOKEN_INVALID_OR_EXPIRED'
+  | 'EMAIL_DELIVERY_FAILED'
   | 'EMAIL_NOT_VERIFIED'
   | 'ACCOUNT_DISABLED'
   | 'INVALID_CURRENT_PASSWORD'
@@ -72,6 +77,26 @@ export const ERROR_MESSAGES: Record<ErrorCode, LocalizedText> = {
   UNAUTHORIZED: {
     en: 'Please sign in to continue.',
     mm: 'ဆက်လက်လုပ်ဆောင်ရန် အကောင့်ဝင်ရောက်ပါ။'
+  },
+  INVALID_CREDENTIALS: {
+    en: 'Incorrect email or password.',
+    mm: 'အီးမေးလ် သို့မဟုတ် စကားဝှက် မမှန်ကန်ပါ။'
+  },
+  OAUTH_ACCOUNT_USE_GOOGLE: {
+    en: 'This account uses Google Sign-In. Please continue with Google.',
+    mm: 'ဤအကောင့်သည် Google ဖြင့် ဝင်ရောက်ရန် ဖန်တီးထားပါသည်။ Google ဖြင့် ဆက်လက်ဝင်ရောက်ပါ။'
+  },
+  EMAIL_ALREADY_EXISTS: {
+    en: 'An account with this email already exists.',
+    mm: 'ဤအီးမေးလ်လိပ်စာဖြင့် အကောင့်ရှိပြီးသား ဖြစ်ပါသည်။'
+  },
+  TOKEN_INVALID_OR_EXPIRED: {
+    en: 'Verification code is invalid or has expired.',
+    mm: 'အတည်ပြုကုဒ် မမှန်ကန်ပါ သို့မဟုတ် သက်တမ်းကုန်သွားပါပြီ။'
+  },
+  EMAIL_DELIVERY_FAILED: {
+    en: 'Could not send verification email. Please try again later.',
+    mm: 'အတည်ပြုအီးမေးလ် ပေးပို့၍မရပါ။ ခဏအကြာတွင် ထပ်မံကြိုးစားပါ။'
   },
   EMAIL_NOT_VERIFIED: {
     en: 'Please verify your email address before signing in.',

@@ -2479,8 +2479,8 @@ body.swal2-toast-shown .swal2-container.qc-swal-toast-container {
 }
 
 @media (max-width: 820px) {
-  html,
-  body {
+  html:has(.app-frame),
+  body:has(.app-frame) {
     height: 100%;
     height: 100dvh;
     width: 100%;
@@ -3496,26 +3496,55 @@ html[lang="my"] .qc-auth-page h1 {
 
 .qc-auth-page[data-auth-mode="login"][data-error-preview] .quiz-card,
 .qc-auth-page[data-auth-mode="register"][data-error-preview] .history-card {
-  border-color: color-mix(in srgb, var(--error) 48%, var(--line));
+  background: linear-gradient(155deg, #fff1f2 0%, #fee2e2 100%);
+  border: 1.5px solid #ef4444;
+  box-shadow:
+    0 22px 48px -20px rgb(239 68 68 / 38%),
+    0 0 0 1px rgb(239 68 68 / 18%);
+}
+
+[data-theme="dark"] .qc-auth-page[data-auth-mode="login"][data-error-preview] .quiz-card,
+[data-theme="dark"] .qc-auth-page[data-auth-mode="register"][data-error-preview] .history-card,
+.dark .qc-auth-page[data-auth-mode="login"][data-error-preview] .quiz-card,
+.dark .qc-auth-page[data-auth-mode="register"][data-error-preview] .history-card {
+  background: linear-gradient(155deg, #521720 0%, #3b1119 100%);
+  border: 1.5px solid #f87171;
+  box-shadow:
+    0 24px 52px -18px rgb(239 68 68 / 48%),
+    0 0 0 1px rgb(248 113 113 / 28%);
 }
 
 .qc-auth-page .auth-error-meta {
-  color: var(--error);
+  color: #b91c1c;
 }
 
 .qc-auth-page .auth-error-badge {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 9px;
+  padding: 4px 10px;
   border-radius: 999px;
-  background: var(--danger-bg);
-  color: var(--error);
+  background: #dc2626;
+  color: #ffffff;
+  font-weight: 650;
+}
+
+[data-theme="dark"] .qc-auth-page .auth-error-badge,
+.dark .qc-auth-page .auth-error-badge {
+  background: rgb(239 68 68 / 32%);
+  border: 1px solid rgb(248 113 113 / 60%);
+  color: #ffe4e6;
 }
 
 .qc-auth-page .auth-error-title {
   margin-bottom: 12px;
   line-height: 1.35;
+  color: #991b1b;
+}
+
+[data-theme="dark"] .qc-auth-page .auth-error-title,
+.dark .qc-auth-page .auth-error-title {
+  color: #fff1f2;
 }
 
 .qc-auth-page .auth-error-list {
@@ -3525,8 +3554,13 @@ html[lang="my"] .qc-auth-page h1 {
   margin: 0 0 12px;
   padding: 0;
   list-style: none;
-  color: var(--muted);
+  color: #b91c1c;
   font-size: 0.8rem;
+}
+
+[data-theme="dark"] .qc-auth-page .auth-error-list,
+.dark .qc-auth-page .auth-error-list {
+  color: #fecaca;
 }
 
 .qc-auth-page .auth-error-list li {
@@ -3539,7 +3573,12 @@ html[lang="my"] .qc-auth-page h1 {
   flex: 0 0 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--error);
+  background: #ef4444;
+}
+
+[data-theme="dark"] .qc-auth-page .auth-error-dot,
+.dark .qc-auth-page .auth-error-dot {
+  background: #f87171;
 }
 
 .qc-auth-page .auth-error-action {
@@ -3552,12 +3591,18 @@ html[lang="my"] .qc-auth-page h1 {
   gap: 4px;
   font-size: 0.82rem;
   font-weight: 650;
-  color: var(--accent);
-  text-decoration: none;
+  color: #991b1b;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+[data-theme="dark"] .qc-auth-page .auth-error-action a,
+.dark .qc-auth-page .auth-error-action a {
+  color: #fecaca;
 }
 
 .qc-auth-page .auth-error-action a:hover {
-  text-decoration: underline;
+  opacity: 0.85;
 }
 
 .qc-auth-page .requirement-meter {
@@ -4122,19 +4167,35 @@ html[lang="my"] .qc-auth-page .verify-heading h1 {
 
 @media (max-width: 550px) {
   .qc-auth-page .header-content {
-    flex-wrap: wrap;
-    width: calc(100% - 32px);
-    gap: 6px 10px;
-    padding-block: 10px;
+    flex-wrap: nowrap;
+    width: calc(100% - 24px);
+    min-height: 56px;
+    gap: 8px;
+    padding-block: 6px;
+  }
+
+  .qc-auth-page .brand {
+    gap: 7px;
+    font-size: 1.05rem;
+    flex-shrink: 0;
+  }
+
+  .qc-auth-page .brand-mark {
+    width: 28px;
+    height: 19px;
   }
 
   .qc-auth-page .header-right-actions {
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: 6px;
+    flex-shrink: 0;
   }
 
-  .qc-auth-page .account-switch a {
+  .qc-auth-page .account-switch a,
+  .qc-auth-page .account-switch span {
+    min-height: 30px;
     padding-inline: 8px;
+    font-size: 0.78rem;
   }
 }
 
@@ -5630,6 +5691,7 @@ html[lang="my"] .qc-auth-page .verify-heading h1 {
   color: var(--qh-ink);
   display: flex;
   flex-direction: column;
+  overflow-x: clip;
 }
 
 .qh-container {

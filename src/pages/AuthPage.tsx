@@ -85,6 +85,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode }) => {
   const otpInputRef = useRef<HTMLInputElement | null>(null);
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [googleSubmitting, setGoogleSubmitting] = useState<boolean>(false);
+  const [forgotSent, setForgotSent] = useState<boolean>(false);
 
   const getOAuthErrorMessage = (code: string): string => {
     const messageMap: Record<string, string> = {
@@ -164,6 +165,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode }) => {
     setErrorCode(undefined);
     setInfoMessage('');
     setFieldErrors({});
+    setForgotSent(false);
     setRegisterPasswordFocused(false);
     setConfirmPasswordFocused(false);
   };
@@ -225,9 +227,13 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode }) => {
       await login(email.trim(), password);
       navigate(redirectTo, { replace: true });
     } catch (err) {
-      setError(getErrorMessage(err));
+      const msg = getErrorMessage(err);
+      setError(msg);
       if (err instanceof api.ApiError) {
         setErrorCode(err.code);
+        if (err.code === 'EMAIL_ALREADY_EXISTS') {
+          setFieldErrors((prev) => ({ ...prev, email: msg }));
+        }
       }
     } finally {
       setSubmitting(false);
@@ -309,9 +315,13 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode }) => {
       await register(email.trim(), password, displayName.trim());
       navigate(`/verify-email?email=${encodeURIComponent(email.trim())}`);
     } catch (err) {
-      setError(getErrorMessage(err));
+      const msg = getErrorMessage(err);
+      setError(msg);
       if (err instanceof api.ApiError) {
         setErrorCode(err.code);
+        if (err.code === 'EMAIL_ALREADY_EXISTS') {
+          setFieldErrors((prev) => ({ ...prev, email: msg }));
+        }
       }
     } finally {
       setSubmitting(false);
@@ -367,6 +377,37 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode }) => {
         otpInputRef.current?.focus();
         return;
       }
+    } else if (mode === 'forgot') {
+      const nextErrors: { email?: string } = {};
+      if (!email.trim()) {
+        nextErrors.email = t('auth.errEmailRequired');
+      } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+        nextErrors.email = t('auth.errEmailInvalid');
+      }
+      setFieldErrors(nextErrors);
+      if (Object.keys(nextErrors).length > 0) return;
+    } else if (mode === 'reset') {
+      const nextErrors: { password?: string; confirm?: string } = {};
+      if (!password) {
+        nextErrors.password = t('auth.errPasswordRequired');
+      } else {
+        const unmetRule = passwordChecks.find((rule) => !rule.met);
+        if (unmetRule) {
+          nextErrors.password = unmetRule.errorMessage;
+        }
+      }
+      if (!confirmPassword) {
+        nextErrors.confirm = t('auth.errConfirmRequired');
+      } else if (confirmPassword !== password) {
+        nextErrors.confirm = t('auth.errPasswordsMismatch');
+      }
+      setFieldErrors(nextErrors);
+      if (Object.keys(nextErrors).length > 0) return;
+
+      if (!queryToken.trim()) {
+        setError(t('auth.resetInvalidLinkDesc'));
+        return;
+      }
     }
 
     setSubmitting(true);
@@ -378,10 +419,10 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode }) => {
       } else if (mode === 'forgot') {
         await api.forgotPassword(email.trim(), uiLanguage);
         showToast(t('toasts.passwordResetSent'), 'info');
+        setForgotSent(true);
         setInfoMessage(t('toasts.passwordResetSent'));
-        navigate(`/reset-password?email=${encodeURIComponent(email.trim())}`);
       } else if (mode === 'reset') {
-        await api.resetPassword(token.trim(), password, uiLanguage);
+        await api.resetPassword(queryToken.trim(), password, uiLanguage);
         showToast(t('toasts.passwordResetDone'));
         navigate('/login');
       }
@@ -438,16 +479,22 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode }) => {
       <p className="preview-title auth-error-title">
         {error || activeFieldErrors[0]}
       </p>
-      {(error ? activeFieldErrors.length > 0 : activeFieldErrors.length > 1) && (
-        <ul className="auth-error-list" role="list">
-          {(error ? activeFieldErrors : activeFieldErrors.slice(1)).map((msg) => (
-            <li key={msg}>
-              <span className="auth-error-dot" aria-hidden="true" />
-              <span>{msg}</span>
-            </li>
-          ))}
-        </ul>
-      )}
+      {(() => {
+        const extraErrors = error
+          ? activeFieldErrors.filter((msg) => msg !== error)
+          : activeFieldErrors.slice(1);
+        if (extraErrors.length === 0) return null;
+        return (
+          <ul className="auth-error-list" role="list">
+            {extraErrors.map((msg) => (
+              <li key={msg}>
+                <span className="auth-error-dot" aria-hidden="true" />
+                <span>{msg}</span>
+              </li>
+            ))}
+          </ul>
+        );
+      })()}
       {mode === 'login' && errorCode === 'EMAIL_NOT_VERIFIED' && (
         <div className="auth-error-action">
           <Link
@@ -459,15 +506,16 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode }) => {
           </Link>
         </div>
       )}
-      {mode === 'login' && error && errorCode !== 'EMAIL_NOT_VERIFIED' && (
-        <div className="auth-error-action">
-          <Link to="/forgot-password" onClick={handleModeSwitchClick}>
-            {t('auth.forgotPasswordLink')}
-          </Link>
-        </div>
-      )}
+      {mode === 'login' && error && errorCode === 'INVALID_CREDENTIALS' && (
+          <div className="auth-error-action">
+            <Link to="/forgot-password" onClick={handleModeSwitchClick}>
+              {t('auth.forgotPasswordLink')}
+            </Link>
+          </div>
+        )}
       {mode === 'register' &&
-        (errorCode === 'OAUTH_ACCOUNT_ALREADY_EXISTS' ||
+        (errorCode === 'EMAIL_ALREADY_EXISTS' ||
+          errorCode === 'OAUTH_ACCOUNT_ALREADY_EXISTS' ||
           errorCode === 'ACCOUNT_ALREADY_EXISTS' ||
           errorCode === 'EMAIL_ALREADY_REGISTERED') && (
           <div className="auth-error-action">
@@ -1188,7 +1236,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode }) => {
           <section className="verify-panel" aria-labelledby="verify-heading">
             <header className="verify-heading">
               <span className="verify-icon" aria-hidden="true">
-                {mode === 'verify' ? (
+                {mode === 'verify' || (mode === 'forgot' && forgotSent) ? (
                   <MailCheck size={27} strokeWidth={1.8} />
                 ) : (
                   <KeyRound size={26} strokeWidth={1.8} />
@@ -1198,7 +1246,11 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode }) => {
                 {mode === 'verify'
                   ? t('auth.verifyTitle')
                   : mode === 'forgot'
-                  ? t('auth.forgotTitle')
+                  ? forgotSent
+                    ? t('auth.forgotSentTitle')
+                    : t('auth.forgotTitle')
+                  : !queryToken.trim()
+                  ? t('auth.resetInvalidLinkTitle')
                   : t('auth.resetTitle')}
               </h1>
               {mode === 'verify' ? (
@@ -1210,13 +1262,76 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode }) => {
                     </strong>
                   )}
                 </p>
+              ) : mode === 'forgot' && forgotSent ? (
+                <p className="intro">
+                  <span>{t('auth.forgotSentSubtitle')}</span>
+                  {email.trim() && (
+                    <strong className="verify-recipient" dir="ltr">
+                      {email.trim()}
+                    </strong>
+                  )}
+                  <span style={{ display: 'block', marginTop: 6 }}>{t('auth.forgotSentHint')}</span>
+                </p>
               ) : (
                 <p className="intro">
-                  {mode === 'forgot' ? t('auth.forgotSubtitle') : t('auth.resetSubtitle')}
+                  {mode === 'forgot'
+                    ? t('auth.forgotSubtitle')
+                    : !queryToken.trim()
+                    ? t('auth.resetInvalidLinkDesc')
+                    : t('auth.resetSubtitle')}
                 </p>
               )}
             </header>
 
+            {mode === 'reset' && !queryToken.trim() ? (
+              <div className="form-fields">
+                <Link
+                  to="/forgot-password"
+                  className="submit-button verify-submit"
+                  onClick={handleModeSwitchClick}
+                >
+                  <span>{t('auth.resetRequestNewLink')}</span>
+                  <ArrowRight size={17} strokeWidth={2} aria-hidden="true" />
+                </Link>
+              </div>
+            ) : mode === 'forgot' && forgotSent ? (
+              <div className="form-fields">
+                {error && (
+                  <p
+                    className="verify-feedback"
+                    id="verify-feedback"
+                    data-feedback="error"
+                    role="alert"
+                  >
+                    <AlertCircle size={17} strokeWidth={2} aria-hidden="true" />
+                    <span>{error}</span>
+                  </p>
+                )}
+
+                <div className="verify-resend">
+                  <span>{t('auth.forgotResendPrompt')}</span>
+                  <button
+                    type="button"
+                    disabled={submitting}
+                    onClick={async () => {
+                      if (!email.trim()) return;
+                      setError('');
+                      setSubmitting(true);
+                      try {
+                        await api.forgotPassword(email.trim(), uiLanguage);
+                        showToast(t('toasts.passwordResetSent'), 'info');
+                      } catch (err) {
+                        setError(getErrorMessage(err));
+                      } finally {
+                        setSubmitting(false);
+                      }
+                    }}
+                  >
+                    {t('auth.forgotResendAction')}
+                  </button>
+                </div>
+              </div>
+            ) : (
             <form method="post" noValidate onSubmit={handleAuxSubmit}>
               <fieldset className="form-fields" disabled={submitting}>
                 {(mode === 'forgot' || (mode === 'verify' && !queryEmail)) && (
@@ -1234,9 +1349,22 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode }) => {
                         placeholder={t('auth.emailPlaceholder')}
                         required={mode === 'forgot'}
                         value={email}
-                        onChange={(e) => setEmail(e.target.value)}
+                        aria-invalid={fieldErrors.email ? 'true' : undefined}
+                        aria-describedby={fieldErrors.email ? 'aux-email-error' : undefined}
+                        onChange={(e) => {
+                          setEmail(e.target.value);
+                          if (fieldErrors.email) {
+                            setFieldErrors((prev) => ({ ...prev, email: undefined }));
+                          }
+                          if (error) setError('');
+                        }}
                       />
                     </div>
+                    {fieldErrors.email && (
+                      <p className="field-error" id="aux-email-error">
+                        {fieldErrors.email}
+                      </p>
+                    )}
                   </div>
                 )}
 
@@ -1293,24 +1421,6 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode }) => {
                 {mode === 'reset' && (
                   <>
                     <div className="field">
-                      <label htmlFor="aux-token">{t('auth.tokenLabel')}</label>
-                      <div className="field-control">
-                        <span className="field-icon" aria-hidden="true">
-                          <KeyRound size={17} strokeWidth={1.7} />
-                        </span>
-                        <input
-                          id="aux-token"
-                          name="token"
-                          type="text"
-                          placeholder={t('auth.tokenPlaceholder')}
-                          required
-                          value={token}
-                          onChange={(e) => setToken(e.target.value)}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="field">
                       <label htmlFor="aux-password">{t('auth.newPasswordLabel')}</label>
                       <div className="field-control password-field">
                         <span className="field-icon" aria-hidden="true">
@@ -1325,7 +1435,15 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode }) => {
                           placeholder={t('auth.newPasswordPlaceholder')}
                           required
                           value={password}
-                          onChange={(e) => setPassword(e.target.value)}
+                          aria-invalid={fieldErrors.password ? 'true' : undefined}
+                          aria-describedby={fieldErrors.password ? 'aux-password-error' : undefined}
+                          onChange={(e) => {
+                            setPassword(e.target.value);
+                            if (fieldErrors.password) {
+                              setFieldErrors((prev) => ({ ...prev, password: undefined }));
+                            }
+                            if (error) setError('');
+                          }}
                         />
                         <button
                           type="button"
@@ -1343,6 +1461,58 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode }) => {
                           )}
                         </button>
                       </div>
+                      {fieldErrors.password && (
+                        <p className="field-error" id="aux-password-error">
+                          {fieldErrors.password}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="field">
+                      <label htmlFor="aux-confirm-password">{t('auth.confirmPasswordLabel')}</label>
+                      <div className="field-control password-field">
+                        <span className="field-icon" aria-hidden="true">
+                          <Lock size={17} strokeWidth={1.7} />
+                        </span>
+                        <input
+                          id="aux-confirm-password"
+                          name="confirmPassword"
+                          type={showConfirmPassword ? 'text' : 'password'}
+                          autoComplete="new-password"
+                          placeholder={t('auth.confirmPasswordPlaceholder')}
+                          required
+                          value={confirmPassword}
+                          aria-invalid={fieldErrors.confirm ? 'true' : undefined}
+                          aria-describedby={fieldErrors.confirm ? 'aux-confirm-error' : undefined}
+                          onChange={(e) => {
+                            setConfirmPassword(e.target.value);
+                            if (fieldErrors.confirm) {
+                              setFieldErrors((prev) => ({ ...prev, confirm: undefined }));
+                            }
+                            if (error) setError('');
+                          }}
+                        />
+                        <button
+                          type="button"
+                          className="password-toggle"
+                          aria-controls="aux-confirm-password"
+                          aria-label={
+                            showConfirmPassword ? t('common.hidePassword') : t('common.showPassword')
+                          }
+                          onClick={() => setShowConfirmPassword((prev) => !prev)}
+                        >
+                          {showConfirmPassword ? (
+                            <EyeOff size={18} aria-hidden="true" />
+                          ) : (
+                            <Eye size={18} aria-hidden="true" />
+                          )}
+                        </button>
+                      </div>
+                      {fieldErrors.confirm && (
+                        <p className="field-error" id="aux-confirm-error">
+                          {fieldErrors.confirm}
+                        </p>
+                      )}
                     </div>
                   </>
                 )}
@@ -1398,6 +1568,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode }) => {
                 </div>
               )}
             </form>
+            )}
 
             <footer className="verify-footer">
               <Link to="/login" onClick={handleModeSwitchClick}>

@@ -20,6 +20,7 @@ import type {
   MissedQuestionItem,
   QuestionItem,
   QuizItem,
+  RegisterPendingResponse,
   ResolvedTheme,
   ThemeMode,
   UserProfile,
@@ -101,7 +102,11 @@ interface AppContextValue {
   login: (email: string, password: string) => Promise<UserProfile>;
   startGoogleOAuth: (nextPath?: string, mode?: api.GoogleOAuthMode) => void;
   unlinkGoogleOAuth: () => Promise<void>;
-  register: (email: string, password: string, displayName: string) => Promise<UserProfile>;
+  register: (
+    email: string,
+    password: string,
+    displayName: string
+  ) => Promise<RegisterPendingResponse>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<UserProfile | null>;
 
@@ -607,15 +612,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     email: string,
     password: string,
     displayName: string
-  ): Promise<UserProfile> => {
-    const profile = await api.register({
+  ): Promise<RegisterPendingResponse> => {
+    const pending = await api.register({
       email,
       password,
       display_name: displayName,
       language: uiLanguage
     });
     showToast(t('toasts.registeredVerify'), 'info');
-    return profile;
+    return pending;
   };
 
   const logout = async (): Promise<void> => {
